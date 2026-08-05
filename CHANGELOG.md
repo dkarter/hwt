@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/dkarter/hwt/compare/v0.1.0...v0.1.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* exclude generated changelog from formatting ([59e969a](https://github.com/dkarter/hwt/commit/59e969a95c7caf04ba84da5f9e7ed424387f0d4f))
+
 ## 0.1.0 (2026-08-05)
 
 
