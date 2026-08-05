@@ -93,7 +93,7 @@ func TestCopyConfiguredRejectsSymlinkedSourceParent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := copyConfigured(source, destination, []string{"link/secret"})
+	_, err := copyConfigured(source, destination, copyEntries("link/secret"))
 	if err == nil || !strings.Contains(err.Error(), "is a symlink") {
 		t.Fatalf("expected symlink rejection, got %v", err)
 	}
@@ -109,11 +109,199 @@ func TestCopyConfiguredRejectsSymlinkDestination(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := copyConfigured(source, destination, []string{"secret"})
+	_, err := copyConfigured(source, destination, copyEntries("secret"))
 	if err == nil || !strings.Contains(err.Error(), "destination is a symlink") {
 		t.Fatalf("expected symlink rejection, got %v", err)
 	}
 	assertFile(t, external, "outside\n")
+}
+
+func TestCopyConfiguredRunsCopiesInParallelAndWaits(t *testing.T) {
+	source := t.TempDir()
+	destination := t.TempDir()
+	write(t, filepath.Join(source, "first"), "first\n")
+	write(t, filepath.Join(source, "second"), "second\n")
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	completed := make(chan struct{}, 2)
+	type result struct {
+		copied []string
+		err    error
+	}
+	resultChannel := make(chan result, 1)
+
+	go func() {
+		copied, err := copyConfiguredWith(source, destination, copyEntries("first", "second"), func(_ config.CopyEntry, source, _ string) error {
+			started <- filepath.Base(source)
+			<-release
+			completed <- struct{}{}
+			return nil
+		})
+		resultChannel <- result{copied: copied, err: err}
+	}()
+
+	<-started
+	<-started
+	close(release)
+	resultValue := <-resultChannel
+	if resultValue.err != nil {
+		t.Fatal(resultValue.err)
+	}
+	if !reflect.DeepEqual(resultValue.copied, []string{"first", "second"}) {
+		t.Fatalf("unexpected copied files: %#v", resultValue.copied)
+	}
+	if len(completed) != 2 {
+		t.Fatalf("returned before every copy completed: completed=%d", len(completed))
+	}
+}
+
+func TestCopyConfiguredWaitsForParallelCopiesAfterError(t *testing.T) {
+	source := t.TempDir()
+	destination := t.TempDir()
+	write(t, filepath.Join(source, "slow"), "slow\n")
+	write(t, filepath.Join(source, "failed"), "failed\n")
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	resultChannel := make(chan error, 1)
+
+	go func() {
+		_, err := copyConfiguredWith(source, destination, copyEntries("slow", "failed"), func(entry config.CopyEntry, _, _ string) error {
+			started <- entry.Path
+			if entry.Path == "failed" {
+				return os.ErrPermission
+			}
+			<-release
+			return nil
+		})
+		resultChannel <- err
+	}()
+
+	<-started
+	<-started
+	select {
+	case err := <-resultChannel:
+		t.Fatalf("returned before slow copy finished: %v", err)
+	default:
+	}
+	close(release)
+	if err := <-resultChannel; err == nil || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("expected copy error after all copies finished, got %v", err)
+	}
+}
+
+func TestCopyConfiguredCanRunSequentially(t *testing.T) {
+	source := t.TempDir()
+	destination := t.TempDir()
+	write(t, filepath.Join(source, "first"), "first\n")
+	write(t, filepath.Join(source, "second"), "second\n")
+	var order []string
+
+	entries := []config.CopyEntry{{Path: "first"}, {Path: "second"}}
+	_, err := copyConfiguredWith(source, destination, entries, func(_ config.CopyEntry, source, _ string) error {
+		order = append(order, filepath.Base(source))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(order, []string{"first", "second"}) {
+		t.Fatalf("copies did not run sequentially: %#v", order)
+	}
+}
+
+func TestCopyConfiguredTreatsSequentialEntryAsBarrier(t *testing.T) {
+	source := t.TempDir()
+	destination := t.TempDir()
+	for _, name := range []string{"first", "barrier", "last"} {
+		write(t, filepath.Join(source, name), name+"\n")
+	}
+	entries := []config.CopyEntry{
+		{Path: "first", Parallel: true},
+		{Path: "barrier"},
+		{Path: "last", Parallel: true},
+	}
+	var order []string
+
+	_, err := copyConfiguredWith(source, destination, entries, func(_ config.CopyEntry, source, _ string) error {
+		order = append(order, filepath.Base(source))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(order, []string{"first", "barrier", "last"}) {
+		t.Fatalf("unexpected barrier order: %#v", order)
+	}
+}
+
+func TestCopyConfiguredSerializesOverlappingPaths(t *testing.T) {
+	source := t.TempDir()
+	destination := t.TempDir()
+	write(t, filepath.Join(source, "dir", "file"), "value\n")
+	entries := copyEntries("dir", "dir/file")
+	var order []string
+
+	_, err := copyConfiguredWith(source, destination, entries, func(entry config.CopyEntry, _, _ string) error {
+		order = append(order, entry.Path)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(order, []string{"dir", "dir/file"}) {
+		t.Fatalf("overlapping copies ran out of order: %#v", order)
+	}
+}
+
+func TestCopyPathConfiguredFallsBackWhenCloneIsUnavailable(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	destination := filepath.Join(t.TempDir(), "destination")
+	write(t, filepath.Join(source, "file"), "source\n")
+	write(t, filepath.Join(destination, "existing"), "existing\n")
+
+	if err := copyPathConfigured(config.CopyEntry{CopyOnWrite: true}, source, destination); err != nil {
+		t.Fatal(err)
+	}
+	assertFile(t, filepath.Join(destination, "file"), "source\n")
+	assertFile(t, filepath.Join(destination, "existing"), "existing\n")
+}
+
+func TestCopyPathConfiguredPreservesSourceSymlinkWithCopyOnWrite(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "source")
+	destination := filepath.Join(t.TempDir(), "destination")
+	write(t, filepath.Join(root, "target"), "target\n")
+	if err := os.Symlink("target", source); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := copyPathConfigured(config.CopyEntry{CopyOnWrite: true}, source, destination); err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "target" {
+		t.Fatalf("unexpected symlink target: %s", target)
+	}
+}
+
+func TestCopyPathConfiguredCanSymlink(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	destination := filepath.Join(t.TempDir(), "nested", "destination")
+	write(t, filepath.Join(source, "file"), "source\n")
+
+	if err := copyPathConfigured(config.CopyEntry{Symlink: true}, source, destination); err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != source {
+		t.Fatalf("unexpected symlink target: %s", target)
+	}
 }
 
 func TestRemoveRenamesCheckoutAndRemovesMetadata(t *testing.T) {
@@ -209,4 +397,12 @@ func assertFile(t *testing.T, path, expected string) {
 	if string(data) != expected {
 		t.Fatalf("unexpected contents of %s: %q", path, data)
 	}
+}
+
+func copyEntries(paths ...string) []config.CopyEntry {
+	entries := make([]config.CopyEntry, len(paths))
+	for index, path := range paths {
+		entries[index] = config.CopyEntry{Path: path, Parallel: true}
+	}
+	return entries
 }

@@ -34,8 +34,56 @@
       "properties": {
         "copy": {
           "type": "array",
-          "description": "Repository-relative files or directories copied into new worktrees. Missing sources are ignored. Use <global> in a project config to include global entries.",
-          "items": { "type": "string" }
+          "description": "Repository-relative files or directories copied into new worktrees. String entries inherit the files defaults; object entries may override them. Missing sources are ignored. Use <global> in a project config to include global entries.",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path"],
+                "allOf": [
+                  {
+                    "not": {
+                      "required": ["copy_on_write", "symlink"],
+                      "properties": {
+                        "copy_on_write": { "const": true },
+                        "symlink": { "const": true }
+                      }
+                    }
+                  }
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Repository-relative source and destination path."
+                  },
+                  "parallel": {
+                    "type": "boolean",
+                    "description": "Override whether this entry participates in parallel copying. A false value makes this entry a scheduling barrier."
+                  },
+                  "copy_on_write": {
+                    "type": "boolean",
+                    "description": "Experimentally attempt a filesystem copy-on-write clone before falling back to a normal copy."
+                  },
+                  "symlink": {
+                    "type": "boolean",
+                    "description": "Symlink this path to the source checkout instead of copying it. Cannot be combined with copy_on_write."
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "parallel": {
+          "type": "boolean",
+          "description": "Copy configured entries in parallel. Set to false to copy them sequentially.",
+          "default": true
+        },
+        "copy_on_write": {
+          "type": "boolean",
+          "description": "Experimentally attempt filesystem copy-on-write clones before falling back to normal copies.",
+          "default": false
         }
       }
     },

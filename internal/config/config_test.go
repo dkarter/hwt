@@ -17,6 +17,7 @@ agent: global-agent
 worktree_dir: ~/.herdr/worktrees
 files:
   copy: [.env, global.txt]
+  parallel: false
 post_create: [global-command]
 `)
 	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `
@@ -24,6 +25,7 @@ agent: repo-agent
 worktree_prefix: repo-
 files:
   copy: [local.txt, <global>]
+  parallel: true
 post_create: [<global>, local-command]
 `)
 
@@ -34,14 +36,73 @@ post_create: [<global>, local-command]
 	if cfg.Agent != "repo-agent" || cfg.WorktreeDir != "~/.herdr/worktrees" || cfg.WorktreePrefix != "repo-" {
 		t.Fatalf("unexpected scalar merge: %#v", cfg)
 	}
-	if !reflect.DeepEqual(cfg.Files.Copy, []string{"local.txt", ".env", "global.txt"}) {
+	expectedCopy := []CopyEntry{
+		{Path: "local.txt", Parallel: true},
+		{Path: ".env", Parallel: true},
+		{Path: "global.txt", Parallel: true},
+	}
+	if !reflect.DeepEqual(cfg.Files.Copy, expectedCopy) {
 		t.Fatalf("unexpected copied files: %#v", cfg.Files.Copy)
+	}
+	if !cfg.Files.Parallel {
+		t.Fatal("expected project parallel setting to override global setting")
 	}
 	if !reflect.DeepEqual(cfg.PostCreate, []string{"global-command", "local-command"}) {
 		t.Fatalf("unexpected hooks: %#v", cfg.PostCreate)
 	}
 	if sources.Project != filepath.Join(repo, ".herdr-worktree.yaml") {
 		t.Fatalf("unexpected project source: %s", sources.Project)
+	}
+}
+
+func TestLoadResolvesPerEntryCopyOptions(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `
+files:
+  parallel: false
+  copy_on_write: true
+  copy:
+    - inherited
+    - path: overridden
+      parallel: true
+      copy_on_write: false
+      symlink: true
+`)
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []CopyEntry{
+		{Path: "inherited", Parallel: false, CopyOnWrite: true},
+		{Path: "overridden", Parallel: true, Symlink: true},
+	}
+	if !reflect.DeepEqual(cfg.Files.Copy, expected) {
+		t.Fatalf("unexpected copy entries: %#v", cfg.Files.Copy)
+	}
+}
+
+func TestLoadRejectsConflictingCopyStrategies(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "files:\n  copy_on_write: true\n  copy:\n    - path: deps\n      symlink: true\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "cannot enable both") {
+		t.Fatalf("expected conflicting strategy error, got %v", err)
+	}
+}
+
+func TestLoadDefaultsToParallelCopies(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, _, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Files.Parallel {
+		t.Fatal("expected copies to be parallel by default")
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 
 const GlobalMarker = "<global>"
 const DefaultWorktreeNaming = "full"
+const DefaultCopyParallel = true
+const DefaultCopyOnWrite = false
 
 type Config struct {
 	Agent          string   `json:"agent,omitempty" yaml:"agent,omitempty"`
@@ -25,7 +27,16 @@ type Config struct {
 }
 
 type Files struct {
-	Copy []string `json:"copy,omitempty" yaml:"copy,omitempty"`
+	Copy        []CopyEntry `json:"copy,omitempty" yaml:"copy,omitempty"`
+	Parallel    bool        `json:"parallel" yaml:"parallel"`
+	CopyOnWrite bool        `json:"copy_on_write" yaml:"copy_on_write"`
+}
+
+type CopyEntry struct {
+	Path        string `json:"path" yaml:"path"`
+	Parallel    bool   `json:"parallel" yaml:"parallel"`
+	CopyOnWrite bool   `json:"copy_on_write" yaml:"copy_on_write"`
+	Symlink     bool   `json:"symlink" yaml:"symlink"`
 }
 
 type Sources struct {
@@ -43,7 +54,33 @@ type rawConfig struct {
 }
 
 type rawFiles struct {
-	Copy *[]string `yaml:"copy"`
+	Copy        *[]rawCopyEntry `yaml:"copy"`
+	Parallel    *bool           `yaml:"parallel"`
+	CopyOnWrite *bool           `yaml:"copy_on_write"`
+}
+
+type rawCopyEntry struct {
+	Path        string `yaml:"path"`
+	Parallel    *bool  `yaml:"parallel"`
+	CopyOnWrite *bool  `yaml:"copy_on_write"`
+	Symlink     *bool  `yaml:"symlink"`
+}
+
+func (entry *rawCopyEntry) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		return node.Decode(&entry.Path)
+	}
+	if node.Kind != yaml.MappingNode {
+		return errors.New("copy entry must be a path string or object")
+	}
+	allowed := map[string]bool{"path": true, "parallel": true, "copy_on_write": true, "symlink": true}
+	for index := 0; index < len(node.Content); index += 2 {
+		if key := node.Content[index].Value; !allowed[key] {
+			return fmt.Errorf("unknown copy entry field %q", key)
+		}
+	}
+	type plain rawCopyEntry
+	return node.Decode((*plain)(entry))
 }
 
 func GlobalPath() (string, error) {
@@ -127,11 +164,14 @@ func Validate(cfg Config) error {
 		return fmt.Errorf("worktree_naming must be full or basename, got %q", cfg.WorktreeNaming)
 	}
 	for _, item := range cfg.Files.Copy {
-		if item == GlobalMarker {
+		if item.Path == GlobalMarker {
 			return errors.New("files.copy contains unresolved <global> marker")
 		}
-		if err := validateRelativePath(item); err != nil {
-			return fmt.Errorf("files.copy entry %q: %w", item, err)
+		if err := validateRelativePath(item.Path); err != nil {
+			return fmt.Errorf("files.copy entry %q: %w", item.Path, err)
+		}
+		if item.CopyOnWrite && item.Symlink {
+			return fmt.Errorf("files.copy entry %q cannot enable both copy_on_write and symlink", item.Path)
 		}
 	}
 	for _, hook := range cfg.PostCreate {
@@ -192,17 +232,30 @@ func resolve(global, project rawConfig) Config {
 	cfg.WorktreeDir = scalar(global.WorktreeDir, project.WorktreeDir, "")
 	cfg.WorktreeNaming = scalar(global.WorktreeNaming, project.WorktreeNaming, DefaultWorktreeNaming)
 	cfg.WorktreePrefix = scalar(global.WorktreePrefix, project.WorktreePrefix, "")
-	cfg.Files.Copy = list(fileCopy(global.Files), fileCopy(project.Files))
+	cfg.Files.Parallel = scalar(fileParallel(global.Files), fileParallel(project.Files), DefaultCopyParallel)
+	cfg.Files.CopyOnWrite = scalar(fileCopyOnWrite(global.Files), fileCopyOnWrite(project.Files), DefaultCopyOnWrite)
+	for _, entry := range copyList(fileCopy(global.Files), fileCopy(project.Files)) {
+		cfg.Files.Copy = append(cfg.Files.Copy, CopyEntry{
+			Path:        entry.Path,
+			Parallel:    scalar(nil, entry.Parallel, cfg.Files.Parallel),
+			CopyOnWrite: scalar(nil, entry.CopyOnWrite, cfg.Files.CopyOnWrite),
+			Symlink:     scalar(nil, entry.Symlink, false),
+		})
+	}
 	cfg.PostCreate = list(global.PostCreate, project.PostCreate)
 	return cfg
 }
 
 func validateGlobal(cfg rawConfig) error {
-	for _, entries := range []*[]string{fileCopy(cfg.Files), cfg.PostCreate} {
-		if entries == nil {
-			continue
-		}
+	if entries := fileCopy(cfg.Files); entries != nil {
 		for _, entry := range *entries {
+			if entry.Path == GlobalMarker {
+				return errors.New("<global> cannot be used in the global config")
+			}
+		}
+	}
+	if cfg.PostCreate != nil {
+		for _, entry := range *cfg.PostCreate {
 			if entry == GlobalMarker {
 				return errors.New("<global> cannot be used in the global config")
 			}
@@ -211,7 +264,7 @@ func validateGlobal(cfg rawConfig) error {
 	return nil
 }
 
-func scalar(global, project *string, fallback string) string {
+func scalar[T any](global, project *T, fallback T) T {
 	if project != nil {
 		return *project
 	}
@@ -221,11 +274,45 @@ func scalar(global, project *string, fallback string) string {
 	return fallback
 }
 
-func fileCopy(files *rawFiles) *[]string {
+func fileCopy(files *rawFiles) *[]rawCopyEntry {
 	if files == nil {
 		return nil
 	}
 	return files.Copy
+}
+
+func fileParallel(files *rawFiles) *bool {
+	if files == nil {
+		return nil
+	}
+	return files.Parallel
+}
+
+func fileCopyOnWrite(files *rawFiles) *bool {
+	if files == nil {
+		return nil
+	}
+	return files.CopyOnWrite
+}
+
+func copyList(global, project *[]rawCopyEntry) []rawCopyEntry {
+	if project == nil {
+		if global == nil {
+			return nil
+		}
+		return append([]rawCopyEntry(nil), (*global)...)
+	}
+	result := make([]rawCopyEntry, 0, len(*project))
+	for _, item := range *project {
+		if item.Path == GlobalMarker {
+			if global != nil {
+				result = append(result, (*global)...)
+			}
+			continue
+		}
+		result = append(result, item)
+	}
+	return result
 }
 
 func list(global, project *[]string) []string {

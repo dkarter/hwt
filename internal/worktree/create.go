@@ -10,12 +10,16 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
 )
 
 var invalidSlug = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+var errCloneUnavailable = errors.New("copy-on-write cloning is unavailable")
+
+const maxParallelCopies = 8
 
 type Client interface {
 	Run(args ...string) ([]byte, error)
@@ -174,28 +178,129 @@ func expandHome(path string) string {
 	return path
 }
 
-func copyConfigured(sourceRoot, destinationRoot string, entries []string) ([]string, error) {
-	var copied []string
-	for _, entry := range entries {
-		if err := rejectSymlinkParents(sourceRoot, entry); err != nil {
-			return nil, fmt.Errorf("inspect copy source %s: %w", entry, err)
+func copyConfigured(sourceRoot, destinationRoot string, entries []config.CopyEntry) ([]string, error) {
+	return copyConfiguredWith(sourceRoot, destinationRoot, entries, copyPathConfigured)
+}
+
+func copyConfiguredWith(sourceRoot, destinationRoot string, entries []config.CopyEntry, copy func(config.CopyEntry, string, string) error) ([]string, error) {
+	copied := make([]bool, len(entries))
+	errs := make([]error, len(entries))
+	copyEntry := func(index int) {
+		entry := entries[index]
+		if err := rejectSymlinkParents(sourceRoot, entry.Path); err != nil {
+			errs[index] = fmt.Errorf("inspect copy source %s: %w", entry.Path, err)
+			return
 		}
-		if err := rejectSymlinkParents(destinationRoot, entry); err != nil {
-			return nil, fmt.Errorf("inspect copy destination %s: %w", entry, err)
+		if err := rejectSymlinkParents(destinationRoot, entry.Path); err != nil {
+			errs[index] = fmt.Errorf("inspect copy destination %s: %w", entry.Path, err)
+			return
 		}
-		source := filepath.Join(sourceRoot, filepath.Clean(entry))
+		source := filepath.Join(sourceRoot, filepath.Clean(entry.Path))
 		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
-			continue
+			return
 		} else if err != nil {
-			return nil, fmt.Errorf("inspect copy source %s: %w", entry, err)
+			errs[index] = fmt.Errorf("inspect copy source %s: %w", entry.Path, err)
+			return
 		}
-		destination := filepath.Join(destinationRoot, filepath.Clean(entry))
-		if err := copyPath(source, destination); err != nil {
-			return nil, fmt.Errorf("copy %s: %w", entry, err)
+		destination := filepath.Join(destinationRoot, filepath.Clean(entry.Path))
+		if err := copy(entry, source, destination); err != nil {
+			errs[index] = fmt.Errorf("copy %s: %w", entry.Path, err)
+			return
 		}
-		copied = append(copied, entry)
+		copied[index] = true
 	}
-	return copied, nil
+
+	runParallel := func(indexes []int) error {
+		workerCount := min(len(indexes), maxParallelCopies)
+		jobs := make(chan int)
+		var wait sync.WaitGroup
+		for range workerCount {
+			wait.Go(func() {
+				for index := range jobs {
+					copyEntry(index)
+				}
+			})
+		}
+		for _, index := range indexes {
+			jobs <- index
+		}
+		close(jobs)
+		wait.Wait()
+		return errors.Join(errs...)
+	}
+
+	var batch []int
+	for index, entry := range entries {
+		if !entry.Parallel || overlapsBatch(entry.Path, entries, batch) {
+			if err := runParallel(batch); err != nil {
+				return nil, err
+			}
+			batch = batch[:0]
+		}
+		if entry.Parallel {
+			batch = append(batch, index)
+			continue
+		}
+		copyEntry(index)
+		if errs[index] != nil {
+			return nil, errs[index]
+		}
+	}
+	if err := runParallel(batch); err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(entries))
+	for index, entry := range entries {
+		if copied[index] {
+			result = append(result, entry.Path)
+		}
+	}
+	return result, nil
+}
+
+func overlapsBatch(path string, entries []config.CopyEntry, batch []int) bool {
+	path = filepath.Clean(path)
+	for _, index := range batch {
+		other := filepath.Clean(entries[index].Path)
+		if path == other || strings.HasPrefix(path, other+string(filepath.Separator)) || strings.HasPrefix(other, path+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func copyPathConfigured(entry config.CopyEntry, source, destination string) error {
+	if entry.Symlink {
+		return replaceWithSymlink(source, destination)
+	}
+	if entry.CopyOnWrite {
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			return err
+		}
+		info, err := os.Lstat(source)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return copyPath(source, destination)
+		}
+		if err := clonePath(source, destination); err == nil {
+			return nil
+		} else if !errors.Is(err, errCloneUnavailable) {
+			return fmt.Errorf("clone: %w", err)
+		}
+	}
+	return copyPath(source, destination)
+}
+
+func replaceWithSymlink(target, destination string) error {
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(destination); err != nil {
+		return err
+	}
+	return os.Symlink(target, destination)
 }
 
 func copyPath(source, destination string) error {
@@ -208,13 +313,7 @@ func copyPath(source, destination string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
-			return err
-		}
-		if err := os.RemoveAll(destination); err != nil {
-			return err
-		}
-		return os.Symlink(target, destination)
+		return replaceWithSymlink(target, destination)
 	}
 	if destinationInfo, err := os.Lstat(destination); err == nil && destinationInfo.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("destination is a symlink")
