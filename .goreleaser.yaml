@@ -1,0 +1,46 @@
+version: 2
+
+builds:
+  - id: hwt
+    main: ./cmd/hwt
+    binary: hwt
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+      - schema/herdr-worktree.schema.json
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-next'
+
+changelog:
+  sort: asc
+  use: github
+
+source:
+  enabled: true
+
+release:
+  draft: true
+  use_existing_draft: true

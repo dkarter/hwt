@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json",
+  "title": "Herdr Worktree Configuration",
+  "description": "Global and repository-specific settings used by hwt.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "agent": {
+      "type": "string",
+      "description": "Command an agent orchestrator should start in the new worktree.",
+      "examples": ["opencode --port"]
+    },
+    "worktree_dir": {
+      "type": "string",
+      "description": "Directory for worktrees. Relative paths resolve from the repository root.",
+      "examples": ["../", "~/.herdr/worktrees"]
+    },
+    "worktree_naming": {
+      "type": "string",
+      "description": "Strategy used to derive the worktree directory name from its branch.",
+      "default": "full",
+      "enum": ["full", "basename"]
+    },
+    "worktree_prefix": {
+      "type": "string",
+      "description": "Prefix added to generated worktree directory names.",
+      "examples": ["houston-"]
+    },
+    "files": {
+      "type": "object",
+      "description": "File operations performed after creating a worktree.",
+      "additionalProperties": false,
+      "properties": {
+        "copy": {
+          "type": "array",
+          "description": "Repository-relative files or directories copied into new worktrees. Missing sources are ignored. Use <global> in a project config to include global entries.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "post_create": {
+      "type": "array",
+      "description": "Shell commands run in order from the new worktree root. Use <global> in a project config to include global commands.",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}
