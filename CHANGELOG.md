@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/dkarter/hwt/compare/v0.1.1...v0.2.0) (2026-08-05)
+
+
+### Features
+
+* add configurable copy strategies ([190b4ec](https://github.com/dkarter/hwt/commit/190b4ec62c4b7988d980f49429703d2ede9e1dc0))
+
 ## [0.1.1](https://github.com/dkarter/hwt/compare/v0.1.0...v0.1.1) (2026-08-05)
 
 
