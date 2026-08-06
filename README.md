@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="website/public/favicon.svg" width="64" height="64" alt="hwt worktree mark">
+</p>
+
 # hwt
 
 `hwt` is a deterministic wrapper around Herdr's native Git worktree lifecycle. It applies global and repository-specific placement, file-copy, and setup rules before returning workspace and pane IDs to people or coding agents.
