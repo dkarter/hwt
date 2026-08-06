@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/dkarter/hwt/compare/v0.2.0...v0.3.0) (2026-08-06)
+
+
+### Features
+
+* add website and documentation ([34879c8](https://github.com/dkarter/hwt/commit/34879c8ae0d69a1de9c7f443d01a8db679962221))
+* animate coordinated worktree creation ([188b0ae](https://github.com/dkarter/hwt/commit/188b0aed4d28847aa2e0c8df8b5998b672b3d0d3))
+* expose canonical hwt skill ([#8](https://github.com/dkarter/hwt/issues/8)) ([8909b85](https://github.com/dkarter/hwt/commit/8909b85fb11b61a160155bd3f36af11583f0f13c))
+* improve docs navigation ([29cc1a0](https://github.com/dkarter/hwt/commit/29cc1a017108ee9d4d28d6421f92b4e5ec62cb43))
+* sharpen homepage messaging ([0d3ebb7](https://github.com/dkarter/hwt/commit/0d3ebb74f7055a33925ce6bf16ef56ccc09000a5))
+
+
+### Bug Fixes
+
+* polish worktree status animation ([f3cd4f1](https://github.com/dkarter/hwt/commit/f3cd4f1a59e6caec72b34d99cfa1bef9e5cfc20c))
+* synchronize worktree tree animation ([be91be0](https://github.com/dkarter/hwt/commit/be91be04e51b30935f439809bbe9a94f76cdfc38))
+
 ## [0.2.0](https://github.com/dkarter/hwt/compare/v0.1.1...v0.2.0) (2026-08-05)
 
 
