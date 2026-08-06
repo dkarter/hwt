@@ -134,17 +134,24 @@ const demoWorkers = [
               <div class="space parent-space">
                 <i></i><span>hwt<small>main</small></span><b>⌄</b>
               </div>
-              {
-                demoWorkers.map((worker) => (
-                  <div class:list={["space", "child-space", "demo-step", worker.step]}>
-                    <span class="tree-arm">└</span><i class={worker.workerStep}></i><span>{
-                      worker.label
-                    }</span>
-                  </div>
-                ))
-              }
+              <div class="worktree-list">
+                {
+                  demoWorkers.map((worker) => (
+                    <div class:list={["space", "child-space", "demo-step", worker.step]}>
+                      <i class={worker.workerStep}></i><span>{worker.label}</span>
+                    </div>
+                  ))
+                }
+              </div>
               <div class="agent-label">agents <span>status</span></div>
-              <div class="agent-row"><i></i><span>coordinator<small>working</small></span></div>
+              <div class="agent-row">
+                <i class="coordinator-status"></i>
+                <span>
+                  coordinator
+                  <small class="coordinator-working">working</small>
+                  <small class="coordinator-done">done</small>
+                </span>
+              </div>
               {
                 demoWorkers.map((worker) => (
                   <div class:list={["agent-row", "demo-step", worker.workerStep]}>
