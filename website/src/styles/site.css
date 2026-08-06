@@ -167,24 +167,34 @@ h1 em, h2 em {
   border-color: var(--paper);
 }
 
-.terminal {
+.herdr-demo {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-rows: 42px 480px;
+  grid-template-areas: "bar bar" "sidebar panes";
   overflow: hidden;
   border: 1px solid #3d4147;
-  background: #111214;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 85% 20%, rgb(117 93 173 / 0.14), transparent 34%),
+    #08090b;
   box-shadow: 0 26px 90px rgb(0 0 0 / 0.4);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
-.terminal-bar {
+.demo-visual {
+  display: contents;
+}
+.demo-bar {
+  grid-area: bar;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 44px;
   padding: 0 16px;
   border-bottom: 1px solid var(--line);
   color: #92989e;
   font-size: 0.68rem;
 }
-.terminal-bar > :last-child {
+.demo-bar > :last-child {
   text-align: right;
 }
 .lights {
@@ -197,32 +207,220 @@ h1 em, h2 em {
   border-radius: 50%;
   background: #41454b;
 }
-.terminal-body {
-  padding: clamp(22px, 4vw, 46px);
-  color: #d5d6d2;
-  font-size: clamp(0.7rem, 1.4vw, 0.93rem);
-  line-height: 1.75;
+.demo-sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 10px 12px;
+  border-right: 1px solid #262932;
+  color: #8f96b3;
+  font-size: 0.72rem;
 }
-.prompt {
+.demo-sidebar > b {
+  margin: 0 8px 14px;
+  color: #7680ad;
+  font-size: 0.82rem;
+}
+.space, .agent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+}
+.parent-space {
+  color: #e5e5e8;
+}
+.parent-space > b {
+  margin-left: auto;
+  color: #7fb5ff;
+}
+.child-space {
+  position: relative;
+  margin-left: 15px;
+  padding-left: 0;
+  color: #d7d7de;
+}
+.child-space::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  bottom: 50%;
+  left: 4px;
+  border-left: 1px solid #4a5278;
+}
+.tree-arm {
+  position: relative;
+  z-index: 1;
+  width: 17px;
+  color: #65709e;
+}
+.child-space i {
+  margin-left: -2px;
+}
+.child-space i.worker-one,
+.child-space i.worker-two,
+.child-space i.worker-three,
+.agent-row i.worker-one,
+.agent-row i.worker-two,
+.agent-row i.worker-three {
+  animation-name: status-working;
+  animation-duration: 0.2s;
+  animation-fill-mode: forwards;
+}
+.space i, .agent-row i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  margin-top: 3px;
+  border: 1px solid var(--acid);
+  border-radius: 50%;
+}
+.space span, .agent-row span {
+  min-width: 0;
+}
+.space small, .agent-row small {
+  display: block;
+  margin-top: 3px;
+  color: #858dab;
+  font-size: 0.62rem;
+}
+.agent-label {
+  display: flex;
+  justify-content: space-between;
+  margin: auto 5px 5px;
+  padding-top: 12px;
+  border-top: 1px solid #262932;
+  color: #7680ad;
+  font-weight: 700;
+}
+.demo-panes {
+  grid-area: panes;
+  display: block;
+  padding: 8px;
+  min-width: 0;
+}
+.demo-pane {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #454b72;
+  background: rgb(10 11 15 / 0.88);
+  color: #d7d7de;
+}
+.pane-title {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid #303552;
+  color: #8e99cf;
+  font-size: 0.66rem;
+}
+.pane-title b {
+  color: #858dab;
+  font-weight: 400;
+}
+.coordinator-pane {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+.pane-content {
+  padding: 18px;
+  font-size: clamp(0.66rem, 1vw, 0.78rem);
+  line-height: 1.55;
+}
+.pane-content p {
+  margin-bottom: 11px;
+}
+.pane-content strong {
+  color: #7fb5ff;
+}
+.agent-copy {
+  color: #b9bfd8;
+}
+.command {
+  padding: 6px 8px;
+  background: #17181e;
+  color: #d4d6e3;
+}
+.command b {
+  margin-right: 8px;
   color: var(--acid);
 }
-.terminal pre {
-  margin: 18px 0;
-  color: #9da2a7;
-  white-space: pre-wrap;
-}
-.terminal pre span {
-  color: var(--violet);
-}
-.terminal-status {
-  padding-top: 18px;
-  border-top: 1px dashed var(--line);
-  color: #7f858b;
-}
-.terminal-status b {
-  margin-right: 15px;
+.result {
+  padding-left: 9px;
   color: var(--acid);
-  font-weight: 500;
+}
+.result span {
+  float: right;
+  color: #858dab;
+  font-size: 0.62rem;
+}
+.pane-foot {
+  padding: 8px 11px;
+  border-top: 1px solid #303552;
+  color: #858dab;
+  font-size: 0.62rem;
+}
+.pane-foot b {
+  color: #b7a5f8;
+}
+.switch-note {
+  color: #858dab;
+  font-size: 0.66rem;
+}
+.demo-step {
+  opacity: 0;
+  transform: translateY(4px);
+  animation: demo-reveal 0.3s ease forwards;
+}
+.intro-step {
+  animation-delay: 0.7s;
+}
+.command-one {
+  animation-delay: 1.4s;
+}
+.step-one {
+  animation-delay: 1.8s;
+}
+.command-two {
+  animation-delay: 2.8s;
+}
+.step-two {
+  animation-delay: 3.2s;
+}
+.command-three {
+  animation-delay: 4.2s;
+}
+.step-three {
+  animation-delay: 4.6s;
+}
+.launch-step {
+  animation-delay: 5.3s;
+}
+.worker-one {
+  animation-delay: 5.7s;
+}
+.worker-two {
+  animation-delay: 6s;
+}
+.worker-three {
+  animation-delay: 6.3s;
+}
+.final-step {
+  animation-delay: 6.8s;
+}
+@keyframes demo-reveal {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes status-working {
+  to {
+    border-color: #f2bd68;
+    background: #f2bd68;
+    box-shadow: 0 0 8px rgb(242 189 104 / 0.35);
+  }
 }
 
 .manifesto {
@@ -375,11 +573,22 @@ footer a {
     text-align: center;
     margin-bottom: 48px;
   }
-  .terminal-bar {
+  .demo-bar {
     grid-template-columns: 1fr 1fr;
   }
-  .terminal-bar > :nth-child(2) {
+  .demo-bar > :nth-child(2) {
     display: none;
+  }
+  .herdr-demo {
+    grid-template-columns: 1fr;
+    grid-template-rows: 42px 500px;
+    grid-template-areas: "bar" "panes";
+  }
+  .demo-sidebar {
+    display: none;
+  }
+  .demo-panes {
+    display: block;
   }
   .manifesto {
     padding-top: 100px;
@@ -421,6 +630,22 @@ footer a {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .demo-step {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .child-space i.worker-one,
+  .child-space i.worker-two,
+  .child-space i.worker-three,
+  .agent-row i.worker-one,
+  .agent-row i.worker-two,
+  .agent-row i.worker-three {
+    border-color: #f2bd68;
+    background: #f2bd68;
+    box-shadow: none;
+    animation: none;
   }
 }
 

@@ -45,6 +45,36 @@ const features = [
     command: "copy_on_write: true",
   },
 ];
+
+const demoWorkers = [
+  {
+    label: "auth",
+    branch: "feat/auth",
+    path: "../hwt-feat-auth",
+    workspace: "wA1",
+    step: "step-one",
+    commandStep: "command-one",
+    workerStep: "worker-one",
+  },
+  {
+    label: "api",
+    branch: "feat/api",
+    path: "../hwt-feat-api",
+    workspace: "wA2",
+    step: "step-two",
+    commandStep: "command-two",
+    workerStep: "worker-two",
+  },
+  {
+    label: "docs",
+    branch: "feat/docs",
+    path: "../hwt-feat-docs",
+    workspace: "wA3",
+    step: "step-three",
+    commandStep: "command-three",
+    workerStep: "worker-three",
+  },
+];
 ---
 
 <!DOCTYPE html>
@@ -88,29 +118,77 @@ const features = [
           <a class="secondary" href="/docs/">Read the docs</a>
         </div>
 
-        <div class="terminal" aria-label="Terminal showing hwt creating a worktree">
-          <div class="terminal-bar">
-            <span class="lights"><i></i><i></i><i></i></span>
-            <span>~/code/hwt · main</span>
-            <span>herdr</span>
-          </div>
-          <div class="terminal-body">
-            <div><span class="prompt">$</span> hwt create --branch feat/agent-status --json</div>
-            <pre>
-<code>&#123;
-  <span>"workspace_id"</span>: "w_8Jx2",
-  <span>"pane_id"</span>: "p_M4q9",
-  <span>"path"</span>: "../hwt-feat-agent-status",
-  <span>"branch"</span>: "feat/agent-status",
-  <span>"base"</span>: "main",
-  <span>"copied"</span>: [".env.local"],
-  <span>"agent"</span>: "opencode --port",
-  <span>"config"</span>: &#123;
-    <span>"global"</span>: "~/.config/hwt/config.yaml",
-    <span>"project"</span>: ".herdr-worktree.yaml"
-  &#125;
-&#125;</code></pre>
-            <div class="terminal-status"><b>ready</b> workspace w_8Jx2 · 0.47s</div>
+        <div
+          class="herdr-demo"
+          role="img"
+          aria-label="Animated Herdr workspace showing OpenCode creating three hwt worktrees and starting agents in separate workspaces"
+        >
+          <div class="demo-visual" aria-hidden="true">
+            <div class="demo-bar">
+              <span class="lights"><i></i><i></i><i></i></span>
+              <span>hwt · coordinator</span>
+              <span>herdr</span>
+            </div>
+            <aside class="demo-sidebar">
+              <b>spaces</b>
+              <div class="space parent-space">
+                <i></i><span>hwt<small>main</small></span><b>⌄</b>
+              </div>
+              {
+                demoWorkers.map((worker) => (
+                  <div class:list={["space", "child-space", "demo-step", worker.step]}>
+                    <span class="tree-arm">└</span><i class={worker.workerStep}></i><span>{
+                      worker.label
+                    }</span>
+                  </div>
+                ))
+              }
+              <div class="agent-label">agents <span>status</span></div>
+              <div class="agent-row"><i></i><span>coordinator<small>working</small></span></div>
+              {
+                demoWorkers.map((worker) => (
+                  <div class:list={["agent-row", "demo-step", worker.workerStep]}>
+                    <i class={worker.workerStep}></i><span>{worker.label}<small
+                      >working</small></span>
+                  </div>
+                ))
+              }
+            </aside>
+            <div class="demo-panes">
+              <section class="coordinator-pane demo-pane">
+                <div class="pane-title"><span>▣ opencode</span><b>coordinator</b></div>
+                <div class="pane-content">
+                  <p>
+                    <strong>❯</strong> Use the coordinator skill to split auth, API, and docs work.
+                  </p>
+                  <p class="agent-copy demo-step intro-step">
+                    ● Creating isolated Herdr workspaces.
+                  </p>
+                  {
+                    demoWorkers.map((worker) => (
+                      <>
+                        <p class:list={["command", "demo-step", worker.commandStep]}>
+                          <b>$</b> hwt create -b {worker.branch} --base main
+                        </p>
+                        <p class:list={["result", "demo-step", worker.step]}>
+                          Created {worker.branch} at {worker.path} <span>(workspace {
+                              worker.workspace
+                            })</span>
+                        </p>
+                      </>
+                    ))
+                  }
+                  <p class="agent-copy demo-step launch-step">
+                    ● Worktrees ready. Starting OpenCode in each workspace.
+                  </p>
+                  <p class="agent-copy demo-step final-step">● Three agents working in parallel.</p>
+                  <p class="switch-note demo-step final-step">
+                    Select a worktree in the sidebar to switch to its agent.
+                  </p>
+                </div>
+                <div class="pane-foot">~/code/hwt <b>main</b> · ctrl+p commands</div>
+              </section>
+            </div>
           </div>
         </div>
       </section>
