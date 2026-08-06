@@ -244,15 +244,15 @@ h1 em, h2 em {
   position: relative;
   margin-left: 15px;
 }
-.worktree-list::before {
+.child-space::before {
   content: "";
   position: absolute;
-  top: -4px;
-  bottom: 17px;
-  left: 5px;
+  top: -50%;
+  bottom: 50%;
+  left: 4px;
   border-left: 1px solid #65709e;
 }
-.child-space::before {
+.child-space::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -290,23 +290,24 @@ h1 em, h2 em {
   color: #858dab;
   font-size: 0.62rem;
 }
-.agent-row > span {
-  position: relative;
-}
-.coordinator-status {
-  border-color: #f2bd68 !important;
+.parent-space .space-status, .agent-row .coordinator-status {
+  border-color: #f2bd68;
   background: #f2bd68;
   box-shadow: 0 0 8px rgb(242 189 104 / 0.35);
   animation: coordinator-done 0.2s ease 7.1s forwards;
+}
+.coordinator-state {
+  display: grid !important;
+  margin-top: 3px;
+}
+.coordinator-state small {
+  grid-area: 1 / 1;
+  margin: 0;
 }
 .coordinator-working {
   animation: hide-working 0.1s linear 7.1s forwards;
 }
 .coordinator-done {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0;
-  margin: 0 !important;
   color: #69c5f7 !important;
   opacity: 0;
   animation: show-done 0.1s linear 7.1s forwards;
@@ -691,8 +692,8 @@ footer a {
     box-shadow: none;
     animation: none;
   }
-  .coordinator-status {
-    border-color: #69c5f7 !important;
+  .space-status, .coordinator-status {
+    border-color: #69c5f7;
     background: #69c5f7;
     box-shadow: none;
     animation: none;

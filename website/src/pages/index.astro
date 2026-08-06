@@ -132,7 +132,7 @@ const demoWorkers = [
             <aside class="demo-sidebar">
               <b>spaces</b>
               <div class="space parent-space">
-                <i></i><span>hwt<small>main</small></span><b>⌄</b>
+                <i class="space-status"></i><span>hwt<small>main</small></span><b>⌄</b>
               </div>
               <div class="worktree-list">
                 {
@@ -148,8 +148,10 @@ const demoWorkers = [
                 <i class="coordinator-status"></i>
                 <span>
                   coordinator
-                  <small class="coordinator-working">working</small>
-                  <small class="coordinator-done">done</small>
+                  <span class="coordinator-state">
+                    <small class="coordinator-working">working</small>
+                    <small class="coordinator-done">done</small>
+                  </span>
                 </span>
               </div>
               {
