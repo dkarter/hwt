@@ -1,0 +1,60 @@
+name: Deploy website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/pages.yml
+      - website/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node
+        # v7.0.0 is an immutable release.
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+
+      - name: Install aube
+        run: |
+          curl -fsSLo /tmp/aube.tar.gz https://github.com/jdx/aube/releases/download/v1.37.0/aube-v1.37.0-x86_64-unknown-linux-gnu.tar.gz
+          echo '1775b37c4381bff2314c96635cac3eeb90b02bea0f33371e553a4431dc893546  /tmp/aube.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/aube.tar.gz -C /tmp
+          sudo install /tmp/aube /usr/local/bin/aube
+
+      - name: Install dependencies
+        run: aube --dir website install --frozen-lockfile
+
+      - name: Build website
+        run: aube --dir website run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: website/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5.0.0
