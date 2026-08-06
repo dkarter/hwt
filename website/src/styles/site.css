@@ -299,10 +299,6 @@ h1 em, h2 em {
   line-height: 1.8;
   overflow-x: auto;
 }
-.config pre span {
-  color: #92989e;
-}
-
 .closing {
   padding: 96px 30px;
   border: 1px solid var(--line);

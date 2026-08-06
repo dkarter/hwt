@@ -1,5 +1,26 @@
 ---
 import "../styles/site.css";
+import { codeToHtml } from "shiki";
+
+const configExample = [
+  "# .herdr-worktree.yaml",
+  "agent: opencode --port",
+  "worktree_dir: ../",
+  "worktree_naming: full",
+  "",
+  "files:",
+  "  copy:",
+  "    - .env.local",
+  "    - path: node_modules",
+  "      symlink: true",
+  "",
+  "post_create:",
+  "  - mise install",
+].join("\n");
+const highlightedConfig = await codeToHtml(configExample, {
+  lang: "yaml",
+  theme: "catppuccin-mocha",
+});
 
 const features = [
   {
@@ -33,7 +54,7 @@ const features = [
     <meta name="viewport" content="width=device-width" />
     <meta
       name="description"
-      content="hwt is deterministic Herdr worktree orchestration for people and coding agents."
+      content="hwt removes the setup friction from Herdr Git worktrees for people and coding agents."
     />
     <meta name="theme-color" content="#151619" />
     <title>hwt: worktrees, ready to work</title>
@@ -55,11 +76,12 @@ const features = [
 
     <main>
       <section class="hero shell">
-        <div class="eyebrow"><span></span> Herdr worktrees, made repeatable</div>
+        <div class="eyebrow"><span></span> Frictionless Herdr worktrees</div>
         <h1>Your next workspace,<br /><em>already working.</em></h1>
         <p class="lede">
-          <strong>hwt</strong> turns a branch into a configured Herdr workspace. Files copied,
-          dependencies linked, setup finished. The same result for you and every agent.
+          <strong>hwt removes the friction from Git worktrees.</strong> Turn a branch into a
+          configured Herdr workspace with files copied, dependencies linked, and setup finished. The
+          same result for you and every agent.
         </p>
         <div class="actions">
           <a class="primary" href="/docs/quick-start/">Create a worktree <span>→</span></a>
@@ -121,20 +143,7 @@ const features = [
           </p>
           <a href="/docs/configuration/">Explore configuration →</a>
         </div>
-        <pre>
-<code><span># .herdr-worktree.yaml</span>
-agent: opencode --port
-worktree_dir: ../
-worktree_naming: full
-
-files:
-  copy:
-    - .env.local
-    - path: node_modules
-      symlink: true
-
-post_create:
-  - mise install</code></pre>
+        <Fragment set:html={highlightedConfig} />
       </section>
 
       <section class="closing shell">
