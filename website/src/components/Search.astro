@@ -1,0 +1,64 @@
+---
+import StarlightSearch from "@astrojs/starlight/components/Search.astro";
+---
+
+<command-search>
+  <StarlightSearch />
+</command-search>
+
+<script>
+class CommandSearch extends HTMLElement {
+  private dialog?: HTMLDialogElement;
+  private isMac = false;
+
+  connectedCallback() {
+    this.dialog = this.querySelector("dialog") ?? undefined;
+    this.isMac = this.querySelector("[data-open-modal]")?.getAttribute("aria-keyshortcuts")
+      === "Meta+K";
+    this.addEventListener("keydown", this.onKeyDown);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener("keydown", this.onKeyDown);
+  }
+
+  private onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing) return;
+    if (!this.dialog?.open) return;
+
+    const noModifiers = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    const controlOnly = event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+    const isControlNext = this.isMac && controlOnly && event.key === "n";
+    const isControlPrevious = this.isMac && controlOnly && event.key === "p";
+    const isNext = (noModifiers && event.key === "ArrowDown") || isControlNext;
+    const isPrevious = (noModifiers && event.key === "ArrowUp") || isControlPrevious;
+    if (!isNext && !isPrevious) return;
+
+    const results = Array.from(
+      this.querySelectorAll<HTMLAnchorElement>(".pagefind-ui__result-link"),
+    );
+    if (results.length === 0) return;
+
+    const current = results.indexOf(document.activeElement as HTMLAnchorElement);
+    const next = isNext
+      ? (current + 1) % results.length
+      : current <= 0
+      ? results.length - 1
+      : current - 1;
+
+    event.preventDefault();
+    results[next]?.focus();
+    results[next]?.scrollIntoView({ block: "nearest" });
+  };
+}
+
+if (!customElements.get("command-search")) {
+  customElements.define("command-search", CommandSearch);
+}
+</script>
+
+<style>
+command-search {
+  display: contents;
+}
+</style>

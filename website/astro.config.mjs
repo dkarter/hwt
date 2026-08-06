@@ -2,7 +2,7 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
-  site: "https://hwt.dev",
+  site: "https://hwt.doriankarter.com",
   prefetch: false,
   integrations: [
     starlight({
@@ -17,6 +17,10 @@ export default defineConfig({
         },
       ],
       customCss: ["./src/styles/starlight.css"],
+      components: {
+        Search: "./src/components/Search.astro",
+        SiteTitle: "./src/components/SiteTitle.astro",
+      },
       editLink: {
         baseUrl: "https://github.com/dkarter/hwt/edit/main/website/",
       },

@@ -1,0 +1,46 @@
+---
+import StarlightSiteTitle from "@astrojs/starlight/components/SiteTitle.astro";
+---
+
+<docs-site-title>
+  <span class="docs-mark" aria-hidden="true"><i></i><i></i></span>
+  <StarlightSiteTitle />
+</docs-site-title>
+
+<style>
+docs-site-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.docs-mark {
+  position: relative;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  border: 1px solid var(--sl-color-hairline-light);
+  background: var(--sl-color-bg-nav);
+}
+
+.docs-mark i {
+  position: absolute;
+  top: 6px;
+  width: 7px;
+  height: 15px;
+  border: 2px solid var(--sl-color-accent);
+}
+
+.docs-mark i:first-child {
+  left: 5px;
+  border-width: 0 2px 2px 0;
+  border-radius: 0 0 5px;
+}
+
+.docs-mark i:last-child {
+  right: 5px;
+  border-width: 0 0 2px 2px;
+  border-radius: 0 0 0 5px;
+}
+</style>
