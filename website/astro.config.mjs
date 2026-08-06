@@ -44,7 +44,16 @@ export default defineConfig({
         },
         {
           label: "Reference",
-          items: [{ label: "CLI reference", slug: "docs/cli-reference" }],
+          items: [
+            { label: "CLI overview", slug: "docs/cli-reference" },
+            { label: "Create worktree", slug: "docs/cli/create-worktree" },
+            { label: "Remove worktree", slug: "docs/cli/remove-worktree" },
+            { label: "List worktrees", slug: "docs/cli/list-worktrees" },
+          ],
+        },
+        {
+          label: "Misc",
+          items: [{ label: "Shell completions", slug: "docs/misc/shell-completions" }],
         },
       ],
     }),
