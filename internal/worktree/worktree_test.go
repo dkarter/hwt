@@ -362,6 +362,9 @@ func run(t *testing.T, cwd, name string, args ...string) {
 	t.Helper()
 	cmd := exec.Command(name, args...)
 	cmd.Dir = cwd
+	if name == "git" {
+		cmd.Env = gitEnvironment()
+	}
 	if data, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%s %s: %s: %v", name, strings.Join(args, " "), data, err)
 	}
@@ -371,6 +374,9 @@ func output(t *testing.T, cwd, name string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command(name, args...)
 	cmd.Dir = cwd
+	if name == "git" {
+		cmd.Env = gitEnvironment()
+	}
 	data, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s %s: %s: %v", name, strings.Join(args, " "), data, err)

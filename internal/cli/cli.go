@@ -13,6 +13,7 @@ import (
 	"github.com/dkarter/hwt/internal/herdr"
 	"github.com/dkarter/hwt/internal/worktree"
 	worktreeSchema "github.com/dkarter/hwt/schema"
+	"github.com/dkarter/hwt/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +31,7 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", "herdr", "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), schemaCommand())
+	root.AddCommand(a.createCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), schemaCommand(), skillCommand())
 	return root
 }
 
@@ -270,6 +271,28 @@ func schemaCommand() *cobra.Command {
 			return worktree.EncodeResult(cmd.OutOrStdout(), value)
 		},
 	}
+}
+
+func skillCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "skill",
+		Short: "Print the hwt skill for AI agent discovery",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, err := cmd.OutOrStdout().Write(skills.Usage)
+			return err
+		},
+	}
+	command.AddCommand(&cobra.Command{
+		Use:   "config",
+		Short: "Print the on-demand project configuration reference",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, err := cmd.OutOrStdout().Write(skills.ProjectConfig)
+			return err
+		},
+	})
+	return command
 }
 
 func repoRoot(cwd string) (string, error) {
