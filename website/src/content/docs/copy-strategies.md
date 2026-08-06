@@ -42,6 +42,18 @@ A symlink is nearly instant and uses no additional storage, but writes through i
 
 An entry cannot enable both `copy_on_write` and `symlink`.
 
+## Performance benchmarks
+
+Representative warm-cache measurements on macOS with same-volume APFS source and destination paths:
+
+| Workload |    Size | Filesystem entries | Direct copy | Copy on write |  Symlink |
+| -------- | ------: | -----------------: | ----------: | ------------: | -------: |
+| A        | 703 MiB |             24,342 |      5.77 s |        0.45 s | ~0.005 s |
+| B        | 737 MiB |             23,020 |      5.43 s |        0.69 s | ~0.005 s |
+| C        | 1.7 GiB |            265,463 |     83.91 s |       13.77 s | ~0.005 s |
+
+Each destination was absent before measurement. Direct copy uses hwt's recursive file copier, copy on write uses an APFS directory clone, and symlink creates one link without materializing the tree. Entry counts include files, directories, and symlinks. Results vary with filesystem, cache state, storage, and tree shape; these numbers illustrate the tradeoffs rather than guarantee performance.
+
 ## Scheduling
 
 Copy operations run in parallel by default. An entry with `parallel: false` waits for earlier parallel copies, runs alone, and blocks later copies until it finishes.
