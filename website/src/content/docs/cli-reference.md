@@ -70,6 +70,21 @@ Print the embedded JSON Schema. The output always matches the schema used by tha
 hwt schema
 ```
 
+## `hwt skill`
+
+Print the canonical hwt skill for AI agent discovery:
+
+```sh
+hwt skill
+```
+
+The core skill keeps project configuration details out of routine worktree
+operations. Print that on-demand reference separately:
+
+```sh
+hwt skill config
+```
+
 ## Shell completions
 
 hwt can generate completion scripts for Bash, Zsh, Fish, and PowerShell.

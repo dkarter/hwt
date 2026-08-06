@@ -21,12 +21,16 @@ hwt config validate
 hwt config init
 hwt config init --global
 hwt schema
+hwt skill
+hwt skill config
 hwt completion zsh
 ```
 
 `hwt create` defaults to the current Git branch as its base and creates the Herdr workspace without changing focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
 
 `hwt remove` refuses dirty or locked worktrees unless `--force` is provided. It quickly renames the checkout out of the way, closes the Herdr workspace, removes Git's worktree metadata, and deletes the checkout in the background.
+
+`hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 
 ## Configuration
 
