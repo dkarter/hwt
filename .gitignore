@@ -1,2 +1,5 @@
 /dist/
 /hwt
+/website/.astro/
+/website/dist/
+/website/node_modules/

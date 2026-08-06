@@ -7,6 +7,8 @@ go = "1.25.12"
 goreleaser = "2"
 lefthook = "latest"
 pitchfork = "latest"
+node = "24"
+aube = "latest"
 
 [hooks]
 postinstall = "lefthook install"
@@ -29,7 +31,7 @@ run = "go test ./..."
 
 [tasks.check]
 description = "Runs all quality checks"
-depends = ["fmt-check", "test"]
+depends = ["fmt-check", "test", "website-build"]
 run = "go vet ./..."
 
 [tasks.snapshot]
@@ -39,3 +41,11 @@ run = "goreleaser release --snapshot --clean"
 [tasks.install]
 description = "Installs hwt into ~/.local/bin"
 run = "go build -o ~/.local/bin/hwt ./cmd/hwt"
+
+[tasks.website-dev]
+description = "Starts the website development server"
+run = "aube --dir website run dev"
+
+[tasks.website-build]
+description = "Builds the website and documentation"
+run = "aube --dir website install --frozen-lockfile && aube --dir website run build"

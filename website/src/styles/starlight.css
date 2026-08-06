@@ -1,0 +1,98 @@
+:root {
+  --sl-font: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --sl-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --sl-content-width: 52rem;
+  --sl-sidebar-width: 18rem;
+}
+
+:root,
+:root[data-theme="dark"] {
+  --sl-color-accent-low: #304223;
+  --sl-color-accent: #b9f27c;
+  --sl-color-accent-high: #dcffb5;
+  --sl-color-white: #f2f0e8;
+  --sl-color-gray-1: #d9d8d2;
+  --sl-color-gray-2: #b7bbc0;
+  --sl-color-gray-3: #92989e;
+  --sl-color-gray-4: #6d7379;
+  --sl-color-gray-5: #44484e;
+  --sl-color-gray-6: #303338;
+  --sl-color-gray-7: #222428;
+  --sl-color-black: #151619;
+  --sl-color-bg: #151619;
+  --sl-color-bg-nav: #1b1d20;
+  --sl-color-bg-sidebar: #1b1d20;
+  --sl-color-bg-inline-code: #222428;
+  --sl-color-hairline: #303338;
+  --sl-color-hairline-light: #3c4045;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #dcedca;
+  --sl-color-accent: #416d19;
+  --sl-color-accent-high: #29480e;
+  --sl-color-white: #171914;
+  --sl-color-gray-1: #292c26;
+  --sl-color-gray-2: #4e534b;
+  --sl-color-gray-3: #6d7268;
+  --sl-color-gray-4: #8c9185;
+  --sl-color-gray-5: #b1b4a9;
+  --sl-color-gray-6: #d1d2c8;
+  --sl-color-gray-7: #e5e4dc;
+  --sl-color-black: #f2f0e8;
+  --sl-color-bg: #f2f0e8;
+  --sl-color-bg-nav: #e9e7df;
+  --sl-color-bg-sidebar: #e9e7df;
+  --sl-color-bg-inline-code: #dfded5;
+  --sl-color-hairline: #d5d3c9;
+  --sl-color-hairline-light: #c5c4ba;
+}
+
+.site-title {
+  font-family: var(--sl-font-mono);
+  letter-spacing: -0.06em;
+}
+.sl-markdown-content {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.sl-markdown-content h1, .hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.055em;
+  font-weight: 800;
+}
+.sl-markdown-content h2 {
+  margin-top: 2.5rem;
+  letter-spacing: -0.035em;
+}
+.sl-markdown-content h3 {
+  font-family: var(--sl-font-mono);
+  font-size: 1rem;
+}
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-underline-offset: 0.2em;
+}
+.sl-markdown-content code:not(:where(.not-content *)) {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 2px;
+}
+.expressive-code .frame {
+  border: 1px solid var(--sl-color-hairline) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+.sl-markdown-content .card {
+  border-radius: 2px;
+  border-color: var(--sl-color-hairline);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--sl-color-accent) 5%, transparent),
+    transparent 60%
+  );
+}
+#starlight__sidebar a[aria-current="page"] {
+  color: var(--sl-color-accent-high);
+  box-shadow: inset 2px 0 var(--sl-color-accent);
+  background: color-mix(in srgb, var(--sl-color-accent) 7%, transparent);
+}

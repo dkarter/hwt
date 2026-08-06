@@ -88,6 +88,8 @@ mise run snapshot
 
 Releases are managed by Release Please and GoReleaser. CI tests on macOS and Linux and builds the CLI on every pull request.
 
+The Astro and Starlight site lives in `website/`. Run `mise run website-dev` locally or `mise run website-build` for a production build.
+
 ## License
 
 MIT

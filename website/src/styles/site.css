@@ -1,0 +1,451 @@
+:root {
+  --ink: #151619;
+  --surface: #1b1d20;
+  --line: #303338;
+  --muted: #92989e;
+  --paper: #f2f0e8;
+  --acid: #b9f27c;
+  --violet: #c7a7ff;
+  font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--ink);
+}
+a {
+  color: inherit;
+}
+.shell {
+  width: min(1180px, calc(100% - 48px));
+  margin-inline: auto;
+}
+.page-grid {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background-image: linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: calc((100vw - max(48px, 100vw - 1180px)) / 6) 100%;
+  pointer-events: none;
+}
+
+.nav {
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+.brand strong {
+  font-size: 1.15rem;
+  letter-spacing: -0.06em;
+}
+.mark {
+  position: relative;
+  display: inline-block;
+  width: 29px;
+  height: 29px;
+  border: 1px solid #4a4e53;
+  background: var(--surface);
+}
+.mark i {
+  position: absolute;
+  top: 6px;
+  width: 7px;
+  height: 15px;
+  border: 2px solid var(--acid);
+}
+.mark i:first-child {
+  left: 5px;
+  border-width: 0 2px 2px 0;
+  border-radius: 0 0 5px;
+}
+.mark i:last-child {
+  right: 5px;
+  border-width: 0 0 2px 2px;
+  border-radius: 0 0 0 5px;
+}
+.nav nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.nav nav a {
+  text-decoration: none;
+}
+.nav nav a:not(.nav-cta):hover {
+  color: var(--acid);
+}
+.nav-cta {
+  padding: 10px 17px;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.hero {
+  padding-top: 108px;
+}
+.eyebrow, .section-label {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.eyebrow span {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--acid);
+  box-shadow: 0 0 14px var(--acid);
+}
+h1, h2, h3, p {
+  margin-top: 0;
+}
+h1 {
+  max-width: 1040px;
+  margin: 28px 0 32px;
+  font-size: clamp(3.6rem, 8.3vw, 7.6rem);
+  line-height: 0.91;
+  letter-spacing: -0.075em;
+  font-weight: 700;
+}
+h1 em, h2 em {
+  color: var(--acid);
+  font-style: normal;
+}
+.lede {
+  max-width: 700px;
+  color: #b8bdc1;
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.65;
+}
+.lede strong {
+  color: var(--paper);
+}
+.actions {
+  display: flex;
+  gap: 12px;
+  margin: 40px 0 76px;
+}
+.actions a {
+  padding: 14px 20px;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.actions .primary {
+  border-color: var(--acid);
+  color: var(--ink);
+  background: var(--acid);
+}
+.actions .primary span {
+  margin-left: 28px;
+}
+.actions .secondary:hover {
+  border-color: var(--paper);
+}
+
+.terminal {
+  overflow: hidden;
+  border: 1px solid #3d4147;
+  background: #111214;
+  box-shadow: 0 26px 90px rgb(0 0 0 / 0.4);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+.terminal-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  color: #92989e;
+  font-size: 0.68rem;
+}
+.terminal-bar > :last-child {
+  text-align: right;
+}
+.lights {
+  display: flex;
+  gap: 6px;
+}
+.lights i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #41454b;
+}
+.terminal-body {
+  padding: clamp(22px, 4vw, 46px);
+  color: #d5d6d2;
+  font-size: clamp(0.7rem, 1.4vw, 0.93rem);
+  line-height: 1.75;
+}
+.prompt {
+  color: var(--acid);
+}
+.terminal pre {
+  margin: 18px 0;
+  color: #9da2a7;
+  white-space: pre-wrap;
+}
+.terminal pre span {
+  color: var(--violet);
+}
+.terminal-status {
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+  color: #7f858b;
+}
+.terminal-status b {
+  margin-right: 15px;
+  color: var(--acid);
+  font-weight: 500;
+}
+
+.manifesto {
+  padding: 150px 0 54px;
+}
+.manifesto h2, .config h2, .closing h2 {
+  max-width: 900px;
+  font-size: clamp(2.3rem, 5vw, 4.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.055em;
+}
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.features article {
+  min-height: 360px;
+  padding: 38px 30px 34px 0;
+}
+.features article + article {
+  padding-left: 30px;
+  border-left: 1px solid var(--line);
+}
+.feature-number {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color: var(--acid);
+  font-size: 0.72rem;
+}
+.features h3 {
+  margin: 66px 0 16px;
+  font-size: 1.45rem;
+  letter-spacing: -0.035em;
+}
+.features p {
+  min-height: 100px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 0.92rem;
+}
+.features code, .install-command code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color: var(--violet);
+  font-size: 0.75rem;
+}
+
+.config {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10%;
+  align-items: center;
+  padding-block: 150px;
+}
+.config > div > p:not(.section-label) {
+  max-width: 520px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.config a {
+  display: inline-block;
+  margin-top: 18px;
+  color: var(--acid);
+  text-underline-offset: 5px;
+}
+.config pre {
+  margin: 0;
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: #dddcd6;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: clamp(0.72rem, 1.2vw, 0.87rem);
+  line-height: 1.8;
+  overflow-x: auto;
+}
+.config pre span {
+  color: #92989e;
+}
+
+.closing {
+  padding: 96px 30px;
+  border: 1px solid var(--line);
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 120%, rgb(185 242 124 / 0.14), transparent 50%),
+    var(--surface);
+}
+.closing-mark {
+  margin-bottom: 28px;
+}
+.closing h2 {
+  margin-inline: auto;
+}
+.closing p {
+  color: var(--muted);
+}
+.install-command {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 15px 20px;
+  border: 1px solid #44484d;
+  background: #111214;
+}
+.install-command code {
+  color: var(--acid);
+}
+footer {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  align-items: center;
+  gap: 20px;
+  min-height: 150px;
+  color: #92989e;
+  font-size: 0.74rem;
+}
+footer > span {
+  text-align: center;
+}
+footer > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+}
+footer a {
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    width: min(100% - 30px, 1180px);
+  }
+  .nav {
+    height: 66px;
+  }
+  .nav nav {
+    gap: 16px;
+  }
+  .nav nav > a:nth-child(2) {
+    display: none;
+  }
+  .nav-cta {
+    padding: 8px 12px;
+  }
+  .hero {
+    padding-top: 74px;
+  }
+  h1 {
+    font-size: clamp(3.25rem, 17vw, 5.2rem);
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .terminal-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .terminal-bar > :nth-child(2) {
+    display: none;
+  }
+  .manifesto {
+    padding-top: 100px;
+  }
+  .features {
+    grid-template-columns: 1fr;
+  }
+  .features article {
+    min-height: 0;
+    padding: 32px 0;
+  }
+  .features article + article {
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+  .features h3 {
+    margin-top: 35px;
+  }
+  .features p {
+    min-height: 0;
+  }
+  .config {
+    grid-template-columns: 1fr;
+    gap: 50px;
+    padding-block: 100px;
+  }
+  .closing {
+    padding: 70px 20px;
+  }
+  footer {
+    grid-template-columns: 1fr 1fr;
+  }
+  footer > span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+.not-found {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.not-found main {
+  max-width: 760px;
+  text-align: center;
+}
+.not-found h1 {
+  margin-top: 24px;
+}
+.not-found p {
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+.not-found .actions {
+  justify-content: center;
+  margin-bottom: 0;
+}

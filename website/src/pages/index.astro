@@ -1,0 +1,156 @@
+---
+import "../styles/site.css";
+
+const features = [
+  {
+    number: "01",
+    title: "One command, every rule.",
+    body:
+      "Apply branch naming and checkout placement, then transfer files and finish setup before handing back the workspace.",
+    command: "hwt create -b feat/fast-path",
+  },
+  {
+    number: "02",
+    title: "Built for agents.",
+    body:
+      "Machine-readable output returns workspace, pane, checkout, branch, and copied-file details without screen scraping.",
+    command: "hwt create -b fix/race --json",
+  },
+  {
+    number: "03",
+    title: "Fast by policy.",
+    body:
+      "Copy normally, clone on APFS, or symlink heavyweight dependencies. Choose once globally and override per repository.",
+    command: "copy_on_write: true",
+  },
+];
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta
+      name="description"
+      content="hwt is deterministic Herdr worktree orchestration for people and coding agents."
+    />
+    <meta name="theme-color" content="#151619" />
+    <title>hwt: worktrees, ready to work</title>
+    <link rel="icon" href="/favicon.svg" />
+  </head>
+  <body>
+    <div class="page-grid" aria-hidden="true"></div>
+    <header class="nav shell">
+      <a class="brand" href="/" aria-label="hwt home">
+        <span class="mark"><i></i><i></i></span>
+        <strong>hwt</strong>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/dkarter/hwt">GitHub</a>
+        <a class="nav-cta" href="/docs/install/">Install</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero shell">
+        <div class="eyebrow"><span></span> Herdr worktrees, made repeatable</div>
+        <h1>Your next workspace,<br /><em>already working.</em></h1>
+        <p class="lede">
+          <strong>hwt</strong> turns a branch into a configured Herdr workspace. Files copied,
+          dependencies linked, setup finished. The same result for you and every agent.
+        </p>
+        <div class="actions">
+          <a class="primary" href="/docs/quick-start/">Create a worktree <span>→</span></a>
+          <a class="secondary" href="/docs/">Read the docs</a>
+        </div>
+
+        <div class="terminal" aria-label="Terminal showing hwt creating a worktree">
+          <div class="terminal-bar">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <span>~/code/hwt · main</span>
+            <span>herdr</span>
+          </div>
+          <div class="terminal-body">
+            <div><span class="prompt">$</span> hwt create --branch feat/agent-status --json</div>
+            <pre>
+<code>&#123;
+  <span>"workspace_id"</span>: "w_8Jx2",
+  <span>"pane_id"</span>: "p_M4q9",
+  <span>"path"</span>: "../hwt-feat-agent-status",
+  <span>"branch"</span>: "feat/agent-status",
+  <span>"base"</span>: "main",
+  <span>"copied"</span>: [".env.local"],
+  <span>"agent"</span>: "opencode --port",
+  <span>"config"</span>: &#123;
+    <span>"global"</span>: "~/.config/hwt/config.yaml",
+    <span>"project"</span>: ".herdr-worktree.yaml"
+  &#125;
+&#125;</code></pre>
+            <div class="terminal-status"><b>ready</b> workspace w_8Jx2 · 0.47s</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="manifesto shell">
+        <p class="section-label">The contract</p>
+        <h2>Worktrees should start with context, <em>not chores.</em></h2>
+      </section>
+
+      <section class="features shell">
+        {
+          features.map((feature) => (
+            <article>
+              <span class="feature-number">{feature.number}</span>
+              <h3>{feature.title}</h3>
+              <p>{feature.body}</p>
+              <code>{feature.command}</code>
+            </article>
+          ))
+        }
+      </section>
+
+      <section class="config shell">
+        <div>
+          <p class="section-label">Repository policy</p>
+          <h2>Describe the ready state.</h2>
+          <p>
+            Commit one small YAML file. hwt resolves it with your global defaults, validates every
+            path, and performs the work in a predictable order.
+          </p>
+          <a href="/docs/configuration/">Explore configuration →</a>
+        </div>
+        <pre>
+<code><span># .herdr-worktree.yaml</span>
+agent: opencode --port
+worktree_dir: ../
+worktree_naming: full
+
+files:
+  copy:
+    - .env.local
+    - path: node_modules
+      symlink: true
+
+post_create:
+  - mise install</code></pre>
+      </section>
+
+      <section class="closing shell">
+        <div class="closing-mark"><span class="mark"><i></i><i></i></span></div>
+        <h2>Branch. Build. Leave the setup behind.</h2>
+        <p>Install hwt with mise and create your first configured Herdr worktree.</p>
+        <div class="install-command"><code>mise use -g github:dkarter/hwt</code></div>
+      </section>
+    </main>
+
+    <footer class="shell">
+      <a class="brand" href="/"><span class="mark"><i></i><i></i></span><strong>hwt</strong></a>
+      <span>Deterministic Herdr worktree orchestration.</span>
+      <div>
+        <a href="/docs/">Docs</a><a href="https://github.com/dkarter/hwt">GitHub</a><span>MIT</span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+---
+title: hwt documentation
+description: Deterministic Herdr worktree orchestration for people and coding agents.
+template: splash
+hero:
+  tagline: Turn a Git branch into a configured Herdr workspace with one repeatable command.
+  actions:
+    - text: Install hwt
+      link: /docs/install/
+    - text: Quick start
+      link: /docs/quick-start/
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Start with a working workspace
+
+hwt wraps Herdr's native worktree lifecycle with repository policy. It decides where the checkout belongs, transfers the files the branch needs, runs setup commands, and returns the new workspace and pane IDs.
+
+<CardGrid>
+  <Card title="Install and create">
+    Install hwt through mise, then create a workspace from any Git repository.
+
+    [Follow the quick start →](/docs/quick-start/)
+  </Card>
+  <Card title="Make it repeatable">
+    Add `.herdr-worktree.yaml` to describe placement, copy strategies, and post-create setup.
+
+    [Configure a repository →](/docs/configuration/)
+  </Card>
+  <Card title="Automate with JSON">
+    Give agents stable machine-readable workspace, pane, checkout, and branch details.
+
+    [See the CLI reference →](/docs/cli-reference/)
+  </Card>
+</CardGrid>
+
+## What hwt controls
+
+- **Placement:** choose a shared worktree directory and deterministic checkout name.
+- **Context:** copy, APFS-clone, or symlink repository-relative files and directories.
+- **Setup:** run ordered commands after all file operations finish.
+- **Lifecycle:** create and remove Herdr workspaces while respecting dirty and locked worktrees.
+- **Output:** expose structured results for coding agents and scripts.
