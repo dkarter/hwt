@@ -1,0 +1,695 @@
+---
+import CopyStrategyExplainer from "./CopyStrategyExplainer.astro";
+---
+
+<worktree-comparison data-mode="hwt">
+  <div class="comparison-head">
+    <div>
+      <span class="comparison-kicker">Compare the checkout</span>
+      <strong>What reaches the new worktree?</strong>
+    </div>
+    <div class="mode-switch" role="group" aria-label="Worktree behavior">
+      <button type="button" data-mode-button="herdr" aria-pressed="false">
+        <small>Git files only</small>
+        <span>Herdr</span>
+      </button>
+      <button type="button" data-mode-button="hwt" aria-pressed="true">
+        <small>Ready state</small>
+        <span>hwt</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="command-bar">
+    <span aria-hidden="true">$</span>
+    <code data-command>hwt create -b feature/billing</code>
+    <button type="button" data-create>
+      <span data-create-label>Create worktree</span>
+      <b aria-hidden="true">-&gt;</b>
+    </button>
+  </div>
+
+  <div class="trees">
+    <section class="tree-panel source" aria-label="Original checkout">
+      <header>
+        <span>Before</span>
+        <strong>Original checkout</strong>
+        <code>~/src/acme</code>
+      </header>
+      <div class="tree-body">
+        <ul class="file-tree">
+          <li><div class="node directory"><span>.git</span></div></li>
+          <li>
+            <div class="node file">
+              <span>.env.local</span><span class="tag ignored">ignored</span>
+            </div>
+          </li>
+          <li><div class="node file"><span>.herdr-worktree.yaml</span></div></li>
+          <li>
+            <div class="node directory"><span>backend</span></div>
+            <ul>
+              <li>
+                <div class="node directory"><span>config</span></div>
+                <ul>
+                  <li>
+                    <div class="node file">
+                      <span>dev.secret.exs</span><span class="tag ignored">ignored</span>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <div class="node directory">
+                  <span>deps</span><span class="tag ignored">ignored</span>
+                </div>
+              </li>
+              <li><div class="node directory"><span>lib</span></div></li>
+              <li><div class="node file"><span>mix.exs</span></div></li>
+            </ul>
+          </li>
+          <li>
+            <div class="node directory"><span>frontend</span></div>
+            <ul>
+              <li>
+                <div class="node directory">
+                  <span>node_modules</span><span class="tag ignored">ignored</span>
+                </div>
+              </li>
+              <li><div class="node file"><span>package.json</span></div></li>
+              <li><div class="node directory"><span>src</span></div></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="tree-panel destination" aria-label="New worktree">
+      <header>
+        <span>After</span>
+        <strong data-result-title>Created with hwt</strong>
+        <code data-root-herdr>&lt;path passed to Herdr&gt;</code>
+        <code data-root-hwt>~/src/worktrees/acme-billing</code>
+      </header>
+      <div class="empty-state">
+        <span class="empty-prompt">Run the command to build this checkout.</span>
+      </div>
+      <div class="created-state">
+        <div class="tree-body">
+          <ul class="file-tree result-tree">
+            <li style="--delay: 0ms"><div class="node directory"><span>.git</span></div></li>
+            <li style="--delay: 70ms" data-hwt-only>
+              <div class="node file transferred">
+                <span>.env.local</span><span class="tag copied">copied</span>
+              </div>
+            </li>
+            <li style="--delay: 140ms">
+              <div class="node file"><span>.herdr-worktree.yaml</span></div>
+            </li>
+            <li style="--delay: 210ms">
+              <div class="node directory"><span>backend</span></div>
+              <ul>
+                <li style="--delay: 280ms">
+                  <div class="node directory"><span>config</span></div>
+                  <ul>
+                    <li style="--delay: 350ms" data-hwt-only>
+                      <div class="node file transferred">
+                        <span>dev.secret.exs</span><span class="tag copied">copied</span>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <li style="--delay: 420ms" data-hwt-only>
+                  <div class="node directory transferred">
+                    <span>deps</span><span class="tag cloned">cloned</span>
+                  </div>
+                </li>
+                <li style="--delay: 490ms"><div class="node directory"><span>lib</span></div></li>
+                <li style="--delay: 560ms"><div class="node file"><span>mix.exs</span></div></li>
+              </ul>
+            </li>
+            <li style="--delay: 630ms">
+              <div class="node directory"><span>frontend</span></div>
+              <ul>
+                <li style="--delay: 700ms" data-hwt-only>
+                  <div class="node link transferred">
+                    <span>node_modules</span><span class="link-target">original</span><span
+                      class="tag linked"
+                    >linked</span>
+                  </div>
+                </li>
+                <li style="--delay: 770ms">
+                  <div class="node file"><span>package.json</span></div>
+                </li>
+                <li style="--delay: 840ms"><div class="node directory"><span>src</span></div></li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+        <p class="result-note herdr-note">
+          Tracked files arrive. Ignored local context stays behind.
+        </p>
+        <p class="result-note hwt-note">Placed, named, and populated from repository policy.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="strategy-wrap">
+    <CopyStrategyExplainer controlled={true} />
+  </div>
+  <p class="sr-status" data-status aria-live="polite"></p>
+</worktree-comparison>
+
+<script>
+type Mode = "herdr" | "hwt";
+
+class WorktreeComparison extends HTMLElement {
+  connectedCallback() {
+    this.addEventListener("click", this.onClick);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener("click", this.onClick);
+  }
+
+  private get mode(): Mode {
+    return this.dataset.mode === "herdr" ? "herdr" : "hwt";
+  }
+
+  private onClick = (event: MouseEvent) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>("button");
+    if (!button || !this.contains(button)) return;
+    const mode = button.dataset.modeButton;
+    if (mode === "herdr" || mode === "hwt") this.selectMode(mode);
+    if (button.hasAttribute("data-create")) this.createWorktree();
+  };
+
+  private selectMode(mode: Mode) {
+    if (mode === this.mode) return;
+    this.dataset.mode = mode;
+    this.querySelectorAll<HTMLButtonElement>("[data-mode-button]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.modeButton === mode));
+    });
+    const title = this.querySelector<HTMLElement>("[data-result-title]");
+    if (title) title.textContent = mode === "hwt" ? "Created with hwt" : "Created with Herdr";
+    const command = this.querySelector<HTMLElement>("[data-command]");
+    if (command) {
+      command.textContent = mode === "hwt"
+        ? "hwt create -b feature/billing"
+        : "herdr worktree create --branch feature/billing";
+    }
+    if (this.classList.contains("is-created")) this.createWorktree();
+  }
+
+  private createWorktree() {
+    const replay = this.classList.contains("is-created");
+    this.classList.add("is-created");
+    const label = this.querySelector<HTMLElement>("[data-create-label]");
+    if (label) label.textContent = "Replay";
+
+    requestAnimationFrame(() => {
+      if (replay) {
+        this.querySelector(".destination")?.getAnimations({ subtree: true }).forEach(
+          (animation) => {
+            animation.cancel();
+            animation.play();
+          },
+        );
+      }
+      if (this.mode === "hwt") {
+        this.querySelector("copy-strategy-explainer")?.dispatchEvent(new Event("strategy-play"));
+      }
+    });
+
+    const status = this.querySelector<HTMLElement>("[data-status]");
+    if (status) {
+      status.textContent = this.mode === "hwt"
+        ? "hwt created acme-billing and transferred four configured paths."
+        : "Herdr created a worktree containing Git-tracked files only.";
+    }
+  }
+}
+
+if (!customElements.get("worktree-comparison")) {
+  customElements.define("worktree-comparison", WorktreeComparison);
+}
+</script>
+
+<style>
+worktree-comparison {
+  --comparison-blue: #72c7ff;
+  --comparison-purple: #d6a3ff;
+  display: block;
+  overflow: hidden;
+  border: 1px solid #3d4147;
+  border-radius: 10px;
+  background: #0c0d0f;
+  box-shadow: 0 26px 90px rgb(0 0 0 / 0.28);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.comparison-head {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line, #303338);
+  background: var(--surface, #1b1d20);
+}
+
+.comparison-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.comparison-kicker {
+  color: var(--muted, #92989e);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.comparison-head strong {
+  color: var(--paper, #f2f0e8);
+  font-size: 0.88rem;
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: min(100%, 320px);
+  border: 1px solid #41454b;
+  border-radius: 5px;
+  background: #111214;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.mode-switch button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 0.85rem 0.7rem;
+  border: 0;
+  color: var(--muted, #92989e);
+  background: transparent;
+  text-align: left;
+}
+
+.mode-switch button + button {
+  border-left: 1px solid #41454b;
+}
+
+.mode-switch button::after {
+  position: absolute;
+  right: 0.65rem;
+  bottom: -1px;
+  left: 0.65rem;
+  height: 2px;
+  background: var(--acid, #b9f27c);
+  content: "";
+  opacity: 0;
+  transform: scaleX(0.5);
+  transition: 160ms ease;
+}
+
+.mode-switch button[aria-pressed="true"] {
+  color: var(--paper, #f2f0e8);
+  background: rgb(255 255 255 / 0.035);
+}
+
+.mode-switch button[aria-pressed="true"]::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.mode-switch small {
+  color: #81878d;
+  font-size: 0.55rem;
+}
+
+.mode-switch span {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--acid, #b9f27c);
+  outline-offset: 2px;
+}
+
+.command-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 52px;
+  padding-left: 1.25rem;
+  border-bottom: 1px solid var(--line, #303338);
+  color: var(--acid, #b9f27c);
+  background: #111214;
+  font-size: 0.72rem;
+}
+
+.command-bar code {
+  overflow: hidden;
+  color: #c9ccd0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-bar button {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+  padding: 0 1.15rem;
+  border: 0;
+  border-left: 1px solid var(--line, #303338);
+  color: var(--acid, #b9f27c);
+  background: rgb(185 242 124 / 0.06);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.command-bar button:hover {
+  background: rgb(185 242 124 / 0.12);
+}
+
+.trees {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line, #303338);
+}
+
+.tree-panel {
+  min-width: 0;
+  background: #111214;
+}
+
+.tree-panel > header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.65rem;
+  min-height: 70px;
+  align-content: center;
+  padding: 0.8rem 1.15rem;
+  border-bottom: 1px solid var(--line, #303338);
+}
+
+.tree-panel > header > span {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--acid, #b9f27c);
+  font-size: 0.57rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.tree-panel > header strong {
+  color: var(--paper, #f2f0e8);
+  font-size: 0.72rem;
+}
+
+.tree-panel > header code {
+  overflow: hidden;
+  color: var(--muted, #92989e);
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-mode="herdr"] [data-root-hwt],
+[data-mode="hwt"] [data-root-herdr],
+[data-mode="herdr"] [data-hwt-only],
+[data-mode="herdr"] .hwt-note,
+[data-mode="hwt"] .herdr-note {
+  display: none;
+}
+
+.tree-body {
+  min-height: 322px;
+  padding: 1rem 1.25rem 1.15rem;
+}
+
+.file-tree,
+.file-tree ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-tree ul {
+  position: relative;
+  margin: 0.16rem 0 0.16rem 0.38rem;
+  padding-left: 1.05rem;
+  border-left: 1px solid #3b3f44;
+}
+
+.file-tree ul > li {
+  position: relative;
+}
+
+.file-tree ul > li::before {
+  position: absolute;
+  top: 0.82rem;
+  left: -1.05rem;
+  width: 0.72rem;
+  border-top: 1px solid #3b3f44;
+  content: "";
+}
+
+.node {
+  display: flex;
+  min-width: 0;
+  min-height: 1.65rem;
+  align-items: center;
+  gap: 0.48rem;
+  color: #c8cbce;
+  font-size: 0.68rem;
+}
+
+.node::before {
+  width: 0.78rem;
+  height: 0.78rem;
+  flex: none;
+  background: #737980;
+  content: "";
+  mask: center / contain no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 2h9l5 5v15H5V2zm9 2v4h4'/%3E%3C/svg%3E");
+}
+
+.node.directory::before {
+  background: #8d91a0;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 5h8l2 2h10v12H2V5z'/%3E%3C/svg%3E");
+}
+
+.node.file::before {
+  background: #737980;
+}
+
+.node.link::before {
+  background: var(--acid, #b9f27c);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14 3l8 7-8 7v-4c-5 0-8 2-11 6 1-7 5-11 11-11V3z'/%3E%3C/svg%3E");
+}
+
+.node > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  flex: none;
+  margin-left: auto;
+  padding: 0.12rem 0.36rem;
+  border-radius: 999px;
+  font-size: 0.5rem;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ignored {
+  color: #92989e;
+  background: rgb(146 152 158 / 0.12);
+}
+
+.copied {
+  color: var(--comparison-blue);
+  background: rgb(114 199 255 / 0.11);
+}
+
+.cloned {
+  color: var(--comparison-purple);
+  background: rgb(214 163 255 / 0.11);
+}
+
+.linked {
+  color: var(--acid, #b9f27c);
+  background: rgb(185 242 124 / 0.1);
+}
+
+.link-target {
+  color: #81878d;
+  font-size: 0.58rem;
+}
+
+.link-target::before {
+  content: "-> ";
+}
+
+.transferred {
+  color: var(--paper, #f2f0e8);
+}
+
+.empty-state {
+  display: grid;
+  min-height: 370px;
+  place-items: center;
+  padding: 2rem;
+  color: #81878d;
+  font-size: 0.67rem;
+  text-align: center;
+}
+
+.empty-prompt::before {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto 0.8rem;
+  border: 1px solid #41454b;
+  border-radius: 50%;
+  color: var(--acid, #b9f27c);
+  content: "+";
+  font-size: 1rem;
+  line-height: 22px;
+}
+
+.created-state {
+  display: none;
+}
+
+.is-created .empty-state {
+  display: none;
+}
+
+.is-created .created-state {
+  display: block;
+}
+
+.is-created .result-tree li {
+  animation: transfer 280ms ease-out both;
+  animation-delay: var(--delay, 0ms);
+}
+
+.result-note {
+  min-height: 48px;
+  margin: 0;
+  padding: 0.85rem 1.15rem;
+  border-top: 1px solid var(--line, #303338);
+  color: var(--muted, #92989e);
+  font-size: 0.62rem;
+  line-height: 1.5;
+}
+
+.hwt-note {
+  color: var(--acid, #b9f27c);
+}
+
+.strategy-wrap {
+  display: none;
+  padding: 1rem;
+  border-top: 1px solid var(--line, #303338);
+  background: var(--surface, #1b1d20);
+}
+
+.is-created[data-mode="hwt"] .strategy-wrap {
+  display: block;
+  animation: reveal-strategies 350ms 950ms ease-out both;
+}
+
+.sr-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@keyframes transfer {
+  from {
+    opacity: 0;
+    transform: translateY(0.3rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes reveal-strategies {
+  from {
+    opacity: 0;
+    transform: translateY(-0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 700px) {
+  .comparison-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .mode-switch {
+    width: 100%;
+  }
+
+  .command-bar {
+    padding-left: 0.9rem;
+  }
+
+  .command-bar button {
+    padding: 0 0.8rem;
+  }
+
+  .command-bar button b {
+    display: none;
+  }
+
+  .trees {
+    grid-template-columns: 1fr;
+  }
+
+  .tree-body {
+    min-height: 0;
+  }
+
+  .empty-state {
+    min-height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-created .result-tree li,
+  .is-created[data-mode="hwt"] .strategy-wrap {
+    animation-duration: 0.001ms;
+    animation-delay: 0ms;
+  }
+}
+</style>

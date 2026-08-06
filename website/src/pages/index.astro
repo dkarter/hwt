@@ -1,6 +1,7 @@
 ---
 import "../styles/site.css";
 import { codeToHtml } from "shiki";
+import WorktreeComparison from "../components/WorktreeComparison.astro";
 
 const configExample = [
   "# .herdr-worktree.yaml",
@@ -100,7 +101,7 @@ const demoWorkers = [
       <nav aria-label="Main navigation">
         <a href="/docs/">Docs</a>
         <a href="https://github.com/dkarter/hwt">GitHub</a>
-        <a class="nav-cta" href="/docs/install/">Install</a>
+        <a class="nav-cta" href="/#overview">Overview</a>
       </nav>
     </header>
 
@@ -205,6 +206,28 @@ const demoWorkers = [
       <section class="manifesto shell">
         <p class="section-label">The contract</p>
         <h2>Worktrees should start with context, <em>not chores.</em></h2>
+      </section>
+
+      <section class="comparison-section shell" id="overview">
+        <div class="comparison-intro">
+          <div>
+            <p class="section-label">Before and after</p>
+            <h2>Herdr creates the checkout.<br /><em>hwt makes it ready.</em></h2>
+          </div>
+          <p>
+            Compare the same Elixir and TypeScript repository with Herdr alone or with hwt policy.
+            Run the simulation to see custom placement, naming, and local context arrive.
+          </p>
+        </div>
+        <WorktreeComparison />
+        <p class="comparison-footnote">
+          <sup>*</sup> Herdr can react to <code>worktree.created</code>{" "}with a{" "}<a
+            href="https://herdr.dev/docs/plugins/#manifest"
+          >plugin event hook</a>. That requires authoring or installing a plugin and configuring its
+          command; Herdr plugins are enabled globally for the current user rather than per
+          repository. hwt keeps{" "}
+          <code>post_create</code>{" "}alongside the repository's other worktree policy.
+        </p>
       </section>
 
       <section class="features shell">

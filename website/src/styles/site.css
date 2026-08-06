@@ -471,7 +471,7 @@ h1 em, h2 em {
 .manifesto {
   padding: 150px 0 54px;
 }
-.manifesto h2, .config h2, .closing h2 {
+.manifesto h2, .comparison-section h2, .config h2, .closing h2 {
   max-width: 900px;
   font-size: clamp(2.3rem, 5vw, 4.6rem);
   line-height: 1.05;
@@ -482,6 +482,46 @@ h1 em, h2 em {
   grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+
+.comparison-section {
+  padding-bottom: 150px;
+  scroll-margin-top: 24px;
+}
+.comparison-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 8%;
+  align-items: end;
+  margin-bottom: 48px;
+}
+.comparison-intro h2 {
+  margin-bottom: 0;
+}
+.comparison-intro > p {
+  margin-bottom: 0.55rem;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.75;
+}
+.comparison-footnote {
+  max-width: 920px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.65;
+}
+.comparison-footnote sup {
+  color: var(--acid);
+}
+.comparison-footnote code {
+  color: var(--violet);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.68rem;
+}
+.comparison-footnote a {
+  color: #c1c5c8;
+  text-underline-offset: 3px;
 }
 .features article {
   min-height: 360px;
@@ -640,6 +680,14 @@ footer a {
   }
   .features {
     grid-template-columns: 1fr;
+  }
+  .comparison-section {
+    padding-bottom: 100px;
+  }
+  .comparison-intro {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
   }
   .features article {
     min-height: 0;

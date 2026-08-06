@@ -1,0 +1,279 @@
+---
+interface Props {
+  controlled?: boolean;
+  heading?: boolean;
+  headingLevel?: 2 | 3;
+}
+
+const { controlled = false, heading = true, headingLevel = 3 } = Astro.props;
+const Heading = headingLevel === 2 ? "h2" : "h3";
+const CardHeading = headingLevel === 2 ? "h3" : "h4";
+---
+
+<copy-strategy-explainer data-controlled={controlled || undefined}>
+  {
+    heading && (
+      <header class="strategy-heading">
+        <Heading class="strategy-title">Three ways to transfer context</Heading>
+        <code>files.copy</code>
+      </header>
+    )
+  }
+  <div class="strategy-grid">
+    <article class="strategy-card copy-strategy">
+      <div class="strategy-visual" aria-hidden="true">
+        <div class="storage source-storage"><i></i><i></i><i></i></div>
+        <span class="strategy-arrow">-&gt;</span>
+        <div class="storage destination-storage"><i></i><i></i><i></i></div>
+      </div>
+      <CardHeading class="strategy-card-title">Direct copy</CardHeading>
+      <p>Duplicates the data. Both paths are fully independent.</p>
+    </article>
+    <article class="strategy-card clone-strategy">
+      <div class="strategy-visual" aria-hidden="true">
+        <div class="storage source-storage"><i></i><i></i><i></i></div>
+        <span class="strategy-arrow">=&gt;</span>
+        <div class="storage destination-storage"><i></i><i></i><i></i></div>
+      </div>
+      <CardHeading class="strategy-card-title">Copy on write</CardHeading>
+      <p>Shares unchanged disk blocks. A changed block becomes independent.</p>
+    </article>
+    <article class="strategy-card symlink-strategy">
+      <div class="strategy-visual" aria-hidden="true">
+        <div class="storage source-storage"><i></i><i></i><i></i></div>
+        <span class="link-line"></span>
+        <div class="shortcut">path</div>
+      </div>
+      <CardHeading class="strategy-card-title">Symlink</CardHeading>
+      <p>Creates only a pointer. Reads and writes use the original path.</p>
+    </article>
+  </div>
+</copy-strategy-explainer>
+
+<script>
+class CopyStrategyExplainer extends HTMLElement {
+  private observer?: IntersectionObserver;
+
+  connectedCallback() {
+    this.addEventListener("strategy-play", this.play);
+    if (this.hasAttribute("data-controlled")) return;
+    this.observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      this.play();
+      this.observer?.disconnect();
+    }, { threshold: 0.35 });
+    this.observer.observe(this);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener("strategy-play", this.play);
+    this.observer?.disconnect();
+  }
+
+  private play = () => {
+    this.classList.add("is-active");
+    requestAnimationFrame(() => {
+      this.getAnimations({ subtree: true }).forEach((animation) => {
+        animation.cancel();
+        animation.play();
+      });
+    });
+  };
+}
+
+if (!customElements.get("copy-strategy-explainer")) {
+  customElements.define("copy-strategy-explainer", CopyStrategyExplainer);
+}
+</script>
+
+<style>
+copy-strategy-explainer {
+  --strategy-bg: var(--surface, var(--sl-color-bg));
+  --strategy-panel: var(--ink, var(--sl-color-bg-nav));
+  --strategy-line: var(--line, var(--sl-color-hairline));
+  --strategy-text: var(--paper, var(--sl-color-white));
+  --strategy-muted: var(--muted, var(--sl-color-gray-3));
+  --strategy-accent: var(--acid, var(--sl-color-accent));
+  --strategy-accent-high: var(--acid, var(--sl-color-accent-high));
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--strategy-line);
+  border-radius: 6px;
+  background: var(--strategy-panel);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.strategy-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--strategy-line);
+}
+
+.strategy-title {
+  margin: 0;
+  color: var(--strategy-text);
+  font: 700 0.72rem/1.4 inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.strategy-heading code {
+  color: var(--strategy-accent-high);
+  font-size: 0.68rem;
+}
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin-top: 0 !important;
+  background: var(--strategy-line);
+}
+
+.strategy-card {
+  min-width: 0;
+  padding: 1.15rem;
+  background: var(--strategy-bg);
+}
+
+.strategy-card-title {
+  margin: 0.9rem 0 0.3rem;
+  color: var(--strategy-text);
+  font: 700 0.75rem/1.3 inherit;
+}
+
+.strategy-card p {
+  margin: 0;
+  color: var(--strategy-muted);
+  font: 0.67rem/1.55 inherit;
+}
+
+.strategy-visual {
+  display: flex;
+  height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  overflow: hidden;
+}
+
+.storage {
+  display: flex;
+  gap: 2px;
+  padding: 0.34rem;
+  border: 1px solid color-mix(in srgb, var(--strategy-muted) 55%, transparent);
+  border-radius: 2px;
+}
+
+.storage i {
+  display: block;
+  width: 0.44rem;
+  height: 1.4rem;
+  border-radius: 1px;
+  background: var(--strategy-muted);
+}
+
+.strategy-arrow {
+  color: var(--strategy-muted);
+  font: 700 0.75rem/1 inherit;
+}
+
+.copy-strategy .destination-storage {
+  opacity: 0;
+  transform: translateX(-1rem);
+}
+
+.is-active .copy-strategy .destination-storage {
+  animation: materialize-copy 450ms 150ms ease-out forwards;
+}
+
+.clone-strategy .storage i {
+  background: #d6a3ff;
+}
+
+.clone-strategy .destination-storage {
+  opacity: 0;
+  transform: translateX(-2.5rem);
+}
+
+.is-active .clone-strategy .destination-storage {
+  animation: materialize-copy 450ms 350ms ease-out forwards;
+}
+
+.is-active .clone-strategy .destination-storage i:last-child {
+  animation: split-block 450ms 950ms ease-out forwards;
+}
+
+.symlink-strategy .source-storage i {
+  background: var(--strategy-accent);
+}
+
+.link-line {
+  width: 2.25rem;
+  border-top: 1px dashed var(--strategy-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.shortcut {
+  padding: 0.3rem 0.38rem;
+  border: 1px solid var(--strategy-accent);
+  border-radius: 2px;
+  color: var(--strategy-accent-high);
+  font: 0.58rem/1 inherit;
+  opacity: 0;
+}
+
+.is-active .symlink-strategy .link-line {
+  animation: draw-link 400ms 550ms ease-out forwards;
+}
+
+.is-active .symlink-strategy .shortcut {
+  animation: appear 200ms 880ms ease-out forwards;
+}
+
+@keyframes materialize-copy {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes split-block {
+  to {
+    background: #72c7ff;
+    transform: translateY(-0.22rem);
+  }
+}
+
+@keyframes draw-link {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 44rem) {
+  .strategy-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-active .copy-strategy .destination-storage,
+  .is-active .clone-strategy .destination-storage,
+  .is-active .clone-strategy .destination-storage i:last-child,
+  .is-active .symlink-strategy .link-line,
+  .is-active .symlink-strategy .shortcut {
+    animation-duration: 0.001ms;
+    animation-delay: 0ms;
+  }
+}
+</style>
