@@ -4,7 +4,7 @@
 
 # hwt
 
-`hwt` is a deterministic wrapper around Herdr's native Git worktree lifecycle. It applies global and repository-specific placement, file-copy, and setup rules before returning workspace and pane IDs to people or coding agents.
+`hwt` is a CLI companion to [herdr](https://herdr.dev) that removes the friction from Git worktrees. Turn a branch into a configured Herdr workspace with files copied, dependencies linked, and setup finished. The same result for you and every agent.
 
 ## Install
 
