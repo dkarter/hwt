@@ -16,3 +16,7 @@ To avoid non user facing product changes from impacting the versioning and chang
 
 - any updates to docs / website should start with `docs:`
 - anything else that is not product related or user facing should generally be considered a `chore:`
+
+When working in PRs the title should be in conventional commits form, because
+PRs get squashed and their title becomes the commit name. Keep it under 52 chars
+total.
