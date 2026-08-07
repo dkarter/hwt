@@ -27,7 +27,6 @@ var (
 	colorPanel  = lipgloss.Color("#29292E")
 	colorInk    = lipgloss.Color("#17171A")
 
-	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
 	labelStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorPurple)
 	detailStyle = lipgloss.NewStyle().Foreground(colorMuted)
 	helpStyle   = lipgloss.NewStyle().Foreground(colorMuted)
@@ -399,15 +398,14 @@ func (v vimInput) cursor(y int) *tea.Cursor {
 }
 
 type textPromptModel struct {
-	title     string
 	label     string
 	input     vimInput
 	submitted bool
 	canceled  bool
 }
 
-func newTextPromptModel(title, label, placeholder string) textPromptModel {
-	return textPromptModel{title: title, label: label, input: newVimInput(placeholder)}
+func newTextPromptModel(label, placeholder string) textPromptModel {
+	return textPromptModel{label: label, input: newVimInput(placeholder)}
 }
 
 func (m textPromptModel) Init() tea.Cmd { return nil }
@@ -448,8 +446,6 @@ func (m textPromptModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m textPromptModel) View() tea.View {
 	content := strings.Join([]string{
-		titleStyle.Render(m.title),
-		"",
 		labelStyle.Render(m.label),
 		m.input.view(),
 		"",
@@ -457,7 +453,7 @@ func (m textPromptModel) View() tea.View {
 	}, "\n")
 	view := tea.NewView(content)
 	view.AltScreen = true
-	view.Cursor = m.input.cursor(3)
+	view.Cursor = m.input.cursor(1)
 	return view
 }
 
@@ -600,8 +596,6 @@ func fuzzyScore(query, candidate string) (int, bool) {
 
 func (m branchPickerModel) View() tea.View {
 	lines := []string{
-		titleStyle.Render("Select Base Branch"),
-		"",
 		labelStyle.Render("Fuzzy search"),
 		m.input.view(),
 		"",
@@ -628,7 +622,7 @@ func (m branchPickerModel) View() tea.View {
 	lines = append(lines, "", m.input.modeView()+"  "+helpStyle.Render("j/k select  |  esc esc cancel  |  enter choose"))
 	view := tea.NewView(strings.Join(lines, "\n"))
 	view.AltScreen = true
-	view.Cursor = m.input.cursor(3)
+	view.Cursor = m.input.cursor(1)
 	return view
 }
 
@@ -689,7 +683,7 @@ func (m confirmModel) View() tea.View {
 		yesStyle, noStyle = selected, unselected
 	}
 	options := lipgloss.JoinHorizontal(lipgloss.Top, yesStyle.Render("Yes"), "    ", noStyle.Render("No"))
-	lines := []string{titleStyle.Render("hwt confirm"), "", labelStyle.Render(m.question)}
+	lines := []string{labelStyle.Render(m.question)}
 	if m.detail != "" {
 		style := detailStyle
 		if m.width > 0 {
@@ -703,8 +697,8 @@ func (m confirmModel) View() tea.View {
 	return view
 }
 
-func runTextPrompt(input io.Reader, output io.Writer, title, label, placeholder string) (string, bool, error) {
-	result, err := tea.NewProgram(newTextPromptModel(title, label, placeholder), tea.WithInput(input), tea.WithOutput(output)).Run()
+func runTextPrompt(input io.Reader, output io.Writer, label, placeholder string) (string, bool, error) {
+	result, err := tea.NewProgram(newTextPromptModel(label, placeholder), tea.WithInput(input), tea.WithOutput(output)).Run()
 	if err != nil {
 		return "", false, err
 	}

@@ -160,7 +160,7 @@ func TestOperatorPendingConsumesApplicationKeys(t *testing.T) {
 }
 
 func TestDoubleEscapeCancelsInput(t *testing.T) {
-	model := newTextPromptModel("Test", "Value", "")
+	model := newTextPromptModel("Value", "")
 	updated, _ := model.Update(specialKey(tea.KeyEscape))
 	if updated.(textPromptModel).canceled {
 		t.Fatal("first escape should only enter normal mode")

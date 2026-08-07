@@ -46,7 +46,7 @@ func (a *app) herdrCreateCommand() *cobra.Command {
 				return fmt.Errorf("current Herdr workspace is not in a Git repository: %w", err)
 			}
 
-			branch, ok, err := runTextPrompt(cmd.InOrStdin(), cmd.OutOrStdout(), "New Worktree", "Branch name", "feature/my-change")
+			branch, ok, err := runTextPrompt(cmd.InOrStdin(), cmd.OutOrStdout(), "Branch name", "feature/my-change")
 			if err != nil || !ok {
 				return err
 			}
