@@ -3,6 +3,11 @@ title: Herdr plugin
 description: Create and remove configured HWT worktrees through native Herdr actions.
 ---
 
+:::caution[Experimental]
+The Herdr plugin is experimental. Its installation, actions, and interaction
+design may change between releases.
+:::
+
 The official HWT plugin adds interactive worktree actions to Herdr. It does not
 require a separate fuzzy finder or command palette.
 
@@ -25,25 +30,8 @@ The plugin provides these actions:
 
 ## Controls
 
-Text inputs start in insert mode with a bar cursor. Press `Esc` to enter normal
-mode and switch to a block cursor. The mode indicator appears at the bottom
-left beside the keybinding legend. Press `Esc` twice to cancel.
-
-Normal-mode input controls:
-
-- `h` and `l` move by one character.
-- `0` and `$` move to the beginning or end.
-- `w`, `b`, and `e` move by Vim word boundaries.
-- `B` and `E` move by whitespace-delimited WORD boundaries.
-- `x` deletes the character under the cursor.
-- `s` substitutes the character under the cursor and enters insert mode.
-- `d` followed by a motion deletes that motion's range; `dd` clears the input.
-- `i`, `a`, `I`, and `A` enter insert mode in the corresponding Vim position.
-- `q` cancels and Enter submits.
-
-The base-branch picker filters branches fuzzily as you type. In normal mode,
-use `j` and `k` to move through matches and `g` or `G` to jump to the first or
-last match. Arrow keys and `Ctrl+N`/`Ctrl+P` also navigate while inserting.
+Text inputs and the fuzzy base-branch picker support Vim-style normal and insert
+modes. The interface shows the current mode and available controls.
 
 Confirmation dialogs show horizontal Yes and No choices. Use `h`/`l`, the
 arrow keys, or Tab to change the selection, then press Enter. `y` and `n`
@@ -85,20 +73,6 @@ herdr plugin link ./plugins/herdr
 
 The linked plugin automatically uses the checkout's `./hwt` development binary
 when it exists.
-
-Run the end-to-end lifecycle test from a Herdr-managed pane:
-
-```sh
-./scripts/test-herdr-plugin-e2e.sh
-```
-
-The script creates a disposable repository and runs controllable plugin tabs in
-a background workspace instead of using the normal modal popup. It verifies
-that focus never leaves your current workspace, along with branch-name normalization,
-base-branch selection, configured file copying, post-create hooks, workspace
-creation, dirty-worktree force confirmation, checkout removal, workspace
-closure, and branch preservation. It removes its temporary repository when
-finished.
 
 The popup workflows can also be run directly:
 

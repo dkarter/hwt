@@ -2,4 +2,14 @@
 set -eu
 
 hwt_bin=${HWT_BIN_PATH:-hwt}
+
+if ! "$hwt_bin" herdr --help >/dev/null 2>&1; then
+  printf 'This HWT plugin requires a newer hwt binary.\n\n' >&2
+  printf 'Resolved binary: %s\n' "$hwt_bin" >&2
+  printf 'Update hwt, then reopen this action.\n\n' >&2
+  printf 'Press Enter to close.\n' >&2
+  read -r _ || true
+  exit 1
+fi
+
 exec "$hwt_bin" "$@"

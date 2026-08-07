@@ -34,13 +34,9 @@ The plugin provides these qualified actions:
 - `hwt.worktrees.new`
 - `hwt.worktrees.remove`
 
-Text inputs use Vim-style modes. They start in insert mode with a bar cursor;
-press `Esc` for normal mode and a block cursor. Normal mode supports `h`, `l`,
-`0`, `$`, `w`, `b`, `e`, `B`, `E`, `x`, `s`, `i`, `a`, `I`, and `A`. Press
-`d` followed by a motion to delete its range; `dd` clears the input. The
-base-branch picker filters fuzzily and adds `j`/`k`, arrow keys, `g`, and `G`.
-Confirmation dialogs use `h`/`l` or the arrow keys to choose between Yes and
-No, with No selected by default. Press `Esc` twice to cancel an input or picker.
+Text inputs and the fuzzy base-branch picker support Vim-style normal and insert
+modes. Confirmation dialogs use horizontal Yes and No choices, with No selected
+by default.
 
 Bind them in `~/.config/herdr/config.toml` if desired:
 
