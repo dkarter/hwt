@@ -39,6 +39,7 @@ export default defineConfig({
           label: "Guides",
           items: [
             { label: "Configuration", slug: "docs/configuration" },
+            { label: "Herdr plugin", slug: "docs/herdr-plugin" },
             { label: "Copy strategies", slug: "docs/copy-strategies" },
           ],
         },

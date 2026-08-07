@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+var (
+	errLocked = errors.New("worktree is locked")
+	errDirty  = errors.New("worktree has uncommitted or untracked files")
+)
+
+func CanForceRemove(err error) bool {
+	return errors.Is(err, errLocked) || errors.Is(err, errDirty)
+}
+
+func IsLocked(err error) bool {
+	return errors.Is(err, errLocked)
+}
+
 type RemoveOptions struct {
 	WorkspaceID string
 	Force       bool
@@ -89,7 +102,7 @@ func safeToRemove(path string) error {
 		return fmt.Errorf("inspect worktree metadata: %w", err)
 	}
 	if _, err := os.Stat(filepath.Join(gitDir, "locked")); err == nil {
-		return fmt.Errorf("worktree is locked: %s", path)
+		return fmt.Errorf("%w: %s", errLocked, path)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect worktree lock: %w", err)
 	}
@@ -98,7 +111,7 @@ func safeToRemove(path string) error {
 		return err
 	}
 	if status != "" {
-		return fmt.Errorf("worktree has uncommitted or untracked files: %s (use --force to delete)", path)
+		return fmt.Errorf("%w: %s (use --force to delete)", errDirty, path)
 	}
 	return nil
 }

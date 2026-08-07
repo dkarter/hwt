@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+
+entrypoint=$1
+herdr_bin=${HERDR_BIN_PATH:-herdr}
+plugin_id=${HERDR_PLUGIN_ID:-hwt.worktrees}
+placement=${HWT_PLUGIN_PLACEMENT:-popup}
+focus_flag=--focus
+if [ "${HWT_PLUGIN_FOCUS:-true}" = false ]; then
+  focus_flag=--no-focus
+fi
+
+set -- plugin pane open \
+  --plugin "$plugin_id" \
+  --entrypoint "$entrypoint" \
+  --placement "$placement" \
+  "$focus_flag"
+
+if [ -n "${HWT_PLUGIN_WORKSPACE:-}" ]; then
+  set -- "$@" --workspace "$HWT_PLUGIN_WORKSPACE"
+fi
+
+if [ -n "${HERDR_PLUGIN_CONTEXT_JSON:-}" ]; then
+  set -- "$@" --env "HWT_HERDR_PLUGIN_CONTEXT_JSON=$HERDR_PLUGIN_CONTEXT_JSON"
+fi
+
+development_hwt=${HERDR_PLUGIN_ROOT:-.}/../../hwt
+if [ -n "${HWT_BIN_PATH:-}" ]; then
+  set -- "$@" --env "HWT_BIN_PATH=$HWT_BIN_PATH"
+elif [ -x "$development_hwt" ]; then
+  set -- "$@" --env "HWT_BIN_PATH=$development_hwt"
+fi
+
+if [ -n "${HWT_HERDR_NO_FOCUS:-}" ]; then
+  set -- "$@" --env "HWT_HERDR_NO_FOCUS=$HWT_HERDR_NO_FOCUS"
+fi
+
+exec "$herdr_bin" "$@"

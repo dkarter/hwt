@@ -344,6 +344,9 @@ func TestRemoveRejectsDirtyWorktree(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "uncommitted or untracked") {
 		t.Fatalf("expected dirty worktree error, got %v", err)
 	}
+	if !CanForceRemove(err) {
+		t.Fatalf("dirty worktree error should permit force removal: %v", err)
+	}
 }
 
 func initRepo(t *testing.T) string {

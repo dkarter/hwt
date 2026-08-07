@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+hwt_bin=${HWT_BIN_PATH:-hwt}
+exec "$hwt_bin" "$@"

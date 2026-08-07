@@ -1,0 +1,34 @@
+id = "hwt.worktrees"
+name = "HWT Worktrees"
+version = "0.1.0"
+min_herdr_version = "0.7.4"
+description = "Create and safely remove configured HWT worktrees"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "new"
+title = "New configured worktree"
+contexts = ["workspace"]
+command = ["./open-pane", "create"]
+
+[[actions]]
+id = "remove"
+title = "Remove current worktree"
+contexts = ["workspace"]
+command = ["./open-pane", "remove"]
+
+[[panes]]
+id = "create"
+title = "New Worktree"
+placement = "popup"
+width = "70%"
+height = "60%"
+command = ["./run-hwt", "herdr", "create"]
+
+[[panes]]
+id = "remove"
+title = "Remove Worktree"
+placement = "popup"
+width = "70%"
+height = "40%"
+command = ["./run-hwt", "herdr", "remove"]

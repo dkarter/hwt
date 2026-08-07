@@ -22,7 +22,11 @@ type app struct {
 }
 
 func New(version string) *cobra.Command {
-	a := &app{}
+	herdrBin := os.Getenv("HERDR_BIN_PATH")
+	if herdrBin == "" {
+		herdrBin = "herdr"
+	}
+	a := &app{herdrBin: herdrBin}
 	root := &cobra.Command{
 		Use:           "hwt",
 		Short:         "Frictionless Herdr worktree orchestration",
@@ -30,8 +34,8 @@ func New(version string) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", "herdr", "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), schemaCommand(), skillCommand())
+	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
+	root.AddCommand(a.createCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
 }
 

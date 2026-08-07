@@ -16,6 +16,34 @@ mise use -g github:dkarter/hwt
 
 Build from source with `mise run build` or install to `~/.local/bin/hwt` with `mise run install`.
 
+## Herdr plugin
+
+Install the official plugin to create and safely remove HWT worktrees from Herdr:
+
+```bash
+herdr plugin install dkarter/hwt/plugins/herdr
+```
+
+The plugin adds **New configured worktree** and **Remove current worktree** actions. It uses portable interactive commands built into `hwt` and does not require a separate fuzzy finder or command palette.
+
+Optional keybindings:
+
+```toml
+[[keys.command]]
+key = "prefix+shift+g"
+type = "plugin_action"
+command = "hwt.worktrees.new"
+description = "new configured worktree"
+
+[[keys.command]]
+key = "prefix+shift+d"
+type = "plugin_action"
+command = "hwt.worktrees.remove"
+description = "remove configured worktree"
+```
+
+When developing locally, use `herdr plugin link ./plugins/herdr` instead.
+
 ## Commands
 
 ```bash
@@ -26,6 +54,8 @@ hwt config show
 hwt config validate
 hwt config init
 hwt config init --global
+hwt herdr create
+hwt herdr remove
 hwt schema
 hwt skill
 hwt skill config
@@ -97,6 +127,12 @@ mise run snapshot
 ```
 
 Releases are managed by Release Please and GoReleaser. CI tests on macOS and Linux and builds the CLI on every pull request.
+
+Run the live Herdr plugin lifecycle test from a Herdr-managed pane:
+
+```bash
+./scripts/test-herdr-plugin-e2e.sh
+```
 
 The Astro and Starlight site lives in `website/`. Run `mise run website-dev` locally or `mise run website-build` for a production build.
 
