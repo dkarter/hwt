@@ -40,7 +40,7 @@ press `Esc` for normal mode and a block cursor. Normal mode supports `h`, `l`,
 `d` followed by a motion to delete its range; `dd` clears the input. The
 base-branch picker filters fuzzily and adds `j`/`k`, arrow keys, `g`, and `G`.
 Confirmation dialogs use `h`/`l` or the arrow keys to choose between Yes and
-No, with No selected by default.
+No, with No selected by default. Press `Esc` twice to cancel an input or picker.
 
 Bind them in `~/.config/herdr/config.toml` if desired:
 

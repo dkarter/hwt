@@ -159,6 +159,18 @@ func TestOperatorPendingConsumesApplicationKeys(t *testing.T) {
 	}
 }
 
+func TestDoubleEscapeCancelsInput(t *testing.T) {
+	model := newTextPromptModel("Test", "Value", "")
+	updated, _ := model.Update(specialKey(tea.KeyEscape))
+	if updated.(textPromptModel).canceled {
+		t.Fatal("first escape should only enter normal mode")
+	}
+	updated, _ = updated.(textPromptModel).Update(specialKey(tea.KeyEscape))
+	if !updated.(textPromptModel).canceled {
+		t.Fatal("second escape should cancel")
+	}
+}
+
 func TestVimDeleteRespectsMotions(t *testing.T) {
 	tests := []struct {
 		name     string

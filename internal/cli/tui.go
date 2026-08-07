@@ -42,6 +42,8 @@ type vimInput struct {
 	width       int
 	mode        inputMode
 	deleting    bool
+	escapeArmed bool
+	cancel      bool
 	placeholder string
 }
 
@@ -85,6 +87,15 @@ func (v *vimInput) leaveInsertMode() {
 func (v *vimInput) update(msg tea.KeyPressMsg) bool {
 	before := v.valueString()
 	key := msg.String()
+	if key == "esc" {
+		if v.escapeArmed {
+			v.cancel = true
+			return false
+		}
+		v.escapeArmed = true
+	} else {
+		v.escapeArmed = false
+	}
 	if v.mode == modeInsert {
 		switch key {
 		case "esc":
@@ -413,6 +424,10 @@ func (m textPromptModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	if m.input.deleting && key != "ctrl+c" {
 		m.input.update(msg)
+		if m.input.cancel {
+			m.canceled = true
+			return m, tea.Quit
+		}
 		return m, nil
 	}
 	if key == "ctrl+c" || (m.input.mode == modeNormal && key == "q") {
@@ -424,17 +439,21 @@ func (m textPromptModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	m.input.update(msg)
+	if m.input.cancel {
+		m.canceled = true
+		return m, tea.Quit
+	}
 	return m, nil
 }
 
 func (m textPromptModel) View() tea.View {
 	content := strings.Join([]string{
-		titleStyle.Render("> "+m.title) + "  " + m.input.modeView(),
+		titleStyle.Render(m.title),
 		"",
 		labelStyle.Render(m.label),
 		m.input.view(),
 		"",
-		helpStyle.Render("esc normal  |  i insert  |  enter submit  |  ctrl+c cancel"),
+		m.input.modeView() + "  " + helpStyle.Render("esc normal  |  esc esc cancel  |  enter submit"),
 	}, "\n")
 	view := tea.NewView(content)
 	view.AltScreen = true
@@ -484,6 +503,10 @@ func (m branchPickerModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 			m.refilter()
 		}
+		if m.input.cancel {
+			m.canceled = true
+			return m, tea.Quit
+		}
 		return m, nil
 	}
 	if key == "ctrl+c" || (m.input.mode == modeNormal && key == "q") {
@@ -517,6 +540,10 @@ func (m branchPickerModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if m.input.update(msg) {
 		m.selected = 0
 		m.refilter()
+	}
+	if m.input.cancel {
+		m.canceled = true
+		return m, tea.Quit
 	}
 	return m, nil
 }
@@ -573,7 +600,7 @@ func fuzzyScore(query, candidate string) (int, bool) {
 
 func (m branchPickerModel) View() tea.View {
 	lines := []string{
-		titleStyle.Render("> Select Base Branch") + "  " + m.input.modeView(),
+		titleStyle.Render("Select Base Branch"),
 		"",
 		labelStyle.Render("Fuzzy search"),
 		m.input.view(),
@@ -598,7 +625,7 @@ func (m branchPickerModel) View() tea.View {
 			lines = append(lines, style.Render(prefix+m.matches[index].label))
 		}
 	}
-	lines = append(lines, "", helpStyle.Render("esc normal  |  j/k select  |  i insert  |  enter choose"))
+	lines = append(lines, "", m.input.modeView()+"  "+helpStyle.Render("j/k select  |  esc esc cancel  |  enter choose"))
 	view := tea.NewView(strings.Join(lines, "\n"))
 	view.AltScreen = true
 	view.Cursor = m.input.cursor(3)
@@ -662,7 +689,7 @@ func (m confirmModel) View() tea.View {
 		yesStyle, noStyle = selected, unselected
 	}
 	options := lipgloss.JoinHorizontal(lipgloss.Top, yesStyle.Render("Yes"), "    ", noStyle.Render("No"))
-	lines := []string{titleStyle.Render("> hwt confirm"), "", labelStyle.Render(m.question)}
+	lines := []string{titleStyle.Render("hwt confirm"), "", labelStyle.Render(m.question)}
 	if m.detail != "" {
 		style := detailStyle
 		if m.width > 0 {

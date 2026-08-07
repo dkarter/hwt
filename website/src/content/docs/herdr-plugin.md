@@ -26,7 +26,8 @@ The plugin provides these actions:
 ## Controls
 
 Text inputs start in insert mode with a bar cursor. Press `Esc` to enter normal
-mode and switch to a block cursor.
+mode and switch to a block cursor. The mode indicator appears at the bottom
+left beside the keybinding legend. Press `Esc` twice to cancel.
 
 Normal-mode input controls:
 

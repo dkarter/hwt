@@ -131,7 +131,7 @@ assert_input_edit() {
     fail "Vim input case $name did not produce $expected"
   fi
   herdr pane send-keys "$pane" esc
-  herdr pane send-text "$pane" q
+  herdr pane send-keys "$pane" esc
   attempt=0
   while [ "$attempt" -lt 50 ] && herdr pane get "$pane" >/dev/null 2>&1; do
     attempt=$((attempt + 1))
