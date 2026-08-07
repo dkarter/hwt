@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/dkarter/hwt/compare/v0.3.0...v0.4.0) (2026-08-07)
+
+
+### Features
+
+* add interactive Herdr worktree plugin ([5aaedb0](https://github.com/dkarter/hwt/commit/5aaedb09077f3680ef8fe3813ccd8355e8fc7d74))
+* add interactive worktree comparison ([e9a04e3](https://github.com/dkarter/hwt/commit/e9a04e38c796fe7a04d305c7e7fe3adcbbc475df))
+
+
+### Bug Fixes
+
+* refine interactive TUI controls ([3ba81ca](https://github.com/dkarter/hwt/commit/3ba81ca31525e1345d830906d4b27d949e7846fd))
+
 ## [0.3.0](https://github.com/dkarter/hwt/compare/v0.2.0...v0.3.0) (2026-08-06)
 
 
