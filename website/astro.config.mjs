@@ -7,7 +7,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "hwt",
-      description: "Deterministic Herdr worktree orchestration.",
+      description: "Frictionless Herdr worktree orchestration.",
       favicon: "/favicon.svg",
       social: [
         {

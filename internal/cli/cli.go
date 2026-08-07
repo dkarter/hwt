@@ -25,7 +25,7 @@ func New(version string) *cobra.Command {
 	a := &app{}
 	root := &cobra.Command{
 		Use:           "hwt",
-		Short:         "Deterministic Herdr worktree orchestration",
+		Short:         "Frictionless Herdr worktree orchestration",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
