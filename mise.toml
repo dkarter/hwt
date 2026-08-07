@@ -32,6 +32,10 @@ run = "go build -o hwt ./cmd/hwt"
 description = "Runs tests"
 run = "go test ./..."
 
+[tasks.e2e]
+description = "Runs the Herdr plugin end-to-end tests"
+run = "./scripts/test-herdr-plugin-e2e.sh"
+
 [tasks.check]
 description = "Runs all quality checks"
 depends = ["fmt-check", "test", "website-build"]
