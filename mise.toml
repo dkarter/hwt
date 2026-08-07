@@ -1,3 +1,6 @@
+[shell_alias]
+hwt = "go run ./cmd/hwt"
+
 [tools]
 "github:crate-ci/committed" = "latest"
 dprint = "latest"
