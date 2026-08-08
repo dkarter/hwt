@@ -35,10 +35,9 @@ mise run install
 
 The install task writes the binary to `~/.local/bin/hwt`. Ensure that directory is on your `PATH`.
 
-## Select another Herdr binary
+## Use hwt from Herdr
 
-Every command accepts `--herdr-bin` when Herdr is not on your `PATH` or you want to test another build:
+The experimental Herdr plugin adds interactive actions for creating and removing
+configured worktrees without leaving Herdr.
 
-```sh
-hwt --herdr-bin /path/to/herdr list
-```
+[Install and configure the Herdr plugin →](/docs/herdr-plugin/)

@@ -11,6 +11,15 @@ description: Commands available in hwt and links to detailed reference pages.
 | `--help`           | Show command help.                               |
 | `--version`        | Print the hwt version.                           |
 
+### Select another Herdr binary
+
+Every command accepts `--herdr-bin` when Herdr is not on your `PATH` or you want
+to test another build:
+
+```sh
+hwt --herdr-bin /path/to/herdr list
+```
+
 ## Worktrees
 
 - [`hwt create`](/docs/cli/create-worktree/) creates and configures a Herdr worktree workspace.

@@ -271,6 +271,43 @@ const demoWorkers = [
         }
       </section>
 
+      <section class="plugin-section shell">
+        <div class="plugin-copy">
+          <div class="plugin-kicker">
+            <p class="section-label">Herdr plugin</p>
+            <span>experimental</span>
+          </div>
+          <h2>Create worktrees<br /><em>without leaving Herdr.</em></h2>
+          <p>
+            Open a polished branch prompt from your Herdr keybindings. Name the worktree, fuzzy-find
+            its base branch, and let hwt apply the repository's complete ready-state policy.
+          </p>
+          <a href="/docs/herdr-plugin/">Explore the Herdr plugin →</a>
+        </div>
+
+        <div
+          class="plugin-demo"
+          role="img"
+          aria-label="Herdr New Worktree popup showing the hwt branch prompt in Vim normal mode"
+        >
+          <div class="plugin-grid" aria-hidden="true"></div>
+          <div class="plugin-popup" aria-hidden="true">
+            <div class="plugin-popup-title"><span>New Worktree</span><i></i></div>
+            <div class="plugin-popup-body">
+              <p class="plugin-field-label">Branch name</p>
+              <div class="plugin-input"><b>&gt;</b><span>feat/plugin-ui</span><i></i></div>
+              <div class="plugin-mode-line">
+                <strong>NORMAL</strong>
+                <span>h/l move</span><i></i><span>i insert</span><i></i><span>esc esc cancel</span>
+              </div>
+            </div>
+            <div class="plugin-popup-foot">
+              <span>hwt.worktrees.new</span><b>enter submit</b>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="config shell">
         <div>
           <p class="section-label">Repository policy</p>
