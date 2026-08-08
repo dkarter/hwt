@@ -92,6 +92,7 @@ export default defineConfig({
             { label: "Create worktree", slug: "docs/cli/create-worktree" },
             { label: "Remove worktree", slug: "docs/cli/remove-worktree" },
             { label: "List worktrees", slug: "docs/cli/list-worktrees" },
+            { label: "Agent skill", slug: "docs/agent-skill" },
           ],
         },
         {

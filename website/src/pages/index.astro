@@ -233,7 +233,18 @@ const demoWorkers = [
 
       <section class="manifesto shell">
         <p class="section-label">The contract</p>
-        <h2>Worktrees should start with context, <em>not chores.</em></h2>
+        <div>
+          <h2>Worktrees should start with context, <em>not chores.</em></h2>
+          <p>
+            A checkout is only the start. The files it depends on should be present, setup should be
+            finished, and the workspace should be ready for a person or agent to pick up.
+          </p>
+          <p>
+            Agents shouldn't spend expensive tokens just to re-install dependencies or re-run setup.
+            People shouldn't have to remember to copy files or run scripts. hwt ensures that every
+            worktree is ready for work.
+          </p>
+        </div>
       </section>
 
       <section class="comparison-section shell" id="overview">
@@ -298,7 +309,7 @@ const demoWorkers = [
               <div class="plugin-input"><b>&gt;</b><span>feat/plugin-ui</span><i></i></div>
               <div class="plugin-mode-line">
                 <strong>NORMAL</strong>
-                <span>h/l move</span><i></i><span>i insert</span><i></i><span>esc esc cancel</span>
+                <span>i insert</span><i></i><span>esc esc cancel</span>
               </div>
             </div>
             <div class="plugin-popup-foot">
