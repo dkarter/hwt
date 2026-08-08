@@ -147,87 +147,101 @@ const demoWorkers = [
           <a class="secondary" href="/docs/">Read the docs</a>
         </div>
 
-        <div
-          class="herdr-demo"
-          role="img"
-          aria-label="Animated Herdr workspace showing OpenCode creating three hwt worktrees and starting agents in separate workspaces"
-        >
-          <div class="demo-visual" aria-hidden="true">
-            <div class="demo-bar">
-              <span class="lights"><i></i><i></i><i></i></span>
-              <span>hwt · coordinator</span>
-              <span>herdr</span>
-            </div>
-            <aside class="demo-sidebar">
-              <b>spaces</b>
-              <div class="space parent-space">
-                <i class="space-status"></i><span>hwt<small>main</small></span><b>⌄</b>
+        <div class="demo-frame is-ready" data-herdr-demo>
+          <div
+            class="herdr-demo"
+            role="img"
+            aria-label="Animated Herdr workspace showing OpenCode creating three hwt worktrees and starting agents in separate workspaces"
+          >
+            <div class="demo-visual" aria-hidden="true">
+              <div class="demo-bar">
+                <span class="lights"><i></i><i></i><i></i></span>
+                <span>hwt · coordinator</span>
+                <span>herdr</span>
               </div>
-              <div class="worktree-list">
+              <aside class="demo-sidebar">
+                <b>spaces</b>
+                <div class="space parent-space">
+                  <i class="space-status"></i><span>hwt<small>main</small></span><b>⌄</b>
+                </div>
+                <div class="worktree-list">
+                  {
+                    demoWorkers.map((worker) => (
+                      <div class:list={["space", "child-space", "demo-step", worker.step]}>
+                        <i class={worker.workerStep}></i><span>{worker.label}</span>
+                      </div>
+                    ))
+                  }
+                </div>
+                <div class="agent-label">agents <span>status</span></div>
+                <div class="agent-row">
+                  <i class="coordinator-status"></i>
+                  <span>
+                    coordinator
+                    <span class="coordinator-state">
+                      <small class="coordinator-working">working</small>
+                      <small class="coordinator-done">done</small>
+                    </span>
+                  </span>
+                </div>
                 {
                   demoWorkers.map((worker) => (
-                    <div class:list={["space", "child-space", "demo-step", worker.step]}>
-                      <i class={worker.workerStep}></i><span>{worker.label}</span>
+                    <div class:list={["agent-row", "demo-step", worker.workerStep]}>
+                      <i class={worker.workerStep}></i><span>{worker.label}<small
+                        >working</small></span>
                     </div>
                   ))
                 }
-              </div>
-              <div class="agent-label">agents <span>status</span></div>
-              <div class="agent-row">
-                <i class="coordinator-status"></i>
-                <span>
-                  coordinator
-                  <span class="coordinator-state">
-                    <small class="coordinator-working">working</small>
-                    <small class="coordinator-done">done</small>
-                  </span>
-                </span>
-              </div>
-              {
-                demoWorkers.map((worker) => (
-                  <div class:list={["agent-row", "demo-step", worker.workerStep]}>
-                    <i class={worker.workerStep}></i><span>{worker.label}<small
-                      >working</small></span>
+              </aside>
+              <div class="demo-panes">
+                <section class="coordinator-pane demo-pane">
+                  <div class="pane-title"><span>▣ opencode</span><b>coordinator</b></div>
+                  <div class="pane-content">
+                    <p>
+                      <strong>❯</strong> Use the coordinator skill to split auth, API, and docs
+                      work.
+                    </p>
+                    <p class="agent-copy demo-step intro-step">
+                      ● Creating isolated Herdr workspaces.
+                    </p>
+                    {
+                      demoWorkers.map((worker) => (
+                        <>
+                          <p class:list={["command", "demo-step", worker.commandStep]}>
+                            <b>$</b> hwt create -b {worker.branch} --base main
+                          </p>
+                          <p class:list={["result", "demo-step", worker.step]}>
+                            Created {worker.branch} at {worker.path} <span>(workspace {
+                                worker.workspace
+                              })</span>
+                          </p>
+                        </>
+                      ))
+                    }
+                    <p class="agent-copy demo-step launch-step">
+                      ● Worktrees ready. Starting OpenCode in each workspace.
+                    </p>
+                    <p class="agent-copy demo-step final-step">
+                      ● Three agents working in parallel.
+                    </p>
+                    <p class="switch-note demo-step final-step" data-demo-final>
+                      Select a worktree in the sidebar to switch to its agent.
+                    </p>
                   </div>
-                ))
-              }
-            </aside>
-            <div class="demo-panes">
-              <section class="coordinator-pane demo-pane">
-                <div class="pane-title"><span>▣ opencode</span><b>coordinator</b></div>
-                <div class="pane-content">
-                  <p>
-                    <strong>❯</strong> Use the coordinator skill to split auth, API, and docs work.
-                  </p>
-                  <p class="agent-copy demo-step intro-step">
-                    ● Creating isolated Herdr workspaces.
-                  </p>
-                  {
-                    demoWorkers.map((worker) => (
-                      <>
-                        <p class:list={["command", "demo-step", worker.commandStep]}>
-                          <b>$</b> hwt create -b {worker.branch} --base main
-                        </p>
-                        <p class:list={["result", "demo-step", worker.step]}>
-                          Created {worker.branch} at {worker.path} <span>(workspace {
-                              worker.workspace
-                            })</span>
-                        </p>
-                      </>
-                    ))
-                  }
-                  <p class="agent-copy demo-step launch-step">
-                    ● Worktrees ready. Starting OpenCode in each workspace.
-                  </p>
-                  <p class="agent-copy demo-step final-step">● Three agents working in parallel.</p>
-                  <p class="switch-note demo-step final-step">
-                    Select a worktree in the sidebar to switch to its agent.
-                  </p>
-                </div>
-                <div class="pane-foot">~/code/hwt <b>main</b> · ctrl+p commands</div>
-              </section>
+                  <div class="pane-foot">~/code/hwt <b>main</b> · ctrl+p commands</div>
+                </section>
+              </div>
             </div>
           </div>
+          <button class="demo-replay" type="button" hidden>Replay</button>
+          <noscript>
+            <style>
+            .demo-frame.is-ready .demo-step {
+              opacity: 1;
+              transform: none;
+            }
+            </style>
+          </noscript>
         </div>
       </section>
 
@@ -347,5 +361,61 @@ const demoWorkers = [
         <a href="/docs/">Docs</a><a href="https://github.com/dkarter/hwt">GitHub</a><span>MIT</span>
       </div>
     </footer>
+
+    <script>
+    const demo = document.querySelector<HTMLElement>("[data-herdr-demo]");
+      const replay = demo?.querySelector<HTMLButtonElement>(".demo-replay");
+      const finalStep = demo?.querySelector<HTMLElement>("[data-demo-final]");
+      const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let observer: IntersectionObserver | undefined;
+
+      if (demo && replay && finalStep) {
+        const complete = () => {
+          demo.classList.add("is-complete");
+          replay.hidden = false;
+        };
+        const play = () => {
+          replay.hidden = true;
+          demo.classList.remove("is-complete");
+          finalStep.removeEventListener("animationend", complete);
+          finalStep.addEventListener("animationend", complete, { once: true });
+
+          const replaying = demo.classList.contains("is-playing");
+          demo.classList.add("is-playing");
+          if (!replaying) return;
+
+          demo.getAnimations({ subtree: true }).forEach((animation) => {
+            animation.cancel();
+            animation.play();
+          });
+        };
+
+        replay.addEventListener("click", play);
+
+        const observe = () => {
+          observer?.disconnect();
+          demo.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
+          demo.classList.remove("is-playing", "is-complete");
+          replay.hidden = true;
+          finalStep.removeEventListener("animationend", complete);
+
+          if (motionPreference.matches) {
+            demo.classList.remove("is-ready");
+            return;
+          }
+
+          demo.classList.add("is-ready");
+          observer = new IntersectionObserver(([entry]) => {
+            if (!entry || entry.intersectionRatio < 0.25) return;
+            observer?.disconnect();
+            play();
+          }, { threshold: 0.25 });
+          observer.observe(demo);
+        };
+
+        motionPreference.addEventListener("change", observe);
+        observe();
+      }
+    </script>
   </body>
 </html>

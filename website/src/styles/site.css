@@ -176,6 +176,9 @@ h1 em, h2 em {
   border-color: var(--paper);
 }
 
+.demo-frame {
+  position: relative;
+}
 .herdr-demo {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
@@ -189,6 +192,26 @@ h1 em, h2 em {
     #08090b;
   box-shadow: 0 26px 90px rgb(0 0 0 / 0.4);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+.demo-replay {
+  position: absolute;
+  top: 9px;
+  right: 12px;
+  z-index: 1;
+  padding: 4px 9px;
+  border: 1px solid #59628b;
+  color: #c4cae7;
+  background: #11131a;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+.demo-replay:hover, .demo-replay:focus-visible {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+.demo-frame.is-complete .demo-bar > :last-child {
+  visibility: hidden;
 }
 .demo-visual {
   display: contents;
@@ -278,9 +301,16 @@ h1 em, h2 em {
 .agent-row i.worker-one,
 .agent-row i.worker-two,
 .agent-row i.worker-three {
-  animation-name: status-working;
   animation-duration: 0.2s;
   animation-fill-mode: forwards;
+}
+.demo-frame.is-playing .child-space i.worker-one,
+.demo-frame.is-playing .child-space i.worker-two,
+.demo-frame.is-playing .child-space i.worker-three,
+.demo-frame.is-playing .agent-row i.worker-one,
+.demo-frame.is-playing .agent-row i.worker-two,
+.demo-frame.is-playing .agent-row i.worker-three {
+  animation-name: status-working;
 }
 .space i, .agent-row i {
   width: 7px;
@@ -303,6 +333,9 @@ h1 em, h2 em {
   border-color: #f2bd68;
   background: #f2bd68;
   box-shadow: 0 0 8px rgb(242 189 104 / 0.35);
+}
+.demo-frame.is-playing .parent-space .space-status,
+.demo-frame.is-playing .agent-row .coordinator-status {
   animation: coordinator-done 0.2s ease 7.1s forwards;
 }
 .coordinator-state {
@@ -314,11 +347,16 @@ h1 em, h2 em {
   margin: 0;
 }
 .coordinator-working {
+  opacity: 1;
+}
+.demo-frame.is-playing .coordinator-working {
   animation: hide-working 0.1s linear 7.1s forwards;
 }
 .coordinator-done {
   color: #69c5f7 !important;
   opacity: 0;
+}
+.demo-frame.is-playing .coordinator-done {
   animation: show-done 0.1s linear 7.1s forwards;
 }
 .agent-label {
@@ -406,9 +444,18 @@ h1 em, h2 em {
   font-size: 0.66rem;
 }
 .demo-step {
+  opacity: 1;
+  transform: none;
+}
+.demo-frame.is-ready .demo-step {
   opacity: 0;
   transform: translateY(4px);
-  animation: demo-reveal 0.3s ease forwards;
+}
+.demo-frame.is-playing .demo-step {
+  animation-name: demo-reveal;
+  animation-duration: 0.3s;
+  animation-timing-function: ease;
+  animation-fill-mode: forwards;
 }
 .intro-step {
   animation-delay: 0.7s;
