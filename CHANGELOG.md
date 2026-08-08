@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/dkarter/hwt/compare/v0.4.0...v0.4.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* remove duplicate TUI titles ([4ec7cfd](https://github.com/dkarter/hwt/commit/4ec7cfd8e08d7b58d2918673dad404d65ee74d88))
+* report incompatible hwt plugin binary ([276e2e0](https://github.com/dkarter/hwt/commit/276e2e098f1f3e9717715d7df1eaa4f9f0a53344))
+
 ## [0.4.0](https://github.com/dkarter/hwt/compare/v0.3.0...v0.4.0) (2026-08-07)
 
 
