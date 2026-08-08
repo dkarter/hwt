@@ -61,22 +61,3 @@ Reload Herdr configuration after editing it:
 ```sh
 herdr server reload-config
 ```
-
-## Local development
-
-Link the plugin from an HWT checkout while developing it:
-
-```sh
-mise run build
-herdr plugin link ./plugins/herdr
-```
-
-The linked plugin automatically uses the checkout's `./hwt` development binary
-when it exists.
-
-The popup workflows can also be run directly:
-
-```sh
-hwt herdr create
-hwt herdr remove
-```
