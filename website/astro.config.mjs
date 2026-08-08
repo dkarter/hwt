@@ -9,6 +9,48 @@ export default defineConfig({
       title: "hwt",
       description: "Frictionless Herdr worktree orchestration.",
       favicon: "/favicon.svg",
+      head: [
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image",
+            content: "https://hwt.doriankarter.com/og-image.png",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:type", content: "image/png" },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:width", content: "1200" },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:height", content: "630" },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image:alt",
+            content: "hwt creates a ready-to-work Herdr workspace from a Git branch",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "twitter:image",
+            content: "https://hwt.doriankarter.com/og-image.png",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "twitter:image:alt",
+            content: "hwt creates a ready-to-work Herdr workspace from a Git branch",
+          },
+        },
+      ],
       social: [
         {
           icon: "github",

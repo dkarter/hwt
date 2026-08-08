@@ -123,16 +123,25 @@ h1, h2, h3, p {
   margin-top: 0;
 }
 h1 {
-  max-width: 1040px;
+  max-width: 1180px;
   margin: 28px 0 32px;
   font-size: clamp(3.6rem, 8.3vw, 7.6rem);
   line-height: 0.91;
   letter-spacing: -0.075em;
   font-weight: 700;
 }
+.hero-line {
+  white-space: nowrap;
+}
 h1 em, h2 em {
   color: var(--acid);
   font-style: normal;
+}
+
+@media (max-width: 700px) {
+  .hero-line {
+    white-space: normal;
+  }
 }
 .lede {
   max-width: 700px;
