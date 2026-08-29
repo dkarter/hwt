@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/dkarter/hwt/compare/v0.5.0...v0.6.0) (2026-08-29)
+
+
+### Features
+
+* add Herdr plugin management ([9e63f79](https://github.com/dkarter/hwt/commit/9e63f79ffbaf68e475e1dba1de3d3c8624ae7234))
+
+
+### Bug Fixes
+
+* resolve mise hwt after updates ([e2b1fb7](https://github.com/dkarter/hwt/commit/e2b1fb71722f0d573827d2bc06e04a0de54240f2))
+
 ## [0.5.0](https://github.com/dkarter/hwt/compare/v0.4.1...v0.5.0) (2026-08-29)
 
 
