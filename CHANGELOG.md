@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/dkarter/hwt/compare/v0.4.1...v0.5.0) (2026-08-29)
+
+
+### Features
+
+* copy files into Herdr worktrees ([d4a9822](https://github.com/dkarter/hwt/commit/d4a9822f5c45a6a6e0789bffc07f9442ec21cc40))
+
 ## [0.4.1](https://github.com/dkarter/hwt/compare/v0.4.0...v0.4.1) (2026-08-08)
 
 
