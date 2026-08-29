@@ -21,8 +21,11 @@ Build from source with `mise run build` or install to `~/.local/bin/hwt` with `m
 Install the official plugin to create and safely remove HWT worktrees from Herdr:
 
 ```bash
-herdr plugin install dkarter/hwt/plugins/herdr
+hwt plugin install
 ```
+
+Refresh it after updating HWT with `hwt plugin update`, or remove it with
+`hwt plugin uninstall`.
 
 The plugin adds **New configured worktree** and **Remove current worktree** actions. It also prepares configured files when a worktree is created directly through Herdr. It uses portable commands built into `hwt` and does not require a separate fuzzy finder or command palette.
 
@@ -58,6 +61,9 @@ hwt config init --git-common
 hwt config init --global
 hwt herdr create
 hwt herdr remove
+hwt plugin install
+hwt plugin update
+hwt plugin uninstall
 hwt schema
 hwt skill
 hwt skill config

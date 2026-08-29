@@ -37,6 +37,60 @@ func TestConfigInitGitCommonRefusesExistingYMLConfig(t *testing.T) {
 	}
 }
 
+func TestPluginCommandsForwardToHerdr(t *testing.T) {
+	tests := []struct {
+		version string
+		command []string
+		want    string
+	}{
+		{version: "test", command: []string{"plugin", "install"}, want: "plugin\ninstall\ndkarter/hwt/plugins/herdr\n--yes\n"},
+		{version: "1.2.3", command: []string{"plugin", "update"}, want: "plugin\ninstall\ndkarter/hwt/plugins/herdr\n--ref\nv1.2.3\n--yes\n"},
+		{version: "test", command: []string{"plugin", "uninstall"}, want: "plugin\nuninstall\nhwt.worktrees\n"},
+	}
+	for _, test := range tests {
+		t.Run(strings.Join(test.command, " "), func(t *testing.T) {
+			arguments := filepath.Join(t.TempDir(), "arguments")
+			herdr := filepath.Join(t.TempDir(), "herdr")
+			if err := os.WriteFile(herdr, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HWT_TEST_ARGUMENTS\"\nprintf 'herdr output\\n'\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("HWT_TEST_ARGUMENTS", arguments)
+			root := New(test.version)
+			var output bytes.Buffer
+			root.SetOut(&output)
+			root.SetArgs(append([]string{"--herdr-bin", herdr}, test.command...))
+
+			if err := root.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			actual, err := os.ReadFile(arguments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(actual) != test.want {
+				t.Fatalf("Herdr arguments = %q, want %q", actual, test.want)
+			}
+			if output.String() != "herdr output\n" {
+				t.Fatalf("forwarded output = %q", output.String())
+			}
+		})
+	}
+}
+
+func TestPluginCommandReportsHerdrFailure(t *testing.T) {
+	herdr := filepath.Join(t.TempDir(), "herdr")
+	if err := os.WriteFile(herdr, []byte("#!/bin/sh\nprintf 'install failed\\n' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := New("test")
+	root.SetArgs([]string{"--herdr-bin", herdr, "plugin", "update"})
+
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), "install failed") {
+		t.Fatalf("expected Herdr failure, got %v", err)
+	}
+}
+
 func TestSkillCommand(t *testing.T) {
 	tests := []struct {
 		name string

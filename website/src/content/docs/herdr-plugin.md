@@ -16,10 +16,29 @@ HWT must be installed and available in the Herdr server's `PATH`.
 
 ## Install
 
-Install the plugin directly from this repository:
+Install the plugin through HWT:
 
 ```sh
-herdr plugin install dkarter/hwt/plugins/herdr
+hwt plugin install
+```
+
+HWT passes the required source and confirmation arguments to Herdr. Released HWT
+builds install the plugin from the matching release tag; development builds use
+the repository's default branch.
+
+## Update
+
+```sh
+hwt plugin update
+```
+
+Herdr implements updates as an atomic reinstall. It restores the previous
+installation if replacement fails.
+
+## Uninstall
+
+```sh
+hwt plugin uninstall
 ```
 
 The plugin provides these actions:

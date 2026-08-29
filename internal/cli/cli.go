@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dkarter/hwt/internal/config"
@@ -19,6 +20,7 @@ import (
 
 type app struct {
 	herdrBin string
+	version  string
 }
 
 func New(version string) *cobra.Command {
@@ -26,7 +28,7 @@ func New(version string) *cobra.Command {
 	if herdrBin == "" {
 		herdrBin = "herdr"
 	}
-	a := &app{herdrBin: herdrBin}
+	a := &app{herdrBin: herdrBin, version: version}
 	root := &cobra.Command{
 		Use:           "hwt",
 		Short:         "Frictionless Herdr worktree orchestration",
@@ -35,8 +37,72 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), copyCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
+}
+
+func (a *app) pluginCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "plugin",
+		Short: "Manage the HWT plugin for Herdr",
+	}
+	command.AddCommand(
+		a.pluginInstallCommand("install", "Install the HWT plugin for Herdr"),
+		a.pluginInstallCommand("update", "Update the HWT plugin for Herdr"),
+		a.pluginUninstallCommand(),
+	)
+	return command
+}
+
+func (a *app) pluginInstallCommand(use, short string) *cobra.Command {
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			arguments := []string{"plugin", "install", "dkarter/hwt/plugins/herdr"}
+			if ref := releaseRef(a.version); ref != "" {
+				arguments = append(arguments, "--ref", ref)
+			}
+			arguments = append(arguments, "--yes")
+			output, err := a.client().Run(arguments...)
+			if err != nil {
+				return err
+			}
+			_, err = cmd.OutOrStdout().Write(output)
+			return err
+		},
+	}
+}
+
+func releaseRef(version string) string {
+	version = strings.TrimPrefix(version, "v")
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	for _, part := range parts {
+		if _, err := strconv.Atoi(part); err != nil {
+			return ""
+		}
+	}
+	return "v" + version
+}
+
+func (a *app) pluginUninstallCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "uninstall",
+		Short: "Uninstall the HWT plugin from Herdr",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			output, err := a.client().Run("plugin", "uninstall", "hwt.worktrees")
+			if err != nil {
+				return err
+			}
+			_, err = cmd.OutOrStdout().Write(output)
+			return err
+		},
+	}
 }
 
 func copyCommand() *cobra.Command {

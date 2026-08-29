@@ -7,8 +7,11 @@ files into worktrees created through Herdr's built-in UI or CLI.
 HWT must be installed and available in the Herdr server's `PATH`.
 
 ```sh
-herdr plugin install dkarter/hwt/plugins/herdr
+hwt plugin install
 ```
+
+Use `hwt plugin update` to refresh the installation and
+`hwt plugin uninstall` to remove it.
 
 For local development from the HWT checkout:
 

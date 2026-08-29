@@ -36,6 +36,14 @@ hwt --herdr-bin /path/to/herdr list
 | `config validate [path]`               | Validate a file or the resolved repository config.            |
 | `config init [--global, --git-common]` | Create a starter config without overwriting an existing file. |
 
+## Herdr plugin
+
+| Command            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| `plugin install`   | Install the official HWT plugin through Herdr. |
+| `plugin update`    | Refresh the installed HWT plugin.              |
+| `plugin uninstall` | Remove the HWT plugin from Herdr.              |
+
 ## `hwt schema`
 
 Print the embedded JSON Schema. The output always matches the schema used by that hwt binary.
