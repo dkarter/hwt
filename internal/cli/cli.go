@@ -35,8 +35,50 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
+}
+
+func copyCommand() *cobra.Command {
+	options := worktree.CopyOptions{}
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "copy",
+		Short: "Copy configured files into a new worktree once",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if options.CWD == "" {
+				context, err := currentPluginContext()
+				if err != nil {
+					return err
+				}
+				options.CWD = context.WorkspaceCWD
+			}
+			if options.CWD == "" {
+				var err error
+				options.CWD, err = os.Getwd()
+				if err != nil {
+					return err
+				}
+			}
+			result, err := worktree.Copy(options)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			if result.AlreadyPrepared {
+				fmt.Fprintf(cmd.OutOrStdout(), "Configured files already prepared at %s\n", result.Path)
+				return nil
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Copied configured files from %s to %s\n", result.Source, result.Path)
+			return nil
+		},
+	}
+	command.Flags().StringVar(&options.CWD, "cwd", "", "worktree path (defaults to the Herdr event worktree or current directory)")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	return command
 }
 
 func (a *app) client() herdr.Client {
@@ -142,6 +184,7 @@ func (a *app) configCommand() *cobra.Command {
 
 func configPathCommand() *cobra.Command {
 	global := false
+	gitCommon := false
 	command := &cobra.Command{
 		Use:   "path",
 		Short: "Print the global or repository config path",
@@ -159,7 +202,15 @@ func configPathCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path, err := config.ProjectPath(root)
+			var path string
+			if gitCommon {
+				path, err = config.GitCommonPath(root)
+			} else {
+				path, err = config.ProjectPath(root)
+				if err == nil && path == "" {
+					path, err = config.FindGitCommonPath(root)
+				}
+			}
 			if err != nil {
 				return err
 			}
@@ -171,6 +222,8 @@ func configPathCommand() *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&global, "global", false, "print the XDG global config path")
+	command.Flags().BoolVar(&gitCommon, "git-common", false, "print the shared Git-local config path")
+	command.MarkFlagsMutuallyExclusive("global", "git-common")
 	return command
 }
 
@@ -225,6 +278,7 @@ func configValidateCommand() *cobra.Command {
 
 func configInitCommand() *cobra.Command {
 	global := false
+	gitCommon := false
 	command := &cobra.Command{
 		Use:   "init",
 		Short: "Create a configuration file",
@@ -237,7 +291,11 @@ func configInitCommand() *cobra.Command {
 			} else {
 				var root string
 				root, err = repoRoot("")
-				path = config.DefaultProjectPath(root)
+				if err == nil && gitCommon {
+					path, err = config.GitCommonPath(root)
+				} else {
+					path = config.DefaultProjectPath(root)
+				}
 			}
 			if err != nil {
 				return err
@@ -259,6 +317,8 @@ func configInitCommand() *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&global, "global", false, "initialize the XDG global config")
+	command.Flags().BoolVar(&gitCommon, "git-common", false, "initialize the shared Git-local config")
+	command.MarkFlagsMutuallyExclusive("global", "git-common")
 	return command
 }
 

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/dkarter/hwt/internal/gitutil"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -40,8 +42,9 @@ type CopyEntry struct {
 }
 
 type Sources struct {
-	Global  string `json:"global"`
-	Project string `json:"project,omitempty"`
+	Global    string `json:"global"`
+	GitCommon string `json:"git_common,omitempty"`
+	Project   string `json:"project,omitempty"`
 }
 
 type rawConfig struct {
@@ -96,12 +99,41 @@ func GlobalPath() (string, error) {
 }
 
 func ProjectPath(repoRoot string) (string, error) {
-	yamlPath := filepath.Join(repoRoot, ".herdr-worktree.yaml")
-	ymlPath := filepath.Join(repoRoot, ".herdr-worktree.yml")
+	return configPath(repoRoot, ".herdr-worktree")
+}
+
+func GitCommonPath(repoRoot string) (string, error) {
+	dir, err := gitCommonDir(repoRoot)
+	if err != nil || dir == "" {
+		return "", err
+	}
+	path, err := findGitCommonPath(dir)
+	if err != nil || path != "" {
+		return path, err
+	}
+	return filepath.Join(dir, "hwt", "config.yaml"), nil
+}
+
+func FindGitCommonPath(repoRoot string) (string, error) {
+	dir, err := gitCommonDir(repoRoot)
+	if err != nil || dir == "" {
+		return "", err
+	}
+	return findGitCommonPath(dir)
+}
+
+func findGitCommonPath(dir string) (string, error) {
+	path, err := configPath(filepath.Join(dir, "hwt"), "config")
+	return path, err
+}
+
+func configPath(dir, name string) (string, error) {
+	yamlPath := filepath.Join(dir, name+".yaml")
+	ymlPath := filepath.Join(dir, name+".yml")
 	yamlExists := exists(yamlPath)
 	ymlExists := exists(ymlPath)
 	if yamlExists && ymlExists {
-		return "", errors.New("both .herdr-worktree.yaml and .herdr-worktree.yml exist")
+		return "", fmt.Errorf("both %s and %s exist", yamlPath, ymlPath)
 	}
 	if yamlExists {
 		return yamlPath, nil
@@ -116,7 +148,7 @@ func DefaultProjectPath(repoRoot string) string {
 	return filepath.Join(repoRoot, ".herdr-worktree.yaml")
 }
 
-func Load(repoRoot string) (Config, Sources, error) {
+func Load(repoRoot string, commonDirs ...string) (Config, Sources, error) {
 	globalPath, err := GlobalPath()
 	if err != nil {
 		return Config{}, Sources{}, err
@@ -124,6 +156,17 @@ func Load(repoRoot string) (Config, Sources, error) {
 	projectPath, err := ProjectPath(repoRoot)
 	if err != nil {
 		return Config{}, Sources{}, err
+	}
+	gitCommonPath := ""
+	if projectPath == "" {
+		if len(commonDirs) > 0 {
+			gitCommonPath, err = findGitCommonPath(commonDirs[0])
+		} else {
+			gitCommonPath, err = FindGitCommonPath(repoRoot)
+		}
+		if err != nil {
+			return Config{}, Sources{}, err
+		}
 	}
 
 	global, err := read(globalPath, false)
@@ -133,16 +176,35 @@ func Load(repoRoot string) (Config, Sources, error) {
 	if err := validateGlobal(global); err != nil {
 		return Config{}, Sources{}, fmt.Errorf("validate %s: %w", globalPath, err)
 	}
-	project, err := read(projectPath, false)
+	repositoryPath := projectPath
+	if repositoryPath == "" {
+		repositoryPath = gitCommonPath
+	}
+	repository, err := read(repositoryPath, false)
 	if err != nil {
 		return Config{}, Sources{}, err
 	}
 
-	resolved := resolve(global, project)
+	resolved := resolve(global, repository)
 	if err := Validate(resolved); err != nil {
 		return Config{}, Sources{}, err
 	}
-	return resolved, Sources{Global: globalPath, Project: projectPath}, nil
+	return resolved, Sources{Global: globalPath, GitCommon: gitCommonPath, Project: projectPath}, nil
+}
+
+func gitCommonDir(repoRoot string) (string, error) {
+	if _, err := os.Lstat(filepath.Join(repoRoot, ".git")); errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	} else if err != nil {
+		return "", fmt.Errorf("inspect Git metadata: %w", err)
+	}
+	command := exec.Command("git", "-C", repoRoot, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	command.Env = gitutil.Environment()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("resolve Git common directory: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func ValidateFile(path string) error {

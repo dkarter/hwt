@@ -2,11 +2,74 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestLoadUsesGitCommonConfigWhenProjectConfigIsMissing(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-b", "main")
+	path, err := GitCommonPath(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, "worktree_prefix: local-\nfiles:\n  copy: [node_modules]\n")
+
+	cfg, sources, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorktreePrefix != "local-" || len(cfg.Files.Copy) != 1 || cfg.Files.Copy[0].Path != "node_modules" {
+		t.Fatalf("unexpected Git-common config: %#v", cfg)
+	}
+	if sources.GitCommon != path || sources.Project != "" {
+		t.Fatalf("unexpected config sources: %#v", sources)
+	}
+}
+
+func TestLoadPrefersProjectConfigOverGitCommonConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-b", "main")
+	path, err := GitCommonPath(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, "worktree_prefix: local-\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yml"), "worktree_prefix: project-\n")
+
+	cfg, sources, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorktreePrefix != "project-" || sources.GitCommon != "" || sources.Project != filepath.Join(repo, ".herdr-worktree.yml") {
+		t.Fatalf("project config did not take precedence: config=%#v sources=%#v", cfg, sources)
+	}
+}
+
+func TestGitCommonPathIgnoresAmbientGitDirectory(t *testing.T) {
+	target := t.TempDir()
+	other := t.TempDir()
+	runGit(t, target, "init", "-b", "main")
+	runGit(t, other, "init", "-b", "main")
+	t.Setenv("GIT_DIR", filepath.Join(other, ".git"))
+
+	path, err := GitCommonPath(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != filepath.Join(canonicalTarget, ".git", "hwt", "config.yaml") {
+		t.Fatalf("ambient GIT_DIR changed config path: %s", path)
+	}
+}
 
 func TestLoadMergesGlobalAndProjectConfig(t *testing.T) {
 	configHome := t.TempDir()
@@ -168,5 +231,13 @@ func writeFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func runGit(t *testing.T, cwd string, args ...string) {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", cwd}, args...)...)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %s: %s: %v", strings.Join(args, " "), output, err)
 	}
 }

@@ -1,7 +1,8 @@
 # HWT Worktrees for Herdr
 
 This plugin adds Herdr actions for interactively creating and safely removing
-configured HWT worktrees.
+configured HWT worktrees. Its `worktree.created` event also copies configured
+files into worktrees created through Herdr's built-in UI or CLI.
 
 HWT must be installed and available in the Herdr server's `PATH`.
 
@@ -33,6 +34,10 @@ The plugin provides these qualified actions:
 
 - `hwt.worktrees.new`
 - `hwt.worktrees.remove`
+
+Configured files are copied once per linked worktree. The event is safe when
+the worktree was created by HWT because concurrent and repeated calls become
+no-ops.
 
 Text inputs and the fuzzy base-branch picker support Vim-style normal and insert
 modes. Confirmation dialogs use horizontal Yes and No choices, with No selected

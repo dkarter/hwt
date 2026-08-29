@@ -5,12 +5,17 @@ description: Configure worktree placement, file transfer, agents, and setup comm
 
 hwt reads global defaults first, then repository policy.
 
-| Scope      | Path                                            |
-| ---------- | ----------------------------------------------- |
-| Global     | `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml` |
-| Repository | `.herdr-worktree.yaml` or `.herdr-worktree.yml` |
+| Scope            | Path                                               |
+| ---------------- | -------------------------------------------------- |
+| Global           | `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml`    |
+| Git-local        | `<git-common-dir>/hwt/config.yaml` or `config.yml` |
+| Project checkout | `.herdr-worktree.yaml` or `.herdr-worktree.yml`    |
 
-Create either file with `hwt config init --global` or `hwt config init`.
+Create these files with `hwt config init --global`, `hwt config init --git-common`, or `hwt config init`.
+
+The project checkout config takes precedence. HWT uses the Git-local config only
+when neither project checkout file exists. Git stores it outside the checkout,
+so it remains machine-local while being available to every linked worktree.
 
 ## Complete example
 
@@ -40,7 +45,7 @@ post_create:
 
 ## Resolution rules
 
-Repository scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted.
+Project or Git-local scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted.
 
 The `<global>` marker is valid only in repository `files.copy` and `post_create` lists. It cannot appear in the global configuration.
 
@@ -74,6 +79,7 @@ Commands run in order after all copy operations finish. Empty commands are rejec
 
 ```sh
 hwt config path
+hwt config path --git-common
 hwt config path --global
 hwt config show
 hwt config validate

@@ -20,6 +20,7 @@ created_path=
 linked_plugin=false
 temp_root=
 original_workspace=
+original_hwt=
 
 cleanup() {
   status=$?
@@ -42,6 +43,11 @@ cleanup() {
     herdr plugin unlink hwt.worktrees >/dev/null 2>&1
   fi
   if [ -n "$temp_root" ]; then
+    if [ -n "$original_hwt" ]; then
+      cp "$original_hwt" "$repo_root/hwt"
+    else
+      rm -f "$repo_root/hwt"
+    fi
     rm -rf "$temp_root"
   fi
   exit "$status"
@@ -53,8 +59,12 @@ trap 'exit 143' TERM
 temp_root=$(mktemp -d "${TMPDIR:-/tmp}/hwt-herdr-e2e.XXXXXX")
 fixture=$temp_root/repository
 worktree_root=$temp_root/worktrees
-hwt_bin=$temp_root/hwt
+hwt_bin=$repo_root/hwt
 original_workspace=$(herdr workspace list | jq -er '.result.workspaces[] | select(.focused) | .workspace_id')
+if [ -f "$hwt_bin" ]; then
+  original_hwt=$temp_root/original-hwt
+  cp "$hwt_bin" "$original_hwt"
+fi
 
 mkdir "$fixture"
 cat >"$fixture/README.md" <<'EOF'
@@ -63,7 +73,11 @@ EOF
 cat >"$fixture/.env.test" <<'EOF'
 HWT_E2E=created
 EOF
-cat >"$fixture/.herdr-worktree.yaml" <<EOF
+git -C "$fixture" init -b main >/dev/null
+git -C "$fixture" config user.name "HWT E2E"
+git -C "$fixture" config user.email "hwt-e2e@example.invalid"
+mkdir -p "$fixture/.git/hwt"
+cat >"$fixture/.git/hwt/config.yaml" <<EOF
 worktree_dir: $worktree_root
 worktree_naming: full
 files:
@@ -72,11 +86,7 @@ files:
 post_create:
   - printf 'hook-ran\\n' > .hwt-e2e-hook
 EOF
-
-git -C "$fixture" init -b main >/dev/null
-git -C "$fixture" config user.name "HWT E2E"
-git -C "$fixture" config user.email "hwt-e2e@example.invalid"
-git -C "$fixture" add -f README.md .env.test .herdr-worktree.yaml
+git -C "$fixture" add -f README.md
 git -C "$fixture" commit -m "test: initialize fixture" >/dev/null
 go build -o "$hwt_bin" "$repo_root/cmd/hwt"
 
@@ -95,6 +105,30 @@ create_context=$(jq -cn \
   --arg workspace_id "$source_workspace" \
   --arg cwd "$fixture" \
   '{workspace_id: $workspace_id, workspace_cwd: $cwd, focused_pane_cwd: $cwd}')
+
+printf 'Creating a worktree directly through Herdr and waiting for configured files...\n'
+event_path=$worktree_root/feature-herdr-event
+event_json=$(herdr worktree create \
+  --cwd "$fixture" \
+  --branch feature/herdr-event \
+  --base main \
+  --path "$event_path" \
+  --no-focus)
+created_workspace=$(printf '%s' "$event_json" | jq -er '.result.workspace.workspace_id')
+created_path=$(printf '%s' "$event_json" | jq -er '.result.worktree.path')
+attempt=0
+while [ "$attempt" -lt 100 ] && [ ! -f "$created_path/.env.test" ]; do
+  attempt=$((attempt + 1))
+  sleep 0.1
+done
+[ -f "$created_path/.env.test" ] || fail "Herdr worktree.created event did not copy configured files"
+[ "$(cat "$created_path/.env.test")" = "HWT_E2E=created" ] || fail "event-copied file content is incorrect"
+[ ! -e "$created_path/.hwt-e2e-hook" ] || fail "copy event unexpectedly ran HWT post-create hooks"
+copy_json=$("$hwt_bin" copy --cwd "$created_path" --json)
+[ "$(printf '%s' "$copy_json" | jq -r '.already_prepared')" = true ] || fail "second copy was not a no-op"
+"$hwt_bin" remove --workspace "$created_workspace" --force --json >/dev/null
+created_workspace=
+created_path=
 
 open_create_pane() {
   HERDR_PLUGIN_ID=hwt.worktrees \

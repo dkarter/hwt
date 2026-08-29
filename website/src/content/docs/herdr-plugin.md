@@ -8,8 +8,9 @@ The Herdr plugin is experimental. Its installation, actions, and interaction
 design may change between releases.
 :::
 
-The official HWT plugin adds interactive worktree actions to Herdr. It does not
-require a separate fuzzy finder or command palette.
+The official HWT plugin adds interactive worktree actions to Herdr and prepares
+configured files in worktrees created through Herdr's built-in UI or CLI. It
+does not require a separate fuzzy finder or command palette.
 
 HWT must be installed and available in the Herdr server's `PATH`.
 
@@ -27,6 +28,10 @@ The plugin provides these actions:
   creates and focuses the configured worktree.
 - **Remove current worktree** confirms the checkout path and uses HWT's safe,
   fast removal. Dirty or locked worktrees require a separate force confirmation.
+
+The plugin listens for Herdr's `worktree.created` event and runs `hwt copy` for
+the new checkout. HWT-created worktrees emit the same event, but a per-worktree
+lock and completion marker ensure configured files are copied only once.
 
 ## Controls
 

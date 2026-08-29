@@ -24,7 +24,7 @@ Install the official plugin to create and safely remove HWT worktrees from Herdr
 herdr plugin install dkarter/hwt/plugins/herdr
 ```
 
-The plugin adds **New configured worktree** and **Remove current worktree** actions. It uses portable interactive commands built into `hwt` and does not require a separate fuzzy finder or command palette.
+The plugin adds **New configured worktree** and **Remove current worktree** actions. It also prepares configured files when a worktree is created directly through Herdr. It uses portable commands built into `hwt` and does not require a separate fuzzy finder or command palette.
 
 Optional keybindings:
 
@@ -48,11 +48,13 @@ When developing locally, use `herdr plugin link ./plugins/herdr` instead.
 
 ```bash
 hwt create --branch feature/name --base main --json
+hwt copy
 hwt list
 hwt remove --workspace w1A --json
 hwt config show
 hwt config validate
 hwt config init
+hwt config init --git-common
 hwt config init --global
 hwt herdr create
 hwt herdr remove
@@ -64,13 +66,15 @@ hwt completion zsh
 
 `hwt create` defaults to the current Git branch as its base and creates the Herdr workspace without changing focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
 
+`hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
+
 `hwt remove` refuses dirty or locked worktrees unless `--force` is provided. It quickly renames the checkout out of the way, closes the Herdr workspace, removes Git's worktree metadata, and deletes the checkout in the background.
 
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 
 ## Configuration
 
-Global defaults live at `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml`. A repository may override them with `.herdr-worktree.yaml` or `.herdr-worktree.yml` at its root.
+Global defaults live at `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml`. A repository may override them with `.herdr-worktree.yaml` or `.herdr-worktree.yml` at its root. When neither project file exists, hwt falls back to `<git-common-dir>/hwt/config.yaml` or `.yml`, which is machine-local and shared by every linked worktree.
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json

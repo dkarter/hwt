@@ -1,16 +1,153 @@
 package worktree
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
 )
+
+func TestCopyCopiesFromPrimaryWorktreeOnlyOnce(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "files:\n  copy: [.env.local]\n")
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "add worktree config")
+	write(t, filepath.Join(repo, ".env.local"), "primary\n")
+	checkout := filepath.Join(t.TempDir(), "feature")
+	run(t, repo, "git", "worktree", "add", "-b", "copy-once", checkout, "main")
+
+	first, err := Copy(CopyOptions{CWD: checkout})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !samePath(first.Source, repo) || !samePath(first.Path, checkout) || first.AlreadyPrepared || !reflect.DeepEqual(first.Copied, []string{".env.local"}) {
+		t.Fatalf("unexpected first copy result: %#v", first)
+	}
+	assertFile(t, filepath.Join(checkout, ".env.local"), "primary\n")
+
+	write(t, filepath.Join(checkout, ".env.local"), "worktree\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), ": invalid\n")
+	second, err := Copy(CopyOptions{CWD: checkout})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.AlreadyPrepared || !reflect.DeepEqual(second.Copied, []string{".env.local"}) {
+		t.Fatalf("unexpected second copy result: %#v", second)
+	}
+	assertFile(t, filepath.Join(checkout, ".env.local"), "worktree\n")
+}
+
+func TestCopyCanCopyUntrackedProjectConfigFromPrimaryWorktree(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "files:\n  copy: [.herdr-worktree.yaml, .env.local]\n")
+	write(t, filepath.Join(repo, ".env.local"), "primary\n")
+	checkout := filepath.Join(t.TempDir(), "feature")
+	run(t, repo, "git", "worktree", "add", "-b", "copy-project-config", checkout, "main")
+
+	result, err := Copy(CopyOptions{CWD: checkout})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(result.Copied, []string{".herdr-worktree.yaml", ".env.local"}) {
+		t.Fatalf("unexpected copied files: %#v", result.Copied)
+	}
+	assertFile(t, filepath.Join(checkout, ".herdr-worktree.yaml"), "files:\n  copy: [.herdr-worktree.yaml, .env.local]\n")
+	assertFile(t, filepath.Join(checkout, ".env.local"), "primary\n")
+}
+
+func TestCopyRejectsPrimaryWorktree(t *testing.T) {
+	repo := initRepo(t)
+	if _, err := Copy(CopyOptions{CWD: repo}); err == nil || !strings.Contains(err.Error(), "linked worktree") {
+		t.Fatalf("expected linked-worktree error, got %v", err)
+	}
+}
+
+func TestCopySerializesConcurrentCalls(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "files:\n  copy: [.env.local]\n")
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "add worktree config")
+	write(t, filepath.Join(repo, ".env.local"), "primary\n")
+	checkout := filepath.Join(t.TempDir(), "feature")
+	run(t, repo, "git", "worktree", "add", "-b", "concurrent-copy", checkout, "main")
+
+	results := make(chan CopyResult, 2)
+	errors := make(chan error, 2)
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Go(func() {
+			result, err := Copy(CopyOptions{CWD: checkout})
+			results <- result
+			errors <- err
+		})
+	}
+	wait.Wait()
+	close(results)
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	prepared := 0
+	for result := range results {
+		if result.AlreadyPrepared {
+			prepared++
+			if !reflect.DeepEqual(result.Copied, []string{".env.local"}) {
+				t.Fatalf("concurrent no-op lost copied paths: %#v", result)
+			}
+		}
+	}
+	if prepared != 1 {
+		t.Fatalf("expected one concurrent no-op, got %d", prepared)
+	}
+}
+
+func TestCopyDoesNotMarkFailedCopyComplete(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "files:\n  copy: [local]\n")
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "add worktree config")
+	if err := os.Mkdir(filepath.Join(repo, "local"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(repo, "local", "file"), "primary\n")
+	checkout := filepath.Join(t.TempDir(), "feature")
+	run(t, repo, "git", "worktree", "add", "-b", "retry-copy", checkout, "main")
+	if err := os.Symlink(t.TempDir(), filepath.Join(checkout, "local")); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Copy(CopyOptions{CWD: checkout}); err == nil {
+		t.Fatal("expected the first copy to fail")
+	}
+	gitDir := output(t, checkout, "git", "rev-parse", "--path-format=absolute", "--git-dir")
+	if _, err := os.Stat(filepath.Join(gitDir, copyMarkerName)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed copy wrote marker: %v", err)
+	}
+	if err := os.Remove(filepath.Join(checkout, "local")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Copy(CopyOptions{CWD: checkout})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.AlreadyPrepared {
+		t.Fatalf("retry was unexpectedly skipped: %#v", result)
+	}
+	assertFile(t, filepath.Join(checkout, "local", "file"), "primary\n")
+}
 
 type fakeClient struct {
 	created   herdr.Created

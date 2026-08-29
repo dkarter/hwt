@@ -7,7 +7,8 @@ Use this reference only when building or changing a repository's hwt config.
 1. Inspect the repository's tool manifests, ignored local files, dependency
    directories, and setup commands.
 2. Generate `.herdr-worktree.yaml` with `hwt config init` if it does not exist.
-   Never overwrite an existing config.
+   Use `hwt config init --git-common` for a machine-local repository config
+   shared by all linked worktrees. Never overwrite an existing config.
 3. Add only project-specific overrides. Global defaults load first.
 4. Run `hwt config validate`, then inspect the merged result with
    `hwt config show`.
@@ -41,9 +42,11 @@ post_create:
   - mise install
 ```
 
-Remove fields the project does not need. Repository scalar values override
-global values. Repository `files.copy` and `post_create` replace global lists
-unless `<global>` appears where the global entries should be inserted.
+Remove fields the project does not need. When no project config exists, hwt uses
+`<git-common-dir>/hwt/config.yaml` or `.yml` as the repository config. Repository
+scalar values override global values. Repository `files.copy` and `post_create`
+replace global lists unless `<global>` appears where the global entries should
+be inserted.
 
 ## Choosing Settings
 

@@ -1,9 +1,17 @@
 #!/bin/sh
 set -eu
 
-hwt_bin=${HWT_BIN_PATH:-hwt}
+development_hwt=${HERDR_PLUGIN_ROOT:-.}/../../hwt
+if [ -n "${HWT_BIN_PATH:-}" ]; then
+  hwt_bin=$HWT_BIN_PATH
+elif [ -x "$development_hwt" ]; then
+  hwt_bin=$development_hwt
+else
+  hwt_bin=hwt
+fi
 
-if ! "$hwt_bin" herdr --help >/dev/null 2>&1; then
+entrypoint=${1:-}
+if [ -z "$entrypoint" ] || ! "$hwt_bin" "$entrypoint" --help >/dev/null 2>&1; then
   printf 'This HWT plugin requires a newer hwt binary.\n\n' >&2
   printf 'Resolved binary: %s\n' "$hwt_bin" >&2
   printf 'Update hwt, then reopen this action.\n\n' >&2

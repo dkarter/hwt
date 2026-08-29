@@ -23,17 +23,18 @@ hwt --herdr-bin /path/to/herdr list
 ## Worktrees
 
 - [`hwt create`](/docs/cli/create-worktree/) creates and configures a Herdr worktree workspace.
+- [`hwt copy`](/docs/cli/copy-files/) copies configured files into a linked worktree once.
 - [`hwt remove`](/docs/cli/remove-worktree/) quickly removes a linked worktree and workspace.
 - [`hwt list`](/docs/cli/list-worktrees/) lists Herdr worktrees for a repository.
 
 ## Configuration
 
-| Command                  | Description                                                   |
-| ------------------------ | ------------------------------------------------------------- |
-| `config path [--global]` | Print a repository or global config path.                     |
-| `config show`            | Print resolved configuration and sources as JSON.             |
-| `config validate [path]` | Validate a file or the resolved repository config.            |
-| `config init [--global]` | Create a starter config without overwriting an existing file. |
+| Command                                | Description                                                   |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `config path [--global, --git-common]` | Print a project, Git-local, or global config path.            |
+| `config show`                          | Print resolved configuration and sources as JSON.             |
+| `config validate [path]`               | Validate a file or the resolved repository config.            |
+| `config init [--global, --git-common]` | Create a starter config without overwriting an existing file. |
 
 ## `hwt schema`
 

@@ -5,6 +5,10 @@ min_herdr_version = "0.7.4"
 description = "Create and safely remove configured HWT worktrees"
 platforms = ["linux", "macos"]
 
+[[events]]
+on = "worktree.created"
+command = ["./run-hwt", "copy"]
+
 [[actions]]
 id = "new"
 title = "New configured worktree"

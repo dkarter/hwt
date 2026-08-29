@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/dkarter/hwt/internal/config"
+	"github.com/dkarter/hwt/internal/gitutil"
 	"github.com/dkarter/hwt/internal/herdr"
 )
 
@@ -54,10 +55,6 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("resolve repository root: %w", err)
 	}
-	cfg, sources, err := config.Load(repoRoot)
-	if err != nil {
-		return CreateResult{}, err
-	}
 	if options.Branch == "" {
 		return CreateResult{}, errors.New("branch is required")
 	}
@@ -78,7 +75,11 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, err
 	}
-	path, err := worktreePath(repoRoot, options.Path, options.Branch, cfg)
+	cfg, sources, err := config.Load(sourceCheckout)
+	if err != nil {
+		return CreateResult{}, err
+	}
+	path, err := worktreePath(sourceCheckout, options.Path, options.Branch, cfg)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -112,7 +113,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		return CreateResult{}, cause
 	}
 
-	copied, err := copyConfigured(repoRoot, created.Path, cfg.Files.Copy)
+	copyResult, err := prepareConfiguredFiles(sourceCheckout, created.Path, cfg)
 	if err != nil {
 		return rollback(err)
 	}
@@ -130,7 +131,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		Branch:      options.Branch,
 		Base:        options.Base,
 		Agent:       cfg.Agent,
-		Copied:      copied,
+		Copied:      copyResult.Copied,
 		Config:      sources,
 	}, nil
 }
@@ -404,29 +405,5 @@ func gitRun(cwd string, args ...string) error {
 }
 
 func gitEnvironment() []string {
-	local := map[string]bool{
-		"GIT_ALTERNATE_OBJECT_DIRECTORIES": true,
-		"GIT_COMMON_DIR":                   true,
-		"GIT_CONFIG":                       true,
-		"GIT_CONFIG_COUNT":                 true,
-		"GIT_CONFIG_PARAMETERS":            true,
-		"GIT_DIR":                          true,
-		"GIT_GRAFT_FILE":                   true,
-		"GIT_IMPLICIT_WORK_TREE":           true,
-		"GIT_INDEX_FILE":                   true,
-		"GIT_NO_REPLACE_OBJECTS":           true,
-		"GIT_OBJECT_DIRECTORY":             true,
-		"GIT_PREFIX":                       true,
-		"GIT_REPLACE_REF_BASE":             true,
-		"GIT_SHALLOW_FILE":                 true,
-		"GIT_WORK_TREE":                    true,
-	}
-	environment := make([]string, 0, len(os.Environ()))
-	for _, value := range os.Environ() {
-		name, _, _ := strings.Cut(value, "=")
-		if !local[name] {
-			environment = append(environment, value)
-		}
-	}
-	return environment
+	return gitutil.Environment()
 }
