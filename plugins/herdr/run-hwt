@@ -13,7 +13,7 @@ fi
 entrypoint=${1:-}
 if [ -z "$entrypoint" ] || ! "$hwt_bin" "$entrypoint" --help >/dev/null 2>&1; then
   if [ -z "${HWT_BIN_PATH:-}" ] && [ -n "$entrypoint" ] && command -v mise >/dev/null 2>&1; then
-    mise_hwt=$(mise which hwt 2>/dev/null || true)
+    mise_hwt=$(mise -C "${HOME:-/}" which hwt 2>/dev/null || true)
     if [ -n "$mise_hwt" ] && [ -x "$mise_hwt" ] && "$mise_hwt" "$entrypoint" --help >/dev/null 2>&1; then
       hwt_bin=$mise_hwt
     fi
