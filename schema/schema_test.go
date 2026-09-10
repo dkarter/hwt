@@ -13,4 +13,8 @@ func TestEmbeddedSchemaIsValidJSON(t *testing.T) {
 	if document["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
 		t.Fatalf("unexpected schema draft: %v", document["$schema"])
 	}
+	properties, ok := document["properties"].(map[string]any)
+	if !ok || properties["preview_url"] == nil {
+		t.Fatal("schema does not define preview_url")
+	}
 }

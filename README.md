@@ -58,6 +58,8 @@ hwt env --json
 hwt env --refresh
 hwt env -- bin/dev
 hwt list
+hwt preview
+hwt preview feature/name --json
 hwt pr
 hwt pr feature/name --json
 hwt remove --workspace w1A --json
@@ -87,6 +89,8 @@ hwt completion zsh
 
 `hwt pr [branch]` resolves the branch's pull request through the authenticated GitHub CLI and opens it in the default browser. It uses the current branch when omitted; `--json` prints `{"url":"..."}` without opening a browser. Repositories with multiple remotes require `--repo [HOST/]OWNER/REPO`, which also supports pull requests from forks.
 
+`hwt preview [branch]` expands the configured `preview_url` and opens it in the default browser. It uses the current branch and worktree when omitted; `--json` prints `{"url":"..."}` without opening a browser. Explicit branches need not exist locally, but cannot use the `{worktree}` placeholder because they are not associated with the current checkout.
+
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 
 ## Configuration
@@ -100,6 +104,7 @@ ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
+preview_url: https://{sanitized_branch}.preview.example.com
 
 ports:
   start: 20000
@@ -128,6 +133,8 @@ post_create:
 ```
 
 Project values override global values. `ticket_command` is an argv array and is replaced as a whole; hwt appends the task description as one final argument and requires JSON output containing a non-empty string `branchName`. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Missing copy sources are ignored. Copy paths must remain within the repository.
+
+`preview_url` is a scalar and supports `{repository}`, `{branch}`, `{sanitized_branch}`, and `{worktree}`. Repository is the primary checkout directory name; worktree is the current checkout directory name and is available only when the branch argument is omitted. Sanitization lowercases ASCII letters, replaces each run of characters outside `a-z0-9` with `-`, removes leading or trailing separators, and limits the result to 63 characters. HWT UTF-8 percent-encodes every substituted value except RFC 3986 unreserved characters (`A-Z`, `a-z`, `0-9`, `-._~`), so use `{sanitized_branch}` for a hostname label and any placeholder in a path or query component. Unknown, malformed, unavailable, or non-HTTP(S) templates are rejected before a browser opens.
 
 HWT reserves stable, collision-free ports in `${XDG_STATE_HOME:-~/.local/state}/hwt/ports.json` under a process lock. It writes `HWT_PORT_WEB`, `HWT_PORT_ASSETS`, the worktree path and branch, and configured non-secret variables to a mode-`0600` `.env.worktree`. The generated file is added to Git's repository-local exclude file and is available to `post_create`; see the [environment design](website/src/content/docs/worktree-environment.md) for lifecycle, security, mise, Herdr, and reverse-proxy details.
 

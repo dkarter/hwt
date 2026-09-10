@@ -26,6 +26,7 @@ ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
+preview_url: https://{sanitized_branch}.preview.example.com
 
 ports:
   start: 20000
@@ -80,6 +81,28 @@ Controls the checkout name. Accepted values are `full` and `basename`; the defau
 ### `worktree_prefix`
 
 Text prepended to the generated checkout name.
+
+### `preview_url`
+
+Absolute HTTP(S) URL template used by `hwt preview [branch]`. It is a scalar, so
+repository configuration replaces the global value. Supported placeholders are:
+
+| Placeholder          | Value                                                                 |
+| -------------------- | --------------------------------------------------------------------- |
+| `{repository}`       | Primary checkout directory name.                                      |
+| `{branch}`           | Current branch, or the explicit branch argument.                      |
+| `{sanitized_branch}` | Branch normalized for preview hostnames and identifiers.              |
+| `{worktree}`         | Current checkout directory name; unavailable with an explicit branch. |
+
+Sanitization lowercases ASCII letters, replaces each run of characters outside
+`a-z` and `0-9` with one `-`, removes leading and trailing separators, and limits
+the result to 63 characters. HWT
+then UTF-8 percent-encodes every substituted value except the RFC 3986
+unreserved set (`A-Z`, `a-z`, `0-9`, `-._~`). Use `{sanitized_branch}` in a
+hostname; all placeholders are safe as a path segment or query value. Literal
+braces are not supported. Configuration validation rejects malformed templates,
+unknown placeholders, invalid percent escapes, and templates that are not
+absolute HTTP(S) URLs.
 
 ### `files`
 

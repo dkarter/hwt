@@ -118,6 +118,30 @@ func TestPullRequestCommandJSONDoesNotOpenBrowser(t *testing.T) {
 	}
 }
 
+func TestPreviewCommandJSONDoesNotOpenBrowser(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	command := exec.Command("git", "-C", repo, "init", "-b", "feature/test")
+	command.Env = gitutil.Environment()
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s: %v", output, err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("preview_url: https://preview.example/{branch}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root := New("test")
+	var output bytes.Buffer
+	root.SetOut(&output)
+	root.SetArgs([]string{"preview", "--cwd", repo, "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if output.String() != "{\n  \"url\": \"https://preview.example/feature%2Ftest\"\n}\n" {
+		t.Fatalf("unexpected output: %q", output.String())
+	}
+}
+
 func TestSkillCommand(t *testing.T) {
 	tests := []struct {
 		name string

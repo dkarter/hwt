@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/dkarter/hwt/internal/gitutil"
+	"github.com/dkarter/hwt/internal/previewurl"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -34,6 +35,7 @@ type Config struct {
 	PostCreate     []string    `json:"post_create,omitempty" yaml:"post_create,omitempty"`
 	Ports          Ports       `json:"ports" yaml:"ports"`
 	Environment    Environment `json:"environment" yaml:"environment"`
+	PreviewURL     string      `json:"preview_url,omitempty" yaml:"preview_url,omitempty"`
 }
 
 type Ports struct {
@@ -75,6 +77,7 @@ type rawConfig struct {
 	PostCreate     *[]string       `yaml:"post_create"`
 	Ports          *rawPorts       `yaml:"ports"`
 	Environment    *rawEnvironment `yaml:"environment"`
+	PreviewURL     *string         `yaml:"preview_url"`
 }
 
 type rawPorts struct {
@@ -309,6 +312,11 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("environment variable %q uses the reserved HWT_ prefix", name)
 		}
 	}
+	if cfg.PreviewURL != "" {
+		if err := previewurl.ValidateTemplate(cfg.PreviewURL); err != nil {
+			return fmt.Errorf("preview_url: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -355,6 +363,9 @@ func read(path string, required bool) (rawConfig, error) {
 	if err := decoder.Decode(&cfg); err != nil {
 		return rawConfig{}, fmt.Errorf("parse %s: %w", path, err)
 	}
+	if cfg.PreviewURL != nil && strings.TrimSpace(*cfg.PreviewURL) == "" {
+		return rawConfig{}, fmt.Errorf("parse %s: preview_url cannot be empty", path)
+	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
@@ -395,6 +406,7 @@ func resolve(global, project rawConfig) Config {
 	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
 	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
 	cfg.Environment.Variables = stringMap(environmentVariables(global.Environment), environmentVariables(project.Environment))
+	cfg.PreviewURL = scalar(global.PreviewURL, project.PreviewURL, "")
 	return cfg
 }
 

@@ -151,6 +151,44 @@ func TestLoadUsesGlobalTicketCommand(t *testing.T) {
 	}
 }
 
+func TestLoadResolvesPreviewURL(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "preview_url: https://global.example/{branch}\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: https://{sanitized_branch}.project.example/{repository}\n")
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PreviewURL != "https://{sanitized_branch}.project.example/{repository}" {
+		t.Fatalf("unexpected preview URL: %q", cfg.PreviewURL)
+	}
+}
+
+func TestLoadRejectsInvalidPreviewURL(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: https://example.com/{unknown}\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "preview_url: unknown placeholder") {
+		t.Fatalf("expected preview URL validation error, got %v", err)
+	}
+}
+
+func TestLoadRejectsEmptyPreviewURL(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: ''\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "preview_url cannot be empty") {
+		t.Fatalf("expected empty preview URL validation error, got %v", err)
+	}
+}
+
 func TestLoadRejectsInvalidTicketCommand(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := t.TempDir()

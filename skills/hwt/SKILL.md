@@ -45,6 +45,10 @@ Open the pull request for the current or a named branch with `hwt pr [branch]`.
 Use `--json` when only the resolved URL is needed. If multiple remotes exist,
 pass the GitHub base repository with `--repo OWNER/REPO`.
 
+Open the configured preview environment with `hwt preview [branch]`. Use
+`--json` to resolve the URL without opening a browser. An explicit branch cannot
+use a preview template containing `{worktree}`.
+
 ## Remove
 
 ```bash

@@ -35,6 +35,13 @@
       "description": "Prefix added to generated worktree directory names.",
       "examples": ["houston-"]
     },
+    "preview_url": {
+      "type": "string",
+      "minLength": 1,
+      "format": "uri-template",
+      "description": "Absolute HTTP(S) preview URL template. Supported placeholders are {repository}, {branch}, {sanitized_branch}, and {worktree}. Values are RFC 3986 percent-encoded components before substitution.",
+      "examples": ["https://{sanitized_branch}.preview.example.com"]
+    },
     "files": {
       "type": "object",
       "description": "File operations performed after creating a worktree.",

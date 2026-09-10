@@ -28,6 +28,7 @@ ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
+preview_url: https://{sanitized_branch}.preview.example.com
 
 ports:
   services: [web, assets]
@@ -66,6 +67,14 @@ be inserted.
   name, or `basename` to use only the final branch component.
 - `worktree_prefix`: Add a stable project prefix when checkout names could
   collide.
+- `preview_url`: Set an absolute HTTP(S) template for `hwt preview`. Supported
+  placeholders are `{repository}`, `{branch}`, `{sanitized_branch}`, and
+  `{worktree}`. The worktree value is unavailable when a branch argument is
+  supplied. Sanitization lowercases ASCII letters, replaces runs outside
+  `a-z0-9` with `-`, trims separators, and limits the result to 63 characters.
+  Every substitution is UTF-8
+  percent-encoded except RFC 3986 unreserved characters; use
+  `{sanitized_branch}` in hostname labels.
 - `files.copy`: Copy ignored, machine-local inputs needed immediately, such as
   `.env.local`. Missing sources are ignored. Do not list tracked files.
 - `copy_on_write`: Prefer for large dependency trees on filesystems that support

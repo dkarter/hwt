@@ -12,6 +12,7 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
+	"github.com/dkarter/hwt/internal/preview"
 	"github.com/dkarter/hwt/internal/pullrequest"
 	"github.com/dkarter/hwt/internal/urlopen"
 	"github.com/dkarter/hwt/internal/worktree"
@@ -39,8 +40,38 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), previewCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
+}
+
+func previewCommand() *cobra.Command {
+	options := preview.Options{}
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "preview [branch]",
+		Short: "Open the preview environment for a branch",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				options.Branch = args[0]
+			}
+			result, err := preview.Resolve(options)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			if err := urlopen.Open(result.URL); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Opened %s\n", result.URL)
+			return err
+		},
+	}
+	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print the resolved URL without opening a browser")
+	return command
 }
 
 func pullRequestCommand() *cobra.Command {
