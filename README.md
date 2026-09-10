@@ -50,6 +50,7 @@ When developing locally, use `herdr plugin link ./plugins/herdr` instead.
 ## Commands
 
 ```bash
+hwt create 'describe the work to do'
 hwt create --branch feature/name --base main --json
 hwt copy
 hwt list
@@ -70,7 +71,7 @@ hwt skill config
 hwt completion zsh
 ```
 
-`hwt create` defaults to the current Git branch as its base and creates the Herdr workspace without changing focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
+`hwt create DESCRIPTION` runs `lnr quick --json DESCRIPTION`, reads its `branchName`, and creates that branch through the normal Herdr flow. The description is passed as one process argument without a shell. Use `hwt create --branch BRANCH` for explicit branch creation; a description and `--branch` are mutually exclusive. Creation defaults to the current Git branch as its base and does not change focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
 
 `hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
 
@@ -85,6 +86,7 @@ Global defaults live at `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml`. A repos
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
+ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
@@ -106,7 +108,7 @@ post_create:
   - mise install
 ```
 
-Project scalar values override global values. Project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. Missing copy sources are ignored. Copy paths must remain within the repository.
+Project values override global values. `ticket_command` is an argv array and is replaced as a whole; hwt appends the task description as one final argument and requires JSON output containing a non-empty string `branchName`. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. Missing copy sources are ignored. Copy paths must remain within the repository.
 
 Copy entries may be path strings or objects. Strings inherit the `files.parallel` and `files.copy_on_write` defaults; object entries can override either setting. Copies run in parallel by default and all finish before post-create commands run. An entry with `parallel: false` waits for prior parallel copies, runs alone, and blocks later copies until it finishes.
 

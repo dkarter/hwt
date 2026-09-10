@@ -11,6 +11,14 @@
       "description": "Command an agent orchestrator should start in the new worktree.",
       "examples": ["opencode --port"]
     },
+    "ticket_command": {
+      "type": "array",
+      "description": "Argument vector used to create a ticket. hwt appends the task description as one argument and expects JSON containing a non-empty branchName string.",
+      "default": ["lnr", "quick", "--json"],
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "examples": [["acme-tickets", "create", "--json"]]
+    },
     "worktree_dir": {
       "type": "string",
       "description": "Directory for worktrees. Relative paths resolve from the repository root.",

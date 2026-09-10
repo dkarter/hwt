@@ -117,3 +117,24 @@ func TestSkillCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateRequiresDescriptionOrBranchButNotBoth(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "neither", args: []string{"create"}},
+		{name: "both", args: []string{"create", "a task", "--branch", "feature/task"}},
+		{name: "branch and blank description", args: []string{"create", "   ", "--branch", "feature/task"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			command := New("test")
+			command.SetArgs(test.args)
+			err := command.Execute()
+			if err == nil || !strings.Contains(err.Error(), "exactly one task description or --branch") {
+				t.Fatalf("expected unambiguous create contract error, got %v", err)
+			}
+		})
+	}
+}

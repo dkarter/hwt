@@ -22,6 +22,7 @@ so it remains machine-local while being available to every linked worktree.
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
+ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
@@ -54,6 +55,10 @@ The `<global>` marker is valid only in repository `files.copy` and `post_create`
 ### `agent`
 
 Command Herdr starts in the root pane after creation.
+
+### `ticket_command`
+
+Argument array used by `hwt create DESCRIPTION`. The default is `[lnr, quick, --json]`. Repository configuration replaces the global array as a whole. HWT appends the full description as one final argument and runs the executable directly, without a shell. The command must write one JSON object to stdout with a non-empty string `branchName`, for example `{"branchName":"team/rms-90-task"}`. Diagnostics belong on stderr; a non-zero exit includes its status and stderr in hwt's error.
 
 ### `worktree_dir`
 

@@ -77,6 +77,7 @@ func TestLoadMergesGlobalAndProjectConfig(t *testing.T) {
 	repo := t.TempDir()
 	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), `
 agent: global-agent
+ticket_command: [global-tickets, create, --json]
 worktree_dir: ~/.herdr/worktrees
 files:
   copy: [.env, global.txt]
@@ -85,6 +86,7 @@ post_create: [global-command]
 `)
 	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `
 agent: repo-agent
+ticket_command: [project-tickets, quick]
 worktree_prefix: repo-
 files:
   copy: [local.txt, <global>]
@@ -98,6 +100,9 @@ post_create: [<global>, local-command]
 	}
 	if cfg.Agent != "repo-agent" || cfg.WorktreeDir != "~/.herdr/worktrees" || cfg.WorktreePrefix != "repo-" {
 		t.Fatalf("unexpected scalar merge: %#v", cfg)
+	}
+	if !reflect.DeepEqual(cfg.TicketCommand, []string{"project-tickets", "quick"}) {
+		t.Fatalf("project ticket command did not replace global command: %#v", cfg.TicketCommand)
 	}
 	expectedCopy := []CopyEntry{
 		{Path: "local.txt", Parallel: true},
@@ -115,6 +120,43 @@ post_create: [<global>, local-command]
 	}
 	if sources.Project != filepath.Join(repo, ".herdr-worktree.yaml") {
 		t.Fatalf("unexpected project source: %s", sources.Project)
+	}
+}
+
+func TestLoadDefaultsTicketCommandToLNR(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, _, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.TicketCommand, []string{"lnr", "quick", "--json"}) {
+		t.Fatalf("unexpected default ticket command: %#v", cfg.TicketCommand)
+	}
+}
+
+func TestLoadUsesGlobalTicketCommand(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "ticket_command: [tickets, create, --json]\n")
+
+	cfg, _, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.TicketCommand, []string{"tickets", "create", "--json"}) {
+		t.Fatalf("unexpected global ticket command: %#v", cfg.TicketCommand)
+	}
+}
+
+func TestLoadRejectsInvalidTicketCommand(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: []\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "must contain an executable") {
+		t.Fatalf("expected ticket command validation error, got %v", err)
 	}
 }
 

@@ -153,6 +153,8 @@ type fakeClient struct {
 	created   herdr.Created
 	workspace herdr.Workspace
 	runs      [][]string
+	creates   [][]string
+	createFn  func(...string) (herdr.Created, error)
 }
 
 func (f *fakeClient) Run(args ...string) ([]byte, error) {
@@ -164,7 +166,11 @@ func (f *fakeClient) SourceCheckout(cwd string) (string, error) {
 	return cwd, nil
 }
 
-func (f *fakeClient) Create(_ ...string) (herdr.Created, error) {
+func (f *fakeClient) Create(args ...string) (herdr.Created, error) {
+	f.creates = append(f.creates, append([]string(nil), args...))
+	if f.createFn != nil {
+		return f.createFn(args...)
+	}
 	return f.created, nil
 }
 
@@ -218,6 +224,108 @@ func TestWorktreePathUsesConfiguredNaming(t *testing.T) {
 	}
 	if path != "/tmp/trees/repo-my-work" {
 		t.Fatalf("unexpected worktree path: %s", path)
+	}
+}
+
+func TestCreateFromDescriptionUsesLNRBranchAndConfiguredPath(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	worktreeDir := t.TempDir()
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "worktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
+	arguments := filepath.Join(t.TempDir(), "arguments")
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "lnr"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HWT_TEST_ARGUMENTS\"\nprintf '{\"branchName\":\"dorian/rms-90-ticket-flow\"}\\n'\n")
+	t.Setenv("HWT_TEST_ARGUMENTS", arguments)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	expectedPath := filepath.Join(worktreeDir, "project-rms-90-ticket-flow")
+	client := &fakeClient{}
+	client.createFn = func(_ ...string) (herdr.Created, error) {
+		run(t, repo, "git", "worktree", "add", "-b", "dorian/rms-90-ticket-flow", expectedPath, "main")
+		return herdr.Created{WorkspaceID: "w-ticket", PaneID: "w-ticket:p1", Path: expectedPath}, nil
+	}
+
+	result, err := Create(client, CreateOptions{CWD: repo, Description: "something; $(unsafe)", Base: "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Branch != "dorian/rms-90-ticket-flow" || result.Path != expectedPath {
+		t.Fatalf("unexpected ticket worktree result: %#v", result)
+	}
+	assertFile(t, arguments, "quick\n--json\nsomething; $(unsafe)\n")
+	joined := strings.Join(client.creates[0], "\n")
+	if !strings.Contains(joined, "--branch\ndorian/rms-90-ticket-flow") || !strings.Contains(joined, "--path\n"+expectedPath) {
+		t.Fatalf("ticket branch or configured path not forwarded to Herdr: %#v", client.creates[0])
+	}
+}
+
+func TestCreateFromDescriptionRejectsTicketFailuresBeforeHerdrCreate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	tests := []struct {
+		name   string
+		script string
+		want   string
+	}{
+		{name: "command failure", script: "#!/bin/sh\nprintf 'authentication required' >&2\nexit 23\n", want: "authentication required"},
+		{name: "malformed output", script: "#!/bin/sh\nprintf 'not json'\n", want: "decode ticket command JSON output"},
+		{name: "missing branch", script: "#!/bin/sh\nprintf '{}\\n'\n", want: "missing a non-empty branchName"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			writeExecutable(t, filepath.Join(binDir, "tickets"), test.script)
+			write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: [tickets, create, --json]\n")
+			client := &fakeClient{}
+			_, err := Create(client, CreateOptions{CWD: repo, Description: "a task", Base: "main"})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected %q error, got %v", test.want, err)
+			}
+			if len(client.creates) != 0 {
+				t.Fatalf("Herdr create called after ticket failure: %#v", client.creates)
+			}
+		})
+	}
+}
+
+func TestCreateFromDescriptionRejectsBranchConflictBeforeHerdrCreate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "tickets"), "#!/bin/sh\nprintf '{\"branchName\":\"main\"}\\n'\n")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: [tickets]\n")
+	client := &fakeClient{}
+
+	_, err := Create(client, CreateOptions{CWD: repo, Description: "a task", Base: "main"})
+	if err == nil || !strings.Contains(err.Error(), "local branch already exists") {
+		t.Fatalf("expected branch conflict, got %v", err)
+	}
+	if len(client.creates) != 0 {
+		t.Fatalf("Herdr create called after branch conflict: %#v", client.creates)
+	}
+}
+
+func TestCreateFromDescriptionRejectsWorktreePathConflictBeforeHerdrCreate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "tickets"), "#!/bin/sh\nprintf '{\"branchName\":\"feature/new-ticket\"}\\n'\n")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	worktreeDir := t.TempDir()
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: [tickets]\nworktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
+	existingPath := filepath.Join(worktreeDir, "project-new-ticket")
+	if err := os.Mkdir(existingPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	client := &fakeClient{}
+
+	_, err := Create(client, CreateOptions{CWD: repo, Description: "a task", Base: "main"})
+	if err == nil || !strings.Contains(err.Error(), "worktree path "+existingPath+" already exists") {
+		t.Fatalf("expected worktree path conflict, got %v", err)
+	}
+	if len(client.creates) != 0 {
+		t.Fatalf("Herdr create called after path conflict: %#v", client.creates)
 	}
 }
 
@@ -530,6 +638,14 @@ func write(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeExecutable(t *testing.T, path, content string) {
+	t.Helper()
+	write(t, path, content)
+	if err := os.Chmod(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
 }

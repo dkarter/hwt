@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,12 +32,13 @@ type Client interface {
 }
 
 type CreateOptions struct {
-	CWD    string
-	Branch string
-	Base   string
-	Path   string
-	Label  string
-	Focus  bool
+	CWD         string
+	Branch      string
+	Description string
+	Base        string
+	Path        string
+	Label       string
+	Focus       bool
 }
 
 type CreateResult struct {
@@ -55,11 +57,9 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("resolve repository root: %w", err)
 	}
-	if options.Branch == "" {
-		return CreateResult{}, errors.New("branch is required")
-	}
-	if err := gitRun(repoRoot, "check-ref-format", "--branch", options.Branch); err != nil {
-		return CreateResult{}, fmt.Errorf("invalid branch %q: %w", options.Branch, err)
+	hasDescription := strings.TrimSpace(options.Description) != ""
+	if (options.Branch != "" && options.Description != "") || (options.Branch == "" && !hasDescription) {
+		return CreateResult{}, errors.New("provide exactly one task description or --branch")
 	}
 	if options.Base == "" {
 		options.Base, err = gitOutput(repoRoot, "branch", "--show-current")
@@ -79,9 +79,38 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, err
 	}
+	if hasDescription {
+		if _, err := gitOutput(repoRoot, "rev-parse", "--verify", "--quiet", options.Base+"^{commit}"); err != nil {
+			return CreateResult{}, fmt.Errorf("base ref %q does not resolve to a commit: %w", options.Base, err)
+		}
+		options.Branch, err = createTicket(sourceCheckout, cfg.TicketCommand, options.Description)
+		if err != nil {
+			return CreateResult{}, err
+		}
+	}
+	if err := gitRun(repoRoot, "check-ref-format", "--branch", options.Branch); err != nil {
+		if hasDescription {
+			return CreateResult{}, fmt.Errorf("invalid branch %q returned by ticket command: %w", options.Branch, err)
+		}
+		return CreateResult{}, fmt.Errorf("invalid branch %q: %w", options.Branch, err)
+	}
 	path, err := worktreePath(sourceCheckout, options.Path, options.Branch, cfg)
 	if err != nil {
 		return CreateResult{}, err
+	}
+	if hasDescription {
+		if branchExists, err := gitBranchExists(repoRoot, options.Branch); err != nil {
+			return CreateResult{}, err
+		} else if branchExists {
+			return CreateResult{}, fmt.Errorf("ticket command returned branch %q, but that local branch already exists", options.Branch)
+		}
+		if path != "" {
+			if _, err := os.Lstat(path); err == nil {
+				return CreateResult{}, fmt.Errorf("ticket command returned branch %q, but worktree path %s already exists", options.Branch, path)
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return CreateResult{}, fmt.Errorf("inspect worktree path %s: %w", path, err)
+			}
+		}
 	}
 	args := []string{"--cwd", sourceCheckout, "--branch", options.Branch, "--base", options.Base}
 	if path != "" {
@@ -134,6 +163,57 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		Copied:      copyResult.Copied,
 		Config:      sources,
 	}, nil
+}
+
+func createTicket(cwd string, command []string, description string) (string, error) {
+	if len(command) == 0 {
+		return "", errors.New("ticket_command must contain an executable")
+	}
+	if !strings.ContainsRune(command[0], filepath.Separator) {
+		if _, err := exec.LookPath(command[0]); err != nil {
+			return "", fmt.Errorf("find ticket command %q: %w", command[0], err)
+		}
+	}
+	arguments := append([]string(nil), command[1:]...)
+	cmd := exec.Command(command[0], append(arguments, description)...)
+	cmd.Dir = cwd
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = strings.TrimSpace(stdout.String())
+		}
+		if message != "" {
+			return "", fmt.Errorf("ticket command %q failed: %s: %w", command[0], message, err)
+		}
+		return "", fmt.Errorf("ticket command %q failed: %w", command[0], err)
+	}
+	var response struct {
+		BranchName string `json:"branchName"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		return "", fmt.Errorf("decode ticket command JSON output: %w", err)
+	}
+	if strings.TrimSpace(response.BranchName) == "" {
+		return "", errors.New("ticket command JSON output is missing a non-empty branchName")
+	}
+	return response.BranchName, nil
+}
+
+func gitBranchExists(cwd, branch string) (bool, error) {
+	cmd := exec.Command("git", "-C", cwd, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	cmd.Env = gitEnvironment()
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, fmt.Errorf("check for existing branch %q: %w", branch, err)
 }
 
 func EncodeResult(w io.Writer, result any) error {

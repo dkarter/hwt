@@ -155,10 +155,18 @@ func (a *app) createCommand() *cobra.Command {
 	options := worktree.CreateOptions{}
 	jsonOutput := false
 	command := &cobra.Command{
-		Use:   "create --branch BRANCH",
+		Use:   "create [DESCRIPTION]",
 		Short: "Create and configure a Herdr worktree workspace",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Long: "Create from a task description using the configured ticket command, or create an explicit branch with --branch.\n\n" +
+			"The default ticket command is 'lnr quick --json'. HWT appends DESCRIPTION as one argument and expects JSON containing branchName. A positional argument is always a task description and cannot be combined with --branch.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				options.Description = args[0]
+			}
+			if (options.Branch != "" && len(args) != 0) || (options.Branch == "" && strings.TrimSpace(options.Description) == "") {
+				return errors.New("provide exactly one task description or --branch")
+			}
 			if options.CWD == "" {
 				var err error
 				options.CWD, err = os.Getwd()
@@ -185,7 +193,6 @@ func (a *app) createCommand() *cobra.Command {
 	flags.StringVar(&options.Label, "label", "", "Herdr workspace label")
 	flags.BoolVar(&options.Focus, "focus", false, "focus the new workspace")
 	flags.BoolVar(&jsonOutput, "json", false, "print machine-readable output")
-	_ = command.MarkFlagRequired("branch")
 	return command
 }
 

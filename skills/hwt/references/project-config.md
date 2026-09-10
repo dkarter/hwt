@@ -24,6 +24,7 @@ hwt schema
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
+ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
@@ -51,6 +52,8 @@ be inserted.
 ## Choosing Settings
 
 - `agent`: Set the command an orchestrator should start in the root pane.
+- `ticket_command`: Set an argv array for ticket-backed creation. HWT appends the
+  task description as one argument and expects JSON with a string `branchName`.
 - `worktree_dir`: Resolve relative values from the repository root.
 - `worktree_naming`: Use `full` to preserve branch hierarchy in the checkout
   name, or `basename` to use only the final branch component.
