@@ -54,6 +54,8 @@ hwt create 'describe the work to do'
 hwt create --branch feature/name --base main --json
 hwt copy
 hwt list
+hwt pr
+hwt pr feature/name --json
 hwt remove --workspace w1A --json
 hwt config show
 hwt config validate
@@ -76,6 +78,8 @@ hwt completion zsh
 `hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
 
 `hwt remove` refuses dirty or locked worktrees unless `--force` is provided. It quickly renames the checkout out of the way, closes the Herdr workspace, removes Git's worktree metadata, and deletes the checkout in the background.
+
+`hwt pr [branch]` resolves the branch's pull request through the authenticated GitHub CLI and opens it in the default browser. It uses the current branch when omitted; `--json` prints `{"url":"..."}` without opening a browser. Repositories with multiple remotes require `--repo [HOST/]OWNER/REPO`, which also supports pull requests from forks.
 
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 

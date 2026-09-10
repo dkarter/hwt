@@ -91,6 +91,31 @@ func TestPluginCommandReportsHerdrFailure(t *testing.T) {
 	}
 }
 
+func TestPullRequestCommandJSONDoesNotOpenBrowser(t *testing.T) {
+	bin := t.TempDir()
+	git := filepath.Join(bin, "git")
+	if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$1\" in\n  rev-parse) echo true ;;\n  branch) echo feature/test ;;\n  remote) echo origin ;;\nesac\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gh := filepath.Join(bin, "gh")
+	if err := os.WriteFile(gh, []byte("#!/bin/sh\nprintf '%s' '{\"url\":\"https://github.com/acme/app/pull/9\"}'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Chdir(t.TempDir())
+	root := New("test")
+	var output bytes.Buffer
+	root.SetOut(&output)
+	root.SetArgs([]string{"pr", "--json"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if output.String() != "{\n  \"url\": \"https://github.com/acme/app/pull/9\"\n}\n" {
+		t.Fatalf("unexpected output: %q", output.String())
+	}
+}
+
 func TestSkillCommand(t *testing.T) {
 	tests := []struct {
 		name string

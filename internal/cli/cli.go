@@ -12,6 +12,8 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
+	"github.com/dkarter/hwt/internal/pullrequest"
+	"github.com/dkarter/hwt/internal/urlopen"
 	"github.com/dkarter/hwt/internal/worktree"
 	worktreeSchema "github.com/dkarter/hwt/schema"
 	"github.com/dkarter/hwt/skills"
@@ -37,8 +39,39 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), copyCommand(), a.removeCommand(), a.listCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
+}
+
+func pullRequestCommand() *cobra.Command {
+	options := pullrequest.Options{}
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "pr [branch]",
+		Short: "Open the pull request for a branch",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				options.Branch = args[0]
+			}
+			result, err := pullrequest.Resolve(options)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			if err := urlopen.Open(result.URL); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Opened %s\n", result.URL)
+			return err
+		},
+	}
+	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print the resolved URL without opening a browser")
+	return command
 }
 
 func (a *app) pluginCommand() *cobra.Command {

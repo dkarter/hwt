@@ -26,6 +26,7 @@ hwt --herdr-bin /path/to/herdr list
 - [`hwt copy`](/docs/cli/copy-files/) copies configured files into a linked worktree once.
 - [`hwt remove`](/docs/cli/remove-worktree/) quickly removes a linked worktree and workspace.
 - [`hwt list`](/docs/cli/list-worktrees/) lists Herdr worktrees for a repository.
+- [`hwt pr`](/docs/cli/open-pull-request/) opens the pull request for a branch.
 
 ## Configuration
 

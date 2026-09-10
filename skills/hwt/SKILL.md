@@ -41,6 +41,10 @@ hwt list --cwd <repository-path>
 Use this response to discover worktree paths and workspace IDs. Do not infer
 ownership from directory names.
 
+Open the pull request for the current or a named branch with `hwt pr [branch]`.
+Use `--json` when only the resolved URL is needed. If multiple remotes exist,
+pass the GitHub base repository with `--repo OWNER/REPO`.
+
 ## Remove
 
 ```bash
