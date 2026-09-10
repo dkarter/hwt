@@ -91,6 +91,45 @@
       "type": "array",
       "description": "Shell commands run in order from the new worktree root. Use <global> in a project config to include global commands.",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "ports": {
+      "type": "object",
+      "description": "Stable per-worktree ports reserved in a machine-local registry.",
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "default": 20000
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "default": 39999
+        },
+        "services": {
+          "type": "array",
+          "description": "Service names exposed as HWT_PORT_<NAME> variables.",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^(<global>|[A-Za-z][A-Za-z0-9_-]*)$" }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "description": "Non-secret variables written to .env.worktree and supplied to post_create commands.",
+      "additionalProperties": false,
+      "properties": {
+        "variables": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "propertyNames": {
+            "pattern": "^(?!HWT_)[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        }
+      }
     }
   }
 }

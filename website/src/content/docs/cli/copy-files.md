@@ -15,6 +15,10 @@ configured `files.copy` entries into a linked worktree. This allows an untracked
 checkout has no project config, HWT uses the shared Git-local config at
 `<git-common-dir>/hwt/config.yaml` or `.yml`.
 
+After copying, HWT also reserves configured ports and generates the ignored
+`.env.worktree` file. This gives worktrees created directly through Herdr the
+same environment foundation as `hwt create`.
+
 The command is intended for Herdr's `worktree.created` event and does not run
 HWT's `post_create` commands.
 

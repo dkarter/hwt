@@ -26,6 +26,7 @@ hwt --herdr-bin /path/to/herdr list
 - [`hwt copy`](/docs/cli/copy-files/) copies configured files into a linked worktree once.
 - [`hwt remove`](/docs/cli/remove-worktree/) quickly removes a linked worktree and workspace.
 - [`hwt list`](/docs/cli/list-worktrees/) lists Herdr worktrees for a repository.
+- `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment.
 
 ## Configuration
 

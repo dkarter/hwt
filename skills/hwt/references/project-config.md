@@ -28,6 +28,13 @@ worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
 
+ports:
+  services: [web, assets]
+
+environment:
+  variables:
+    APP_URL: http://localhost:${HWT_PORT_WEB}
+
 files:
   parallel: true
   copy_on_write: false
@@ -66,6 +73,10 @@ be inserted.
 - `post_create`: Run deterministic setup commands from the new worktree root,
   such as dependency installation or code generation. Commands run in order
   after all file operations finish.
+- `ports`: List local services that need stable, distinct ports. HWT exposes
+  them as `HWT_PORT_<SERVICE>` in `.env.worktree` and `post_create`.
+- `environment.variables`: Add non-secret values. Generated HWT variables may
+  be referenced with `${NAME}`. Never put credentials in project config.
 
 All copy paths must stay within the repository. Prefer setup commands over
 copying generated state when regeneration is reliable and reasonably fast.

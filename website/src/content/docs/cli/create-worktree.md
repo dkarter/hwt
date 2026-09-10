@@ -14,8 +14,9 @@ hwt create --branch BRANCH [flags]
 1. hwt resolves the repository and merged global and project configuration.
 2. Herdr creates the linked Git worktree, workspace, and root pane.
 3. hwt copies, clones, or links configured files into the checkout.
-4. Post-create commands run in order.
-5. hwt records the base branch and returns the workspace details.
+4. hwt reserves configured ports and writes the ignored `.env.worktree` file.
+5. Post-create commands run in order with the generated environment.
+6. hwt records the base branch and returns the workspace details.
 
 If file setup or a post-create command fails, hwt asks Herdr to remove the partially created worktree.
 
@@ -45,4 +46,4 @@ Create from `main`, focus the new workspace, and return structured output:
 hwt create --branch feat/agent-status --base main --focus --json
 ```
 
-The JSON result includes the workspace ID, root pane ID, checkout path, branch, base ref, configured agent, copied paths, and configuration sources.
+The JSON result includes the workspace ID, root pane ID, checkout path, branch, base ref, configured agent, copied paths, generated environment, and configuration sources.

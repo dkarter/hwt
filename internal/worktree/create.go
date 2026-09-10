@@ -40,14 +40,15 @@ type CreateOptions struct {
 }
 
 type CreateResult struct {
-	WorkspaceID string         `json:"workspace_id"`
-	PaneID      string         `json:"pane_id"`
-	Path        string         `json:"path"`
-	Branch      string         `json:"branch"`
-	Base        string         `json:"base"`
-	Agent       string         `json:"agent,omitempty"`
-	Copied      []string       `json:"copied,omitempty"`
-	Config      config.Sources `json:"config"`
+	WorkspaceID string            `json:"workspace_id"`
+	PaneID      string            `json:"pane_id"`
+	Path        string            `json:"path"`
+	Branch      string            `json:"branch"`
+	Base        string            `json:"base"`
+	Agent       string            `json:"agent,omitempty"`
+	Copied      []string          `json:"copied,omitempty"`
+	Config      config.Sources    `json:"config"`
+	Environment EnvironmentResult `json:"environment"`
 }
 
 func Create(client Client, options CreateOptions) (CreateResult, error) {
@@ -106,18 +107,27 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		return CreateResult{}, err
 	}
 	rollback := func(cause error) (CreateResult, error) {
+		allocationPath, pathErr := canonicalWorktreePath(created.Path)
 		_, cleanupErr := client.Run("worktree", "remove", "--workspace", created.WorkspaceID, "--force", "--json")
 		if cleanupErr != nil {
-			return CreateResult{}, errors.Join(cause, fmt.Errorf("rollback worktree: %w", cleanupErr))
+			return CreateResult{}, errors.Join(cause, pathErr, fmt.Errorf("rollback worktree: %w", cleanupErr))
 		}
-		return CreateResult{}, cause
+		if pathErr != nil {
+			return CreateResult{}, errors.Join(cause, pathErr)
+		}
+		allocationErr := releasePorts(allocationPath)
+		return CreateResult{}, errors.Join(cause, allocationErr)
 	}
 
 	copyResult, err := prepareConfiguredFiles(sourceCheckout, created.Path, cfg)
 	if err != nil {
 		return rollback(err)
 	}
-	if err := runHooks(created.Path, cfg.PostCreate); err != nil {
+	environment, err := prepareEnvironment(created.Path, cfg, false)
+	if err != nil {
+		return rollback(err)
+	}
+	if err := runHooks(created.Path, cfg.PostCreate, environment.Variables); err != nil {
 		return rollback(err)
 	}
 	if err := gitRun(created.Path, "config", "--local", "branch."+options.Branch+".herdr-base", options.Base); err != nil {
@@ -133,6 +143,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		Agent:       cfg.Agent,
 		Copied:      copyResult.Copied,
 		Config:      sources,
+		Environment: environment,
 	}, nil
 }
 
@@ -375,10 +386,11 @@ func rejectSymlinkParents(root, relative string) error {
 	return nil
 }
 
-func runHooks(cwd string, hooks []string) error {
+func runHooks(cwd string, hooks []string, environment map[string]string) error {
 	for _, hook := range hooks {
 		cmd := exec.Command("/bin/sh", "-lc", hook)
 		cmd.Dir = cwd
+		cmd.Env = environmentList(environment)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
