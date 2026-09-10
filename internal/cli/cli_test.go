@@ -8,12 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dkarter/hwt/internal/gitutil"
 	"github.com/dkarter/hwt/skills"
 )
 
 func TestConfigInitGitCommonRefusesExistingYMLConfig(t *testing.T) {
 	repo := t.TempDir()
 	command := exec.Command("git", "-C", repo, "init", "-b", "main")
+	command.Env = gitutil.Environment()
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %s: %v", output, err)
 	}

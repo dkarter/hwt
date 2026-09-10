@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/dkarter/hwt/internal/gitutil"
 )
 
 func TestLoadUsesGitCommonConfigWhenProjectConfigIsMissing(t *testing.T) {
@@ -288,6 +290,7 @@ func writeFile(t *testing.T, path, content string) {
 func runGit(t *testing.T, cwd string, args ...string) {
 	t.Helper()
 	command := exec.Command("git", append([]string{"-C", cwd}, args...)...)
+	command.Env = gitutil.Environment()
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %s: %s: %v", strings.Join(args, " "), output, err)
 	}
