@@ -60,6 +60,10 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 	if filepath.Dir(gitDir) != filepath.Join(commonDir, "worktrees") {
 		return RemoveResult{}, fmt.Errorf("refusing unexpected worktree metadata path %s", gitDir)
 	}
+	allocationPath, err := canonicalWorktreePath(workspace.CheckoutPath)
+	if err != nil {
+		return RemoveResult{}, fmt.Errorf("resolve port allocation path: %w", err)
+	}
 	metadataPath, err := os.ReadFile(filepath.Join(gitDir, "gitdir"))
 	if err != nil {
 		return RemoveResult{}, fmt.Errorf("read worktree metadata: %w", err)
@@ -92,6 +96,9 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 		if removeErr := os.RemoveAll(trashRoot); removeErr != nil {
 			return RemoveResult{}, errors.Join(err, removeErr)
 		}
+	}
+	if err := releasePorts(allocationPath); err != nil {
+		return RemoveResult{}, fmt.Errorf("worktree removed but port allocation cleanup failed: %w", err)
 	}
 	return RemoveResult{WorkspaceID: options.WorkspaceID, Path: workspace.CheckoutPath}, nil
 }

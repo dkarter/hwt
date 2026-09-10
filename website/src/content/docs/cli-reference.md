@@ -27,6 +27,7 @@ hwt --herdr-bin /path/to/herdr list
 - [`hwt remove`](/docs/cli/remove-worktree/) quickly removes a linked worktree and workspace.
 - [`hwt list`](/docs/cli/list-worktrees/) lists Herdr worktrees for a repository.
 - [`hwt pr`](/docs/cli/open-pull-request/) opens the pull request for a branch.
+- `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment.
 
 ## Configuration
 

@@ -39,7 +39,7 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), copyCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
 }
 
@@ -71,6 +71,42 @@ func pullRequestCommand() *cobra.Command {
 	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
 	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print the resolved URL without opening a browser")
+	return command
+}
+
+func environmentCommand() *cobra.Command {
+	cwd := ""
+	refresh := false
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "env [-- COMMAND...]",
+		Short: "Generate or use the current worktree environment",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cwd == "" {
+				var err error
+				cwd, err = os.Getwd()
+				if err != nil {
+					return err
+				}
+			}
+			result, err := worktree.Environment(cwd, refresh)
+			if err != nil {
+				return err
+			}
+			if len(args) > 0 {
+				return worktree.RunWithEnvironment(result, args)
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), result.Path)
+			return nil
+		},
+	}
+	command.Flags().StringVar(&cwd, "cwd", "", "worktree path (defaults to the current directory)")
+	command.Flags().BoolVar(&refresh, "refresh", false, "replace this worktree's port allocation")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
 	return command
 }
 

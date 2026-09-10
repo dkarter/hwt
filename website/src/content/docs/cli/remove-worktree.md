@@ -25,7 +25,8 @@ hwt keeps that wait out of the critical path:
 2. Unless `--force` is set, it refuses locked worktrees and checkouts with uncommitted or untracked files.
 3. It atomically renames the checkout into a temporary sibling directory on the same filesystem.
 4. It closes the Herdr workspace and removes the small Git worktree metadata entry.
-5. It starts a detached background deletion for the renamed directory and returns without waiting for the recursive delete.
+5. It starts a detached background deletion for the renamed directory.
+6. It releases the worktree's registered ports and returns without waiting for the recursive delete.
 
 Under normal conditions, the expensive recursive deletion still happens without blocking the person or agent issuing the command. If the background process cannot start, hwt falls back to finishing the cleanup synchronously. If closing the workspace or removing metadata fails, hwt attempts to move the checkout back into place.
 

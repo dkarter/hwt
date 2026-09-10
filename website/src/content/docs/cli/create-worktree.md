@@ -18,8 +18,9 @@ These forms are mutually exclusive. A positional argument is always a task descr
 2. With a description, hwt runs the configured ticket command and reads `branchName` from its JSON output.
 3. Herdr creates the linked Git worktree, workspace, and root pane using that branch unchanged.
 4. hwt copies, clones, or links configured files into the checkout.
-5. Post-create commands run in order.
-6. hwt records the base branch and returns the workspace details.
+5. hwt reserves configured ports and writes the ignored `.env.worktree` file.
+6. Post-create commands run in order with the generated environment.
+7. hwt records the base branch and returns the workspace details.
 
 If file setup or a post-create command fails, hwt asks Herdr to remove the partially created worktree.
 
@@ -55,6 +56,6 @@ Create from `main`, focus the new workspace, and return structured output:
 hwt create --branch feat/agent-status --base main --focus --json
 ```
 
-The JSON result includes the workspace ID, root pane ID, checkout path, branch, base ref, configured agent, copied paths, and configuration sources.
+The JSON result includes the workspace ID, root pane ID, checkout path, branch, base ref, configured agent, copied paths, generated environment, and configuration sources.
 
 The task description is appended to `ticket_command` as one argument without invoking a shell. The command must print one JSON object with a non-empty string `branchName`. Command failures include the exit status and stderr. Invalid output and detectable branch or checkout-path conflicts stop before Herdr creates a worktree; the remote ticket may already exist when a conflict can only be known from its returned branch.

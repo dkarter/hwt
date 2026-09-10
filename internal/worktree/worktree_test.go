@@ -2,10 +2,13 @@ package worktree
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -155,11 +158,12 @@ type fakeClient struct {
 	runs      [][]string
 	creates   [][]string
 	createFn  func(...string) (herdr.Created, error)
+	runErr    error
 }
 
 func (f *fakeClient) Run(args ...string) ([]byte, error) {
 	f.runs = append(f.runs, append([]string(nil), args...))
-	return []byte(`{"result":{}}`), nil
+	return []byte(`{"result":{}}`), f.runErr
 }
 
 func (f *fakeClient) SourceCheckout(cwd string) (string, error) {
@@ -327,6 +331,253 @@ func TestCreateFromDescriptionRejectsWorktreePathConflictBeforeHerdrCreate(t *te
 	if len(client.creates) != 0 {
 		t.Fatalf("Herdr create called after path conflict: %#v", client.creates)
 	}
+}
+
+func TestCreateKeepsAllocationWhenRollbackFails(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	checkout := filepath.Join(t.TempDir(), "failed-rollback")
+	run(t, repo, "git", "worktree", "add", "-b", "failed-rollback", checkout, "main")
+	start := availablePort(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf("ports:\n  start: %d\n  end: %d\n  services: [web]\npost_create: [false]\n", start, start+20))
+	client := &fakeClient{
+		created: herdr.Created{WorkspaceID: "w-failed", PaneID: "w-failed:p1", Path: checkout},
+		runErr:  errors.New("rollback failed"),
+	}
+	_, err := Create(client, CreateOptions{CWD: repo, Branch: "failed-rollback", Base: "main"})
+	if err == nil || !strings.Contains(err.Error(), "rollback failed") {
+		t.Fatalf("expected rollback failure, got %v", err)
+	}
+	allocation, err := reservePorts(checkout, config.Ports{Start: start, End: start + 20, Services: []string{"web"}}, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allocation["web"] == 0 {
+		t.Fatal("failed rollback lost its port allocation")
+	}
+}
+
+func TestEnvironmentAllocatesStableDistinctPortsAndWritesIgnoredFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	start := availablePort(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf(`
+ports:
+  start: %d
+  end: %d
+  services: [web, assets]
+environment:
+  variables:
+    APP_URL: http://localhost:${HWT_PORT_WEB}
+`, start, start+20))
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure environment")
+	firstPath := filepath.Join(t.TempDir(), "first")
+	secondPath := filepath.Join(t.TempDir(), "second")
+	run(t, repo, "git", "worktree", "add", "-b", "first-env", firstPath, "main")
+	run(t, repo, "git", "worktree", "add", "-b", "second-env", secondPath, "main")
+
+	first, err := Environment(firstPath, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stable, err := Environment(firstPath, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Environment(secondPath, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Variables["HWT_PORT_WEB"] != stable.Variables["HWT_PORT_WEB"] {
+		t.Fatal("allocation was not stable")
+	}
+	if first.Variables["HWT_PORT_WEB"] == first.Variables["HWT_PORT_ASSETS"] || first.Variables["HWT_PORT_WEB"] == second.Variables["HWT_PORT_WEB"] {
+		t.Fatalf("allocations collided: first=%#v second=%#v", first.Variables, second.Variables)
+	}
+	if first.Variables["APP_URL"] != "http://localhost:"+first.Variables["HWT_PORT_WEB"] {
+		t.Fatalf("variable was not expanded: %#v", first.Variables)
+	}
+	info, err := os.Stat(first.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("environment mode = %o", info.Mode().Perm())
+	}
+	if status := output(t, firstPath, "git", "status", "--porcelain"); status != "" {
+		t.Fatalf("generated environment is not ignored: %q", status)
+	}
+}
+
+func TestPortRegistrySerializesConcurrentWorktrees(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	start := availablePort(t)
+	ports := config.Ports{Start: start, End: start + 20, Services: []string{"web"}}
+	results := make(chan int, 4)
+	errors := make(chan error, 4)
+	var wait sync.WaitGroup
+	for range 4 {
+		root := t.TempDir()
+		wait.Go(func() {
+			allocation, err := reservePorts(root, ports, false, nil)
+			results <- allocation["web"]
+			errors <- err
+		})
+	}
+	wait.Wait()
+	close(results)
+	close(errors)
+	seen := map[int]bool{}
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for port := range results {
+		if seen[port] {
+			t.Fatalf("concurrent allocation reused port %d", port)
+		}
+		seen[port] = true
+	}
+}
+
+func TestPortRegistryReclaimsStalePathsAndRefreshesConflicts(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	start := availablePort(t)
+	ports := config.Ports{Start: start, End: start + 20, Services: []string{"web"}}
+	staleParent := t.TempDir()
+	stale := filepath.Join(staleParent, "stale")
+	if err := os.Mkdir(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first, err := reservePorts(stale, ports, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(stale); err != nil {
+		t.Fatal(err)
+	}
+	live := t.TempDir()
+	reclaimed, err := reservePorts(live, ports, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed["web"] != first["web"] {
+		t.Fatalf("stale port was not reclaimed: first=%d next=%d", first["web"], reclaimed["web"])
+	}
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(reclaimed["web"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	refreshed, err := reservePorts(live, ports, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed["web"] == reclaimed["web"] {
+		t.Fatalf("refresh retained occupied port %d", reclaimed["web"])
+	}
+}
+
+func TestEnvironmentFailureDoesNotPublishOrReplaceAllocation(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	repo := initRepo(t)
+	start := availablePort(t)
+	valid := fmt.Sprintf("ports:\n  start: %d\n  end: %d\n  services: [web]\n", start, start+20)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), valid)
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure ports")
+	checkout := filepath.Join(t.TempDir(), "transactional")
+	run(t, repo, "git", "worktree", "add", "-b", "transactional", checkout, "main")
+	initial, err := Environment(checkout, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPort := initial.Variables["HWT_PORT_WEB"]
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), valid+"environment:\n  variables:\n    BROKEN: ${UNKNOWN}\n")
+	if _, err := Environment(checkout, true); err == nil || !strings.Contains(err.Error(), "UNKNOWN") {
+		t.Fatalf("expected expansion failure, got %v", err)
+	}
+	registry, err := readPortRegistry(filepath.Join(state, "hwt", "ports.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalCheckout, err := canonicalWorktreePath(checkout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port := registry.Worktrees[canonicalCheckout].Ports["web"]; strconv.Itoa(port) != oldPort {
+		t.Fatalf("failed refresh replaced allocation: old=%s new=%d", oldPort, port)
+	}
+	other := t.TempDir()
+	otherAllocation, err := reservePorts(other, config.Ports{Start: start, End: start + 20, Services: []string{"other"}}, false, func(map[string]int) error { return errors.New("publish failed") })
+	if err == nil || otherAllocation != nil {
+		t.Fatalf("expected publication failure, got %#v, %v", otherAllocation, err)
+	}
+	registry, err = readPortRegistry(filepath.Join(state, "hwt", "ports.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := registry.Worktrees[other]; exists {
+		t.Fatal("failed publication leaked allocation")
+	}
+}
+
+func TestEnvironmentRemovingServicesReleasesAllocation(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	start := availablePort(t)
+	root := t.TempDir()
+	configured := config.Ports{Start: start, End: start + 20, Services: []string{"web"}}
+	first, err := reservePorts(root, configured, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reservePorts(root, config.Ports{Start: start, End: start + 20}, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	next, err := reservePorts(t.TempDir(), configured, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next["web"] != first["web"] {
+		t.Fatalf("released port was not reused: first=%d next=%d", first["web"], next["web"])
+	}
+}
+
+func TestRunHooksReplacesAmbientEnvironment(t *testing.T) {
+	t.Setenv("HWT_PORT_WEB", "ambient")
+	path := filepath.Join(t.TempDir(), "hook-env")
+	if err := runHooks(filepath.Dir(path), []string{"printf %s \"$HWT_PORT_WEB\" > hook-env"}, map[string]string{"HWT_PORT_WEB": "reserved"}); err != nil {
+		t.Fatal(err)
+	}
+	assertFile(t, path, "reserved")
+}
+
+func TestDotenvQuotePreventsShellExpansion(t *testing.T) {
+	quoted := dotenvQuote("$HOME `echo unsafe` \\\"\n")
+	expected := "\"\\$HOME \\`echo unsafe\\` \\\\\\\"\\n\""
+	if quoted != expected {
+		t.Fatalf("dotenvQuote() = %q, want %q", quoted, expected)
+	}
+}
+
+func availablePort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	if port > 65515 {
+		return 40000
+	}
+	return port
 }
 
 func TestCopyConfiguredRejectsSymlinkedSourceParent(t *testing.T) {

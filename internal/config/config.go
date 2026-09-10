@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/dkarter/hwt/internal/gitutil"
@@ -20,15 +21,29 @@ const DefaultCopyParallel = true
 const DefaultCopyOnWrite = false
 
 var defaultTicketCommand = []string{"lnr", "quick", "--json"}
+var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
+var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type Config struct {
-	Agent          string   `json:"agent,omitempty" yaml:"agent,omitempty"`
-	TicketCommand  []string `json:"ticket_command" yaml:"ticket_command"`
-	WorktreeDir    string   `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
-	WorktreeNaming string   `json:"worktree_naming" yaml:"worktree_naming"`
-	WorktreePrefix string   `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
-	Files          Files    `json:"files" yaml:"files"`
-	PostCreate     []string `json:"post_create,omitempty" yaml:"post_create,omitempty"`
+	Agent          string      `json:"agent,omitempty" yaml:"agent,omitempty"`
+	TicketCommand  []string    `json:"ticket_command" yaml:"ticket_command"`
+	WorktreeDir    string      `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
+	WorktreeNaming string      `json:"worktree_naming" yaml:"worktree_naming"`
+	WorktreePrefix string      `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
+	Files          Files       `json:"files" yaml:"files"`
+	PostCreate     []string    `json:"post_create,omitempty" yaml:"post_create,omitempty"`
+	Ports          Ports       `json:"ports" yaml:"ports"`
+	Environment    Environment `json:"environment" yaml:"environment"`
+}
+
+type Ports struct {
+	Start    int      `json:"start" yaml:"start"`
+	End      int      `json:"end" yaml:"end"`
+	Services []string `json:"services,omitempty" yaml:"services,omitempty"`
+}
+
+type Environment struct {
+	Variables map[string]string `json:"variables,omitempty" yaml:"variables,omitempty"`
 }
 
 type Files struct {
@@ -51,13 +66,25 @@ type Sources struct {
 }
 
 type rawConfig struct {
-	Agent          *string   `yaml:"agent"`
-	TicketCommand  *[]string `yaml:"ticket_command"`
-	WorktreeDir    *string   `yaml:"worktree_dir"`
-	WorktreeNaming *string   `yaml:"worktree_naming"`
-	WorktreePrefix *string   `yaml:"worktree_prefix"`
-	Files          *rawFiles `yaml:"files"`
-	PostCreate     *[]string `yaml:"post_create"`
+	Agent          *string         `yaml:"agent"`
+	TicketCommand  *[]string       `yaml:"ticket_command"`
+	WorktreeDir    *string         `yaml:"worktree_dir"`
+	WorktreeNaming *string         `yaml:"worktree_naming"`
+	WorktreePrefix *string         `yaml:"worktree_prefix"`
+	Files          *rawFiles       `yaml:"files"`
+	PostCreate     *[]string       `yaml:"post_create"`
+	Ports          *rawPorts       `yaml:"ports"`
+	Environment    *rawEnvironment `yaml:"environment"`
+}
+
+type rawPorts struct {
+	Start    *int      `yaml:"start"`
+	End      *int      `yaml:"end"`
+	Services *[]string `yaml:"services"`
+}
+
+type rawEnvironment struct {
+	Variables *map[string]string `yaml:"variables"`
 }
 
 type rawFiles struct {
@@ -244,6 +271,10 @@ func Validate(cfg Config) error {
 		if err := validateRelativePath(item.Path); err != nil {
 			return fmt.Errorf("files.copy entry %q: %w", item.Path, err)
 		}
+		cleanPath := filepath.Clean(item.Path)
+		if cleanPath == ".env.worktree" || strings.HasPrefix(cleanPath, ".env.worktree"+string(filepath.Separator)) {
+			return errors.New("files.copy cannot copy the generated .env.worktree file")
+		}
 		if item.CopyOnWrite && item.Symlink {
 			return fmt.Errorf("files.copy entry %q cannot enable both copy_on_write and symlink", item.Path)
 		}
@@ -256,7 +287,41 @@ func Validate(cfg Config) error {
 			return errors.New("post_create commands cannot be empty")
 		}
 	}
+	if cfg.Ports.Start < 1024 || cfg.Ports.End > 65535 || cfg.Ports.Start > cfg.Ports.End {
+		return fmt.Errorf("ports range must be between 1024 and 65535, got %d-%d", cfg.Ports.Start, cfg.Ports.End)
+	}
+	serviceNames := map[string]string{}
+	for _, service := range cfg.Ports.Services {
+		if !validServiceName(service) {
+			return fmt.Errorf("port service %q must start with a letter and contain only letters, numbers, underscores, or hyphens", service)
+		}
+		environmentName := PortEnvironmentName(service)
+		if previous, exists := serviceNames[environmentName]; exists {
+			return fmt.Errorf("port services %q and %q produce the same environment variable", previous, service)
+		}
+		serviceNames[environmentName] = service
+	}
+	for name := range cfg.Environment.Variables {
+		if !validEnvironmentName(name) {
+			return fmt.Errorf("environment variable name %q is invalid", name)
+		}
+		if strings.HasPrefix(name, "HWT_") {
+			return fmt.Errorf("environment variable %q uses the reserved HWT_ prefix", name)
+		}
+	}
 	return nil
+}
+
+func validServiceName(value string) bool {
+	return serviceNamePattern.MatchString(value)
+}
+
+func validEnvironmentName(value string) bool {
+	return environmentNamePattern.MatchString(value)
+}
+
+func PortEnvironmentName(value string) string {
+	return "HWT_PORT_" + strings.ToUpper(strings.ReplaceAll(value, "-", "_"))
 }
 
 func validateRelativePath(path string) error {
@@ -301,7 +366,7 @@ func read(path string, required bool) (rawConfig, error) {
 }
 
 func resolve(global, project rawConfig) Config {
-	cfg := Config{WorktreeNaming: DefaultWorktreeNaming}
+	cfg := Config{WorktreeNaming: DefaultWorktreeNaming, Ports: Ports{Start: 20000, End: 39999}}
 	cfg.Agent = scalar(global.Agent, project.Agent, "")
 	ticketCommand := global.TicketCommand
 	if project.TicketCommand != nil {
@@ -326,7 +391,51 @@ func resolve(global, project rawConfig) Config {
 		})
 	}
 	cfg.PostCreate = list(global.PostCreate, project.PostCreate)
+	cfg.Ports.Start = scalar(portStart(global.Ports), portStart(project.Ports), 20000)
+	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
+	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
+	cfg.Environment.Variables = stringMap(environmentVariables(global.Environment), environmentVariables(project.Environment))
 	return cfg
+}
+
+func portStart(ports *rawPorts) *int {
+	if ports == nil {
+		return nil
+	}
+	return ports.Start
+}
+func portEnd(ports *rawPorts) *int {
+	if ports == nil {
+		return nil
+	}
+	return ports.End
+}
+func portServices(ports *rawPorts) *[]string {
+	if ports == nil {
+		return nil
+	}
+	return ports.Services
+}
+func environmentVariables(environment *rawEnvironment) *map[string]string {
+	if environment == nil {
+		return nil
+	}
+	return environment.Variables
+}
+
+func stringMap(global, project *map[string]string) map[string]string {
+	selected := global
+	if project != nil {
+		selected = project
+	}
+	if selected == nil {
+		return nil
+	}
+	result := make(map[string]string, len(*selected))
+	for key, value := range *selected {
+		result[key] = value
+	}
+	return result
 }
 
 func validateGlobal(cfg rawConfig) error {
@@ -340,6 +449,13 @@ func validateGlobal(cfg rawConfig) error {
 	if cfg.PostCreate != nil {
 		for _, entry := range *cfg.PostCreate {
 			if entry == GlobalMarker {
+				return errors.New("<global> cannot be used in the global config")
+			}
+		}
+	}
+	if services := portServices(cfg.Ports); services != nil {
+		for _, service := range *services {
+			if service == GlobalMarker {
 				return errors.New("<global> cannot be used in the global config")
 			}
 		}

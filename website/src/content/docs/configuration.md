@@ -27,6 +27,15 @@ worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
 
+ports:
+  start: 20000
+  end: 39999
+  services: [web, assets]
+
+environment:
+  variables:
+    APP_URL: http://localhost:${HWT_PORT_WEB}
+
 files:
   parallel: true
   copy_on_write: false
@@ -46,9 +55,9 @@ post_create:
 
 ## Resolution rules
 
-Project or Git-local scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted.
+Project or Git-local scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit.
 
-The `<global>` marker is valid only in repository `files.copy` and `post_create` lists. It cannot appear in the global configuration.
+The `<global>` marker is valid in repository `files.copy`, `ports.services`, and `post_create` lists. It cannot appear in the global configuration.
 
 ## Fields
 
@@ -79,6 +88,19 @@ Controls files and directories transferred from the source checkout. Missing sou
 ### `post_create`
 
 Commands run in order after all copy operations finish. Empty commands are rejected.
+
+### `ports`
+
+Defines service names and the inclusive local allocation range. Service `web`
+becomes `HWT_PORT_WEB`; hyphens become underscores. The defaults are `20000`
+through `39999`. See [worktree ports and environment](/docs/worktree-environment/).
+
+### `environment`
+
+`environment.variables` contains non-secret values for `.env.worktree` and
+`post_create`. Values may reference generated variables such as
+`${HWT_PORT_WEB}`. HWT does not read values from the parent process, `.env`, or
+`.env.local` while expanding them.
 
 ## Inspect and validate
 
