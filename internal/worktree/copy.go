@@ -56,13 +56,6 @@ func Copy(options CopyOptions) (CopyResult, error) {
 	if err != nil {
 		return CopyResult{}, err
 	}
-	if result.AlreadyPrepared {
-		if _, err := os.Stat(filepath.Join(destination, environmentFileName)); err == nil {
-			return result, nil
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return CopyResult{}, fmt.Errorf("inspect worktree environment: %w", err)
-		}
-	}
 	if _, err := Environment(destination, false); err != nil {
 		return CopyResult{}, err
 	}

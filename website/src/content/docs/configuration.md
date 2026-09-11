@@ -29,6 +29,7 @@ worktree_prefix: project-
 
 urls:
   preview: https://{sanitized_branch}.preview.example.com
+  local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
   database: postgres://{database.user}:{database.password}@{database.host}/app
 
@@ -42,6 +43,10 @@ ports:
   start: 20000
   end: 39999
   services: [web, assets]
+
+local_dns:
+  enabled: true
+  domain: hwt.test
 
 environment:
   variables:
@@ -103,6 +108,7 @@ maps merge by name, with repository entries winning. Built-in placeholders are:
 | `{branch}`           | Current branch, or the explicit branch argument.                      |
 | `{sanitized_branch}` | Branch normalized for preview hostnames and identifiers.              |
 | `{worktree}`         | Current checkout directory name; unavailable with an explicit branch. |
+| `{hostname}`         | Stable HWT local hostname; unavailable with an explicit branch.       |
 | `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.   |
 
 Sanitization lowercases ASCII letters, replaces each run of characters outside
@@ -117,7 +123,8 @@ invalid percent escapes, and templates without a URL scheme.
 `metadata.values` provides static strings. A command under
 `metadata.commands.NAME` is an argv array run directly without a shell only when
 the template requests `{NAME.key}`. Built-in placeholders in individual command
-arguments (`repository`, `branch`, `sanitized_branch`, and `worktree`) are
+arguments (`repository`, `branch`, `sanitized_branch`, `worktree`, and
+`hostname`) are
 substituted as one argument; custom metadata, `pr_number`, and ambient
 environment variables are not expanded. The command must return one JSON object
 whose values are strings.
@@ -133,7 +140,8 @@ for database passwords, tokens, and other secrets.
 
 Precedence is static values, then `ticket.*`, then command namespaces, then
 reserved built-ins. Unknown and missing placeholders fail resolution. Explicit
-branches cannot use `{worktree}` or worktree-local `ticket.*` values.
+branches cannot use `{worktree}`, `{hostname}`, or worktree-local `ticket.*`
+values.
 
 To migrate from the earlier `preview_url` form:
 
@@ -166,6 +174,19 @@ through `39999`. See [worktree ports and environment](/docs/worktree-environment
 `post_create`. Values may reference generated variables such as
 `${HWT_PORT_WEB}`. HWT does not read values from the parent process, `.env`, or
 `.env.local` while expanding them.
+
+### `local_dns`
+
+`local_dns.enabled` registers every `ports.services` entry in HWT-owned
+dnsmasq and Caddy snippets. `domain` defaults to `hwt.test`. HWT validates and
+lowercases DNS labels; it rejects `localhost`, path-like values, empty labels,
+and labels longer than 63 bytes.
+
+`local_dns.reload` is an optional argv command run directly, without a shell,
+after generated files change. Arguments may contain `{caddyfile}`, `{dnsmasq}`,
+or `{state_dir}`. Repository values replace the global argv as a whole. Keep
+privileged operations in an explicit user-owned wrapper if your service setup
+requires them; HWT itself never invokes `sudo` or edits system files.
 
 ## Inspect and validate
 

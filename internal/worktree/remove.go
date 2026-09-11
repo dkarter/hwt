@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/dkarter/hwt/internal/config"
 )
 
 var (
@@ -64,6 +66,13 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 	if err != nil {
 		return RemoveResult{}, fmt.Errorf("resolve port allocation path: %w", err)
 	}
+	source, err := primaryWorktree(root)
+	cfg := config.Config{LocalDNS: config.LocalDNS{Domain: config.DefaultLocalDNSDomain}}
+	if err == nil {
+		if loaded, _, loadErr := config.Load(source, commonDir); loadErr == nil {
+			cfg = loaded
+		}
+	}
 	metadataPath, err := os.ReadFile(filepath.Join(gitDir, "gitdir"))
 	if err != nil {
 		return RemoveResult{}, fmt.Errorf("read worktree metadata: %w", err)
@@ -96,6 +105,9 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 		if removeErr := os.RemoveAll(trashRoot); removeErr != nil {
 			return RemoveResult{}, errors.Join(err, removeErr)
 		}
+	}
+	if err := releaseLocalDNS(allocationPath, cfg); err != nil {
+		return RemoveResult{}, fmt.Errorf("worktree removed but local DNS cleanup failed: %w", err)
 	}
 	if err := releasePorts(allocationPath); err != nil {
 		return RemoveResult{}, fmt.Errorf("worktree removed but port allocation cleanup failed: %w", err)

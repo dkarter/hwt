@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/dkarter/hwt/internal/config"
+	"github.com/dkarter/hwt/internal/localdns"
 	"golang.org/x/sys/unix"
 )
 
@@ -62,6 +63,29 @@ func prepareEnvironment(root string, cfg config.Config, refresh bool) (Environme
 	}
 	result := EnvironmentResult{Path: filepath.Join(root, environmentFileName)}
 	_, err = reservePorts(root, cfg.Ports, refresh, func(ports map[string]int) error {
+		previousEnvironment, previousEnvironmentErr := os.ReadFile(result.Path)
+		previousEnvironmentExists := previousEnvironmentErr == nil
+		if previousEnvironmentErr != nil && !errors.Is(previousEnvironmentErr, os.ErrNotExist) {
+			return fmt.Errorf("read existing worktree environment: %w", previousEnvironmentErr)
+		}
+		var previousDNS *localdns.Entry
+		if cfg.LocalDNS.Enabled {
+			status, statusErr := localdns.Status(localDNSConfig(cfg))
+			if statusErr != nil {
+				return fmt.Errorf("inspect existing local DNS route: %w", statusErr)
+			}
+			canonical, canonicalErr := canonicalWorktreePath(root)
+			if canonicalErr != nil {
+				return canonicalErr
+			}
+			for _, entry := range status.Entries {
+				if entry.Worktree == canonical {
+					entryCopy := entry
+					previousDNS = &entryCopy
+					break
+				}
+			}
+		}
 		variables := map[string]string{
 			"HWT_ENV_FILE":        result.Path,
 			"HWT_WORKTREE_BRANCH": branch,
@@ -88,8 +112,35 @@ func prepareEnvironment(root string, cfg config.Config, refresh bool) (Environme
 			}
 			variables[name] = expanded
 		}
-		if err := writeEnvironmentFile(result.Path, variables); err != nil {
+		if cfg.LocalDNS.Enabled {
+			repository, err := primaryWorktree(root)
+			if err != nil {
+				return err
+			}
+			registration, err := localdns.Register(localDNSConfig(cfg), localdns.Registration{Worktree: root, Repository: repository, Services: ports})
+			if err != nil {
+				return fmt.Errorf("register local DNS routes: %w", err)
+			}
+			variables["HWT_WORKTREE_HOSTNAME"] = registration.Hostname
+			for service, localURL := range registration.URLs {
+				variables[config.URLEnvironmentName(service)] = localURL
+			}
+		} else if err := releaseLocalDNS(root, cfg); err != nil {
 			return err
+		}
+		if err := writeEnvironmentFile(result.Path, variables); err != nil {
+			var rollbackErr error
+			if cfg.LocalDNS.Enabled {
+				if previousDNS == nil {
+					rollbackErr = localdns.Release(root, localDNSConfig(cfg))
+				} else {
+					rollbackConfig := localDNSConfig(cfg)
+					rollbackConfig.Domain = previousDNS.Domain
+					_, rollbackErr = localdns.Register(rollbackConfig, localdns.Registration{Worktree: previousDNS.Worktree, Repository: previousDNS.Repository, Services: previousDNS.Services})
+				}
+			}
+			restoreErr := restoreEnvironmentFile(result.Path, previousEnvironment, previousEnvironmentExists)
+			return errors.Join(err, rollbackErr, restoreErr)
 		}
 		result.Variables = variables
 		return nil
@@ -98,6 +149,44 @@ func prepareEnvironment(root string, cfg config.Config, refresh bool) (Environme
 		return EnvironmentResult{}, err
 	}
 	return result, nil
+}
+
+func localDNSConfig(cfg config.Config) localdns.Config {
+	return localdns.Config{Enabled: cfg.LocalDNS.Enabled, Domain: cfg.LocalDNS.Domain, Reload: cfg.LocalDNS.Reload}
+}
+
+func releaseLocalDNS(root string, cfg config.Config) error {
+	status, err := localdns.Status(localDNSConfig(cfg))
+	if err != nil {
+		return fmt.Errorf("inspect local DNS routes: %w", err)
+	}
+	canonical, err := canonicalWorktreePath(root)
+	if err != nil {
+		return err
+	}
+	for _, entry := range status.Entries {
+		if entry.Worktree != canonical {
+			continue
+		}
+		localConfig := localDNSConfig(cfg)
+		localConfig.Enabled = true
+		localConfig.Domain = entry.Domain
+		if err := localdns.Release(canonical, localConfig); err != nil {
+			return fmt.Errorf("release local DNS routes: %w", err)
+		}
+		break
+	}
+	return nil
+}
+
+func restoreEnvironmentFile(path string, content []byte, existed bool) error {
+	if existed {
+		return os.WriteFile(path, content, 0o600)
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func excludeEnvironmentFile(root string) error {
@@ -211,10 +300,16 @@ func reservePorts(root string, configured config.Ports, refresh bool, publish fu
 	defer unix.Flock(int(lock.Fd()), unix.LOCK_UN) //nolint:errcheck
 
 	path := filepath.Join(dir, "ports.json")
+	_, statErr := os.Stat(path)
+	previousRegistryExists := statErr == nil
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("inspect port registry: %w", statErr)
+	}
 	registry, err := readPortRegistry(path)
 	if err != nil {
 		return nil, err
 	}
+	previousRegistry := clonePortRegistry(registry)
 	canonical, err := canonicalWorktreePath(root)
 	if err != nil {
 		return nil, err
@@ -282,15 +377,36 @@ func reservePorts(root string, configured config.Ports, refresh bool, publish fu
 	} else {
 		registry.Worktrees[canonical] = allocation
 	}
-	if publish != nil {
-		if err := publish(allocation.Ports); err != nil {
-			return nil, err
-		}
-	}
 	if err := writePortRegistry(path, registry); err != nil {
 		return nil, err
 	}
+	if publish != nil {
+		if err := publish(allocation.Ports); err != nil {
+			var rollbackErr error
+			if previousRegistryExists {
+				rollbackErr = writePortRegistry(path, previousRegistry)
+			} else if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				rollbackErr = removeErr
+			}
+			if rollbackErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("restore port registry: %w", rollbackErr))
+			}
+			return nil, err
+		}
+	}
 	return allocation.Ports, nil
+}
+
+func clonePortRegistry(registry portRegistry) portRegistry {
+	cloned := portRegistry{Version: registry.Version, Worktrees: make(map[string]portAllocation, len(registry.Worktrees))}
+	for worktree, allocation := range registry.Worktrees {
+		ports := make(map[string]int, len(allocation.Ports))
+		for service, port := range allocation.Ports {
+			ports[service] = port
+		}
+		cloned.Worktrees[worktree] = portAllocation{Ports: ports}
+	}
+	return cloned
 }
 
 func allocationMatches(ports map[string]int, configured config.Ports) bool {

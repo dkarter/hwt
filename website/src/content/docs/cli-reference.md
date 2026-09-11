@@ -31,6 +31,15 @@ hwt --herdr-bin /path/to/herdr list
 - `hwt url NAME [branch] [--json, --open]` resolves any configured named URL and opens it only when explicitly requested.
 - `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment.
 
+## Local DNS
+
+| Command                          | Purpose                                                                |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `dns setup [--json]`             | Generate HWT-owned dnsmasq and Caddy snippets and print include paths. |
+| `dns status [--json]`            | Inspect generated paths and active worktree route registrations.       |
+| `dns refresh [--cwd, --json]`    | Reconcile the current worktree route with its existing assigned ports. |
+| `dns teardown [--force, --json]` | Remove only HWT-owned state; refuse active routes unless forced.       |
+
 ## Configuration
 
 | Command                                | Description                                                   |

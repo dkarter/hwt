@@ -1,6 +1,6 @@
 ---
-title: Worktree ports and environment
-description: Stable local ports and generated environment variables for each linked worktree.
+title: Worktree ports, URLs, and environment
+description: Stable local ports, development hostnames, and generated environment variables for each linked worktree.
 ---
 
 HWT gives each linked worktree stable local ports and writes its generated
@@ -132,8 +132,73 @@ for a Herdr worktree-create environment API rather than sending shell-specific
 
 ## Caddy and dnsmasq
 
-RMS-87 can read `HWT_PORT_<SERVICE>` from `.env.worktree` or the `variables`
-object returned by `hwt env --json`, then generate a Caddy upstream such as
-`127.0.0.1:${HWT_PORT_WEB}`. dnsmasq only maps the worktree hostname to a local
-address; it does not need the upstream port. Proxy configuration must refresh
-after `hwt env --refresh` and be removed during worktree cleanup.
+Local DNS is opt-in:
+
+```yaml
+ports:
+  services: [web, assets]
+local_dns:
+  enabled: true
+  domain: hwt.test
+```
+
+HWT derives a stable base hostname from the primary repository directory and
+worktree directory, plus the first 12 hexadecimal characters of SHA-256 over
+their canonical paths. Human-readable components are lowercased, runs outside
+ASCII `a-z0-9` become `-`, empty components use `repo` or `worktree`, and the
+readable prefix is shortened as needed so the complete first DNS label remains
+at most 63 bytes. A result resembles
+`app-feature-login-a1b2c3d4e5f6.hwt.test`. The path hash prevents two
+repositories or normalized names from silently sharing a hostname.
+
+Each service is routed at `<service>.<base-hostname>`, for example
+`http://web.app-feature-login-a1b2c3d4e5f6.hwt.test`. Service labels use the
+same lowercase ASCII sanitization; configurations where two names sanitize to
+the same label are rejected. `.env.worktree` exposes the base hostname as
+`HWT_WORKTREE_HOSTNAME` and each service URL as `HWT_URL_<SERVICE>`. The
+`{hostname}` named-URL placeholder exposes the same base hostname, so a project
+can configure `urls.local: http://web.{hostname}` and use `hwt url local`.
+
+`hwt dns setup` creates and reports these HWT-owned files under
+`${XDG_STATE_HOME:-~/.local/state}/hwt/local-dns/`:
+
+- `dnsmasq.conf` contains only wildcard loopback mappings for configured local
+  domains.
+- `Caddyfile` contains only exact service hosts and their current
+  `127.0.0.1:<port>` upstreams.
+- `registry.json` contains canonical paths, hostnames, and service ports.
+
+HWT does not install packages, edit `/etc`, modify an existing Caddyfile, invoke
+`sudo`, start listeners, or manage host services. The user includes these two
+snippets from existing dnsmasq and Caddy installations. This is smaller and
+safer than making normal worktree creation privileged, and it cannot overwrite
+unrelated configuration.
+
+Use `hwt dns status --json` to inspect paths and registrations, `hwt dns
+refresh` to reconcile the current worktree without replacing its ports, and
+`hwt dns teardown` after all registrations are removed. Teardown removes the
+registry and generated snippets but retains the empty lock directory for safe
+concurrent use. It refuses active registrations unless `--force` is explicit.
+
+An optional `local_dns.reload` argv command can reload user-managed services
+after a snippet changes. HWT runs it directly without a shell. Arguments may
+contain `{caddyfile}`, `{dnsmasq}`, and `{state_dir}`. Failed reloads restore the
+previous registry and generated files; setup, registration, refresh, and
+cleanup are idempotent and serialized across repositories.
+
+`hwt create`, direct-Herdr `hwt copy`, and `hwt env` register current routes.
+`hwt env --refresh` updates routes to the replacement ports. `hwt remove`
+removes routes only after the checkout and Git metadata cleanup succeeds; if
+the route reload fails, HWT restores the previous route and reports that the
+worktree itself was already removed.
+
+Delete worktrees through `hwt remove`. A checkout deleted by another tool keeps
+its route because HWT cannot confirm that cleanup succeeded; inspect it with
+`hwt dns status` and use `hwt dns teardown --force` only when deliberately
+discarding all registrations.
+
+Only macOS and Linux are supported. Both require separately installed dnsmasq
+and Caddy services configured to include the reported snippets. HWT reports an
+unsupported-platform error elsewhere. The default `.test` suffix is reserved
+for private testing; changing it requires a valid multi-label DNS name and must
+not use `localhost`.

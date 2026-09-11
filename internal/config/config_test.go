@@ -372,6 +372,80 @@ environment:
 	}
 }
 
+func TestLoadResolvesLocalDNS(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "ports:\n  services: [web]\nlocal_dns:\n  enabled: true\n  domain: global.test\n  reload: [global-reload]\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "local_dns:\n  domain: dev.test\n  reload: [reload, '{caddyfile}', '{dnsmasq}']\n")
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.LocalDNS.Enabled || cfg.LocalDNS.Domain != "dev.test" || !reflect.DeepEqual(cfg.LocalDNS.Reload, []string{"reload", "{caddyfile}", "{dnsmasq}"}) {
+		t.Fatalf("unexpected local DNS config: %#v", cfg.LocalDNS)
+	}
+}
+
+func TestLoadDefaultsLocalDNSToDisabled(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	cfg, _, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LocalDNS.Enabled || cfg.LocalDNS.Domain != "hwt.test" {
+		t.Fatalf("unexpected local DNS defaults: %#v", cfg.LocalDNS)
+	}
+}
+
+func TestLoadRejectsInvalidLocalDNSReload(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "local_dns:\n  reload: [reload, '{unknown}']\n")
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "unsupported placeholder") {
+		t.Fatalf("expected local DNS reload validation error, got %v", err)
+	}
+}
+
+func TestLocalDNSReloadReplacesGlobalAndCanBeCleared(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "local_dns:\n  reload: [global-reload]\n")
+	for _, contents := range []string{"local_dns:\n  reload: [project-reload]\n", "local_dns:\n  reload: []\n"} {
+		repo := t.TempDir()
+		writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), contents)
+		cfg, _, err := Load(repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.Join(cfg.LocalDNS.Reload, " "), "global") {
+			t.Fatalf("project reload did not replace global argv: %#v", cfg.LocalDNS.Reload)
+		}
+	}
+}
+
+func TestLoadRejectsMalformedLocalDNSReloadPlaceholder(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "local_dns:\n  reload: [reload, '{caddyfile']\n")
+	if _, _, err := Load(repo); err == nil || !strings.Contains(err.Error(), "unclosed") {
+		t.Fatalf("expected malformed reload placeholder error, got %v", err)
+	}
+}
+
+func TestLoadRejectsInvalidLocalDNSDomain(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, domain := range []string{"localhost", "single", "bad_name.test", "-bad.test", "bad..test", "path/test"} {
+		repo := t.TempDir()
+		writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "local_dns:\n  domain: "+domain+"\n")
+		if _, _, err := Load(repo); err == nil || !strings.Contains(err.Error(), "local_dns.domain") {
+			t.Fatalf("expected domain validation error for %q, got %v", domain, err)
+		}
+	}
+}
+
 func TestLoadRejectsInvalidPortConfiguration(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	tests := []string{

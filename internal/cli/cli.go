@@ -12,6 +12,7 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
+	"github.com/dkarter/hwt/internal/localdns"
 	"github.com/dkarter/hwt/internal/namedurl"
 	"github.com/dkarter/hwt/internal/pullrequest"
 	"github.com/dkarter/hwt/internal/urlopen"
@@ -46,7 +47,7 @@ func newCommand(version string, resolveURL func(namedurl.Options) (namedurl.Resu
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.previewCommand(), a.urlCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.previewCommand(), a.urlCommand(), dnsCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
 }
 
@@ -191,6 +192,141 @@ func environmentCommand() *cobra.Command {
 	command.Flags().BoolVar(&refresh, "refresh", false, "replace this worktree's port allocation")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
 	return command
+}
+
+func dnsCommand() *cobra.Command {
+	command := &cobra.Command{Use: "dns", Short: "Manage HWT-owned local DNS and Caddy snippets"}
+	command.AddCommand(dnsSetupCommand(), dnsStatusCommand(), dnsRefreshCommand(), dnsTeardownCommand())
+	return command
+}
+
+func dnsSetupCommand() *cobra.Command {
+	cwd := ""
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "setup",
+		Short: "Generate local DNS and Caddy snippets",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg, err := loadDNSConfig(cwd)
+			if err != nil {
+				return err
+			}
+			result, err := localdns.Setup(cfg)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), result.DNSMasqInclude)
+			fmt.Fprintln(cmd.OutOrStdout(), result.CaddyImport)
+			return nil
+		},
+	}
+	command.Flags().StringVar(&cwd, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	return command
+}
+
+func dnsStatusCommand() *cobra.Command {
+	cwd := ""
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "status",
+		Short: "Inspect local DNS registrations and snippet paths",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg, err := loadDNSConfig(cwd)
+			if err != nil {
+				return err
+			}
+			result, err := localdns.Status(cfg)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Caddy: %s\ndnsmasq: %s\nRegistered worktrees: %d\n", result.Paths.Caddyfile, result.Paths.DNSMasq, len(result.Entries))
+			return nil
+		},
+	}
+	command.Flags().StringVar(&cwd, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	return command
+}
+
+func dnsRefreshCommand() *cobra.Command {
+	cwd := ""
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "refresh",
+		Short: "Reconcile the current worktree route without replacing ports",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cwd == "" {
+				var err error
+				cwd, err = os.Getwd()
+				if err != nil {
+					return err
+				}
+			}
+			result, err := worktree.Environment(cwd, false)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), result.Variables["HWT_WORKTREE_HOSTNAME"])
+			return nil
+		},
+	}
+	command.Flags().StringVar(&cwd, "cwd", "", "worktree path (defaults to the current directory)")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	return command
+}
+
+func dnsTeardownCommand() *cobra.Command {
+	cwd := ""
+	force := false
+	jsonOutput := false
+	command := &cobra.Command{
+		Use:   "teardown",
+		Short: "Remove HWT-owned local DNS state",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg, err := loadDNSConfig(cwd)
+			if err != nil {
+				return err
+			}
+			if err := localdns.Teardown(cfg, force); err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), map[string]bool{"removed": true})
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "Removed HWT-owned generated local DNS files")
+			return nil
+		},
+	}
+	command.Flags().StringVar(&cwd, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().BoolVar(&force, "force", false, "remove state even when worktrees are registered")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	return command
+}
+
+func loadDNSConfig(cwd string) (localdns.Config, error) {
+	root, err := repoRoot(cwd)
+	if err != nil {
+		return localdns.Config{}, err
+	}
+	cfg, _, err := config.Load(root)
+	if err != nil {
+		return localdns.Config{}, err
+	}
+	return localdns.Config{Enabled: cfg.LocalDNS.Enabled, Domain: cfg.LocalDNS.Domain, Reload: cfg.LocalDNS.Reload}, nil
 }
 
 func (a *app) pluginCommand() *cobra.Command {

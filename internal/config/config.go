@@ -20,10 +20,12 @@ const GlobalMarker = "<global>"
 const DefaultWorktreeNaming = "full"
 const DefaultCopyParallel = true
 const DefaultCopyOnWrite = false
+const DefaultLocalDNSDomain = "hwt.test"
 
 var defaultTicketCommand = []string{"lnr", "quick", "--json"}
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
 
 type Config struct {
 	Agent          string            `json:"agent,omitempty" yaml:"agent,omitempty"`
@@ -35,6 +37,7 @@ type Config struct {
 	PostCreate     []string          `json:"post_create,omitempty" yaml:"post_create,omitempty"`
 	Ports          Ports             `json:"ports" yaml:"ports"`
 	Environment    Environment       `json:"environment" yaml:"environment"`
+	LocalDNS       LocalDNS          `json:"local_dns" yaml:"local_dns"`
 	URLs           map[string]string `json:"urls,omitempty" yaml:"urls,omitempty"`
 	Metadata       Metadata          `json:"metadata" yaml:"metadata"`
 }
@@ -47,6 +50,12 @@ type Ports struct {
 
 type Environment struct {
 	Variables map[string]string `json:"variables,omitempty" yaml:"variables,omitempty"`
+}
+
+type LocalDNS struct {
+	Enabled bool     `json:"enabled" yaml:"enabled"`
+	Domain  string   `json:"domain" yaml:"domain"`
+	Reload  []string `json:"reload,omitempty" yaml:"reload,omitempty"`
 }
 
 type Metadata struct {
@@ -83,6 +92,7 @@ type rawConfig struct {
 	PostCreate     *[]string          `yaml:"post_create"`
 	Ports          *rawPorts          `yaml:"ports"`
 	Environment    *rawEnvironment    `yaml:"environment"`
+	LocalDNS       *rawLocalDNS       `yaml:"local_dns"`
 	URLs           *map[string]string `yaml:"urls"`
 	Metadata       *rawMetadata       `yaml:"metadata"`
 }
@@ -100,6 +110,12 @@ type rawPorts struct {
 
 type rawEnvironment struct {
 	Variables *map[string]string `yaml:"variables"`
+}
+
+type rawLocalDNS struct {
+	Enabled *bool     `yaml:"enabled"`
+	Domain  *string   `yaml:"domain"`
+	Reload  *[]string `yaml:"reload"`
 }
 
 type rawFiles struct {
@@ -324,6 +340,40 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("environment variable %q uses the reserved HWT_ prefix", name)
 		}
 	}
+	if cfg.LocalDNS.Domain == "" {
+		return errors.New("local_dns.domain cannot be empty")
+	}
+	if err := validateLocalDomain(cfg.LocalDNS.Domain); err != nil {
+		return fmt.Errorf("local_dns.domain: %w", err)
+	}
+	if cfg.LocalDNS.Enabled && len(cfg.Ports.Services) == 0 {
+		return errors.New("local_dns.enabled requires at least one ports.services entry")
+	}
+	if cfg.LocalDNS.Enabled {
+		for _, service := range cfg.Ports.Services {
+			label := strings.ToLower(strings.ReplaceAll(service, "_", "-"))
+			if len(label) > 63 {
+				return fmt.Errorf("port service %q exceeds the 63-byte local DNS label limit", service)
+			}
+			if len(label)+1+63+1+len(cfg.LocalDNS.Domain) > 253 {
+				return fmt.Errorf("local DNS hostname for service %q exceeds 253 bytes", service)
+			}
+		}
+	}
+	for _, argument := range cfg.LocalDNS.Reload {
+		if argument == "" {
+			return errors.New("local_dns.reload entries cannot be empty")
+		}
+		placeholders, err := urltemplate.PlaceholdersRaw(argument)
+		if err != nil {
+			return fmt.Errorf("local_dns.reload: %w", err)
+		}
+		for _, placeholder := range placeholders {
+			if placeholder != "caddyfile" && placeholder != "dnsmasq" && placeholder != "state_dir" {
+				return fmt.Errorf("local_dns.reload uses unsupported placeholder {%s}", placeholder)
+			}
+		}
+	}
 	for name, template := range cfg.URLs {
 		if !validServiceName(name) {
 			return fmt.Errorf("URL name %q must start with a letter and contain only letters, numbers, underscores, or hyphens", name)
@@ -332,7 +382,7 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("urls.%s: %w", name, err)
 		}
 	}
-	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "pr_number": true}
+	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "hostname": true, "pr_number": true}
 	for name := range cfg.Metadata.Values {
 		if !urltemplate.ValidPlaceholder(name) {
 			return fmt.Errorf("metadata value name %q must be a dot-separated identifier", name)
@@ -362,8 +412,8 @@ func Validate(cfg Config) error {
 				return fmt.Errorf("metadata command %q argument %d: %w", name, index+1, err)
 			}
 			for _, placeholder := range placeholders {
-				if placeholder != "repository" && placeholder != "branch" && placeholder != "sanitized_branch" && placeholder != "worktree" {
-					return fmt.Errorf("metadata command %q argument %d uses unsupported placeholder {%s}; only repository, branch, sanitized_branch, and worktree are available", name, index+1, placeholder)
+				if placeholder != "repository" && placeholder != "branch" && placeholder != "sanitized_branch" && placeholder != "worktree" && placeholder != "hostname" {
+					return fmt.Errorf("metadata command %q argument %d uses unsupported placeholder {%s}; only repository, branch, sanitized_branch, worktree, and hostname are available", name, index+1, placeholder)
 				}
 			}
 		}
@@ -381,6 +431,26 @@ func validEnvironmentName(value string) bool {
 
 func PortEnvironmentName(value string) string {
 	return "HWT_PORT_" + strings.ToUpper(strings.ReplaceAll(value, "-", "_"))
+}
+
+func URLEnvironmentName(value string) string {
+	return "HWT_URL_" + strings.ToUpper(strings.ReplaceAll(value, "-", "_"))
+}
+
+func validateLocalDomain(value string) error {
+	if len(value) > 189 || strings.ContainsAny(value, `/\:`) {
+		return errors.New("must be a DNS name of at most 189 bytes, not a path or address")
+	}
+	labels := strings.Split(value, ".")
+	if len(labels) < 2 || strings.EqualFold(value, "localhost") {
+		return errors.New("must contain at least two DNS labels and cannot be localhost")
+	}
+	for _, label := range labels {
+		if !dnsLabelPattern.MatchString(label) {
+			return fmt.Errorf("label %q must be 1-63 letters, numbers, or interior hyphens", label)
+		}
+	}
+	return nil
 }
 
 func validateRelativePath(path string) error {
@@ -454,6 +524,15 @@ func resolve(global, project rawConfig) Config {
 	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
 	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
 	cfg.Environment.Variables = stringMap(environmentVariables(global.Environment), environmentVariables(project.Environment))
+	cfg.LocalDNS.Enabled = scalar(localDNSEnabled(global.LocalDNS), localDNSEnabled(project.LocalDNS), false)
+	cfg.LocalDNS.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(scalar(localDNSDomain(global.LocalDNS), localDNSDomain(project.LocalDNS), DefaultLocalDNSDomain)), "."))
+	reload := localDNSReload(global.LocalDNS)
+	if project.LocalDNS != nil && project.LocalDNS.Reload != nil {
+		reload = project.LocalDNS.Reload
+	}
+	if reload != nil {
+		cfg.LocalDNS.Reload = append([]string(nil), (*reload)...)
+	}
 	cfg.URLs = mergeStringMaps(global.URLs, project.URLs)
 	cfg.Metadata.Values = mergeStringMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
 	cfg.Metadata.Commands = mergeCommandMaps(metadataCommands(global.Metadata), metadataCommands(project.Metadata))
@@ -530,6 +609,27 @@ func environmentVariables(environment *rawEnvironment) *map[string]string {
 		return nil
 	}
 	return environment.Variables
+}
+
+func localDNSEnabled(localDNS *rawLocalDNS) *bool {
+	if localDNS == nil {
+		return nil
+	}
+	return localDNS.Enabled
+}
+
+func localDNSDomain(localDNS *rawLocalDNS) *string {
+	if localDNS == nil {
+		return nil
+	}
+	return localDNS.Domain
+}
+
+func localDNSReload(localDNS *rawLocalDNS) *[]string {
+	if localDNS == nil {
+		return nil
+	}
+	return localDNS.Reload
 }
 
 func stringMap(global, project *map[string]string) map[string]string {

@@ -152,8 +152,9 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		if pathErr != nil {
 			return CreateResult{}, errors.Join(cause, pathErr)
 		}
+		localDNSErr := releaseLocalDNS(allocationPath, cfg)
 		allocationErr := releasePorts(allocationPath)
-		return CreateResult{}, errors.Join(cause, allocationErr)
+		return CreateResult{}, errors.Join(cause, localDNSErr, allocationErr)
 	}
 	if err := writeTicketMetadata(created.Path, ticket.Metadata); err != nil {
 		return rollback(err)

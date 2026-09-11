@@ -57,6 +57,8 @@ hwt env
 hwt env --json
 hwt env --refresh
 hwt env -- bin/dev
+hwt dns setup --json
+hwt dns status --json
 hwt list
 hwt url ticket
 hwt url database --json
@@ -88,6 +90,8 @@ hwt completion zsh
 
 `hwt env` creates or refreshes the ignored `.env.worktree` file and reports its path. Pass `--json` to inspect values, `--refresh` to replace allocated ports, or `-- COMMAND...` to run a development command with the variables in its process environment.
 
+`hwt dns setup` generates HWT-owned dnsmasq and Caddy snippets under the XDG state directory for user-managed services. When `local_dns.enabled` is set, environment creation registers stable per-service URLs, refresh updates upstream ports, and successful worktree removal unregisters routes. HWT never edits system configuration, invokes `sudo`, or manages listeners.
+
 `hwt remove` refuses dirty or locked worktrees unless `--force` is provided. It quickly renames the checkout out of the way, closes the Herdr workspace, removes Git's worktree metadata, and deletes the checkout in the background.
 
 `hwt pr [branch]` resolves the branch's pull request through the authenticated GitHub CLI and opens it in the default browser. It uses the current branch when omitted; `--json` prints `{"url":"..."}` without opening a browser. Repositories with multiple remotes require `--repo [HOST/]OWNER/REPO`, which also supports pull requests from forks.
@@ -109,6 +113,7 @@ worktree_naming: full
 worktree_prefix: project-
 urls:
   preview: https://{sanitized_branch}.preview.example.com
+  local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
   database: postgres://{database.user}:{database.password}@{database.host}/app
 
@@ -122,6 +127,10 @@ ports:
   start: 20000
   end: 39999
   services: [web, assets]
+
+local_dns:
+  enabled: true
+  domain: hwt.test
 
 environment:
   variables:
@@ -146,7 +155,7 @@ post_create:
 
 Project values override global values. `ticket_command` is an argv array and is replaced as a whole; hwt appends the task description as one final argument and requires JSON output containing a non-empty string `branchName`. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
 
-Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
+Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{hostname}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
 
 Global and repository URL/metadata maps merge by name, with repository entries winning. During resolution static values load first, persisted `ticket.*` values override matching static values, command namespace values override both, and reserved built-ins win last. Ticket metadata comes only from the ticket command's dedicated `metadata` object, is stored mode `0600` in private per-worktree Git state, and is removed with that worktree. Command results and resolved URLs are never persisted.
 

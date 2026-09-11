@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dkarter/hwt/internal/config"
+	"github.com/dkarter/hwt/internal/localdns"
 	"github.com/dkarter/hwt/internal/pullrequest"
 )
 
@@ -136,6 +137,58 @@ func TestResolveExplicitBranchAndPRNumber(t *testing.T) {
 	}
 	if received.Branch != "feature/new" || received.Repository != "acme/app" {
 		t.Fatalf("unexpected PR lookup: %#v", received)
+	}
+}
+
+func TestResolveLocalHostnameWithoutSideEffects(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repository := t.TempDir()
+	worktree := t.TempDir()
+	commands := &fakeRunner{responses: []response{{output: worktree + "\n"}, {output: "feature/local\n"}, {output: "worktree " + repository + "\x00"}}}
+	cfg := config.Config{
+		LocalDNS: config.LocalDNS{Enabled: true, Domain: "hwt.test"},
+		URLs:     map[string]string{"local": "http://web.{hostname}"},
+	}
+	result, err := resolve(testDependencies(commands, cfg), Options{Name: "local", CWD: worktree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostname, err := localdns.Hostname(repository, worktree, "hwt.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.URL != "http://web."+hostname {
+		t.Fatalf("URL = %q", result.URL)
+	}
+	stateEntries, err := os.ReadDir(os.Getenv("XDG_STATE_HOME"))
+	if err != nil || len(stateEntries) != 0 {
+		t.Fatalf("hostname resolution wrote state: %#v, %v", stateEntries, err)
+	}
+}
+
+func TestResolveRejectsUnavailableHostname(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		branch  string
+		enabled bool
+		want    string
+	}{
+		{name: "explicit branch", branch: "feature/other", enabled: true, want: "unavailable for an explicit branch"},
+		{name: "disabled", enabled: false, want: "requires local_dns.enabled"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repository := t.TempDir()
+			worktree := t.TempDir()
+			responses := []response{{output: worktree + "\n"}}
+			if test.branch == "" {
+				responses = append(responses, response{output: "feature/local\n"}, response{output: "worktree " + repository + "\x00"})
+			}
+			cfg := config.Config{LocalDNS: config.LocalDNS{Enabled: test.enabled, Domain: "hwt.test"}, URLs: map[string]string{"local": "http://web.{hostname}"}}
+			_, err := resolve(testDependencies(&fakeRunner{responses: responses}, cfg), Options{Name: "local", CWD: worktree, Branch: test.branch})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+		})
 	}
 }
 

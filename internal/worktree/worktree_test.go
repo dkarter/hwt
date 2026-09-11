@@ -15,6 +15,7 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
+	"github.com/dkarter/hwt/internal/localdns"
 )
 
 func TestCopyCopiesFromPrimaryWorktreeOnlyOnce(t *testing.T) {
@@ -37,7 +38,7 @@ func TestCopyCopiesFromPrimaryWorktreeOnlyOnce(t *testing.T) {
 	assertFile(t, filepath.Join(checkout, ".env.local"), "primary\n")
 
 	write(t, filepath.Join(checkout, ".env.local"), "worktree\n")
-	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), ": invalid\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "files:\n  copy: [changed-but-not-recopied]\n")
 	second, err := Copy(CopyOptions{CWD: checkout})
 	if err != nil {
 		t.Fatal(err)
@@ -432,6 +433,53 @@ environment:
 	}
 }
 
+func TestEnvironmentRegistersAndRefreshesLocalDNS(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	start := availablePort(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf("ports:\n  start: %d\n  end: %d\n  services: [web, asset_server]\nlocal_dns:\n  enabled: true\n  domain: dev.test\n", start, start+20))
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure local DNS")
+	checkout := filepath.Join(t.TempDir(), "Feature API")
+	run(t, repo, "git", "worktree", "add", "-b", "local-dns", checkout, "main")
+
+	first, err := Environment(checkout, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostname := first.Variables["HWT_WORKTREE_HOSTNAME"]
+	if hostname == "" || first.Variables["HWT_URL_WEB"] != "http://web."+hostname || first.Variables["HWT_URL_ASSET_SERVER"] != "http://asset-server."+hostname {
+		t.Fatalf("unexpected local DNS variables: %#v", first.Variables)
+	}
+	status, err := localdns.Status(localdns.Config{Enabled: true, Domain: "dev.test"})
+	if err != nil || len(status.Entries) != 1 {
+		t.Fatalf("status = %#v, %v", status, err)
+	}
+	caddy, err := os.ReadFile(status.Paths.Caddyfile)
+	if err != nil || !strings.Contains(string(caddy), "127.0.0.1:"+first.Variables["HWT_PORT_WEB"]) {
+		t.Fatalf("Caddyfile does not consume assigned port: %s, %v", caddy, err)
+	}
+
+	oldPort, _ := strconv.Atoi(first.Variables["HWT_PORT_WEB"])
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(oldPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	refreshed, err := Environment(checkout, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Variables["HWT_WORKTREE_HOSTNAME"] != hostname || refreshed.Variables["HWT_PORT_WEB"] == first.Variables["HWT_PORT_WEB"] {
+		t.Fatalf("refresh changed hostname or retained occupied port: first=%#v refreshed=%#v", first.Variables, refreshed.Variables)
+	}
+	caddy, err = os.ReadFile(status.Paths.Caddyfile)
+	if err != nil || !strings.Contains(string(caddy), "127.0.0.1:"+refreshed.Variables["HWT_PORT_WEB"]) {
+		t.Fatalf("refreshed Caddyfile does not consume new port: %s, %v", caddy, err)
+	}
+}
+
 func TestPortRegistrySerializesConcurrentWorktrees(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	start := availablePort(t)
@@ -545,6 +593,52 @@ func TestEnvironmentFailureDoesNotPublishOrReplaceAllocation(t *testing.T) {
 	}
 	if _, exists := registry.Worktrees[other]; exists {
 		t.Fatal("failed publication leaked allocation")
+	}
+}
+
+func TestEnvironmentReloadFailureRestoresPortsDNSAndEnvironment(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	repo := initRepo(t)
+	start := availablePort(t)
+	baseConfig := fmt.Sprintf("ports:\n  start: %d\n  end: %d\n  services: [web]\nlocal_dns:\n  enabled: true\n", start, start+20)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), baseConfig)
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure local DNS")
+	checkout := filepath.Join(t.TempDir(), "reload-rollback")
+	run(t, repo, "git", "worktree", "add", "-b", "reload-rollback", checkout, "main")
+	result, err := Environment(checkout, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := localdns.Status(localdns.Config{Domain: "hwt.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := []string{result.Path, filepath.Join(state, "hwt", "ports.json"), status.Paths.Registry, status.Paths.DNSMasq, status.Paths.Caddyfile}
+	before := map[string][]byte{}
+	for _, path := range paths {
+		before[path], err = os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	failing := filepath.Join(t.TempDir(), "reload")
+	writeExecutable(t, failing, "#!/bin/sh\necho reload-failed >&2\nexit 1\n")
+	failingConfig := fmt.Sprintf("ports:\n  start: %d\n  end: %d\n  services: [web]\nlocal_dns:\n  enabled: true\n  reload: [%s]\n", start+1, start+20, failing)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), failingConfig)
+	if _, err := Environment(checkout, true); err == nil || !strings.Contains(err.Error(), "reload-failed") {
+		t.Fatalf("expected reload failure, got %v", err)
+	}
+	for _, path := range paths {
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(after, before[path]) {
+			t.Fatalf("failed refresh changed %s", path)
+		}
 	}
 }
 
@@ -821,9 +915,18 @@ func TestCopyPathConfiguredCanSymlink(t *testing.T) {
 }
 
 func TestRemoveRenamesCheckoutAndRemovesMetadata(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	repo := initRepo(t)
+	start := availablePort(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf("ports:\n  start: %d\n  end: %d\n  services: [web]\nlocal_dns:\n  enabled: true\n", start, start+10))
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure local DNS")
 	checkout := filepath.Join(t.TempDir(), "remove-me")
 	run(t, repo, "git", "worktree", "add", "-b", "remove-me", checkout, "main")
+	if _, err := Environment(checkout, false); err != nil {
+		t.Fatal(err)
+	}
 	gitDir := output(t, checkout, "git", "rev-parse", "--path-format=absolute", "--git-dir")
 	if err := writeTicketMetadata(checkout, map[string]string{"identifier": "RMS-85"}); err != nil {
 		t.Fatal(err)
@@ -850,6 +953,10 @@ func TestRemoveRenamesCheckoutAndRemovesMetadata(t *testing.T) {
 	if len(client.runs) != 1 || strings.Join(client.runs[0], " ") != "workspace close w9" {
 		t.Fatalf("unexpected Herdr calls: %#v", client.runs)
 	}
+	status, err := localdns.Status(localdns.Config{Domain: "hwt.test"})
+	if err != nil || len(status.Entries) != 0 {
+		t.Fatalf("local DNS registration survived removal: %#v, %v", status.Entries, err)
+	}
 }
 
 func TestRemoveRejectsDirtyWorktree(t *testing.T) {
@@ -865,6 +972,35 @@ func TestRemoveRejectsDirtyWorktree(t *testing.T) {
 	}
 	if !CanForceRemove(err) {
 		t.Fatalf("dirty worktree error should permit force removal: %v", err)
+	}
+}
+
+func TestRemoveReloadFailureRestoresRouteAfterCleanup(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	failing := filepath.Join(t.TempDir(), "reload")
+	writeExecutable(t, failing, "#!/bin/sh\necho cleanup-reload-failed >&2\nexit 1\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ports:\n  services: [web]\nlocal_dns:\n  enabled: true\n  reload: ["+failing+"]\n")
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure failing reload")
+	checkout := filepath.Join(t.TempDir(), "cleanup-rollback")
+	run(t, repo, "git", "worktree", "add", "-b", "cleanup-rollback", checkout, "main")
+	if _, err := localdns.Register(localdns.Config{Enabled: true, Domain: "hwt.test"}, localdns.Registration{Repository: repo, Worktree: checkout, Services: map[string]int{"web": 30000}}); err != nil {
+		t.Fatal(err)
+	}
+	client := &fakeClient{workspace: herdr.Workspace{ID: "w-cleanup", CheckoutPath: checkout, LinkedWorktree: true}}
+
+	_, err := Remove(client, RemoveOptions{WorkspaceID: "w-cleanup"})
+	if err == nil || !strings.Contains(err.Error(), "worktree removed but local DNS cleanup failed") || !strings.Contains(err.Error(), "cleanup-reload-failed") {
+		t.Fatalf("expected cleanup reload failure, got %v", err)
+	}
+	if _, statErr := os.Stat(checkout); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("worktree was restored after completed cleanup: %v", statErr)
+	}
+	status, statusErr := localdns.Status(localdns.Config{Domain: "hwt.test"})
+	if statusErr != nil || len(status.Entries) != 1 {
+		t.Fatalf("failed cleanup did not restore route: %#v, %v", status.Entries, statusErr)
 	}
 }
 

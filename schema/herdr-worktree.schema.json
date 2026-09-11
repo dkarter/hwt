@@ -37,7 +37,7 @@
     },
     "urls": {
       "type": "object",
-      "description": "Named absolute URL templates. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, and {pr_number}; custom metadata placeholders may be dot-separated.",
+      "description": "Named absolute URL templates. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, and {pr_number}; custom metadata placeholders may be dot-separated.",
       "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
       "additionalProperties": {
         "type": "string",
@@ -156,6 +156,30 @@
           "description": "Service names exposed as HWT_PORT_<NAME> variables.",
           "uniqueItems": true,
           "items": { "type": "string", "pattern": "^(<global>|[A-Za-z][A-Za-z0-9_-]*)$" }
+        }
+      }
+    },
+    "local_dns": {
+      "type": "object",
+      "description": "Opt-in HWT-owned dnsmasq and Caddy snippet generation for worktree service hostnames.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Register routes during create, copy, env, and remove lifecycle operations."
+        },
+        "domain": {
+          "type": "string",
+          "default": "hwt.test",
+          "minLength": 1,
+          "maxLength": 189,
+          "description": "Local suffix for generated hostnames. DNS syntax is checked by hwt."
+        },
+        "reload": {
+          "type": "array",
+          "description": "Optional argv command run after owned snippets change. Supports {caddyfile}, {dnsmasq}, and {state_dir}; no shell is used.",
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     },

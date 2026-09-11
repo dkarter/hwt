@@ -31,6 +31,7 @@ worktree_prefix: project-
 
 urls:
   preview: https://{sanitized_branch}.preview.example.com
+  local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
 
 metadata:
@@ -41,6 +42,10 @@ metadata:
 
 ports:
   services: [web, assets]
+
+local_dns:
+  enabled: true
+  domain: hwt.test
 
 environment:
   variables:
@@ -78,8 +83,8 @@ be inserted.
   collide.
 - `urls`: Map names to absolute templates for `hwt url NAME`; `urls.preview`
   powers `hwt preview`. Built-ins are `{repository}`, `{branch}`,
-  `{sanitized_branch}`, `{worktree}`, and `{pr_number}`. Explicit branches cannot
-  use worktree-local values.
+  `{sanitized_branch}`, `{worktree}`, `{hostname}`, and `{pr_number}`. Explicit
+  branches cannot use worktree-local values.
 - `metadata.values`: Add static strings. Repository values override global ones.
 - `metadata.commands`: Map a namespace to direct argv. A command runs lazily for
   `{namespace.key}`, receives repository/branch/worktree substitutions as safe
@@ -98,6 +103,10 @@ be inserted.
   after all file operations finish.
 - `ports`: List local services that need stable, distinct ports. HWT exposes
   them as `HWT_PORT_<SERVICE>` in `.env.worktree` and `post_create`.
+- `local_dns`: Opt in to HWT-owned dnsmasq and Caddy snippets. Run
+  `hwt dns setup` once, include the reported files from user-managed services,
+  and use `hwt dns status` to inspect registrations. `reload` is an optional
+  argv command; HWT never edits system configuration or invokes `sudo`.
 - `environment.variables`: Add non-secret values. Generated HWT variables may
   be referenced with `${NAME}`. Never put credentials in project config.
 

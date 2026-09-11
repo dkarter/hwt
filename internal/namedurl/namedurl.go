@@ -13,6 +13,7 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/gitutil"
+	"github.com/dkarter/hwt/internal/localdns"
 	"github.com/dkarter/hwt/internal/metadatajson"
 	"github.com/dkarter/hwt/internal/pullrequest"
 	"github.com/dkarter/hwt/internal/urltemplate"
@@ -107,6 +108,9 @@ func resolve(deps dependencies, options Options) (Result, error) {
 	if explicitBranch && contains(placeholders, "worktree") {
 		return Result{}, errors.New("{worktree} is unavailable for an explicit branch; omit the branch argument or remove that placeholder")
 	}
+	if explicitBranch && contains(placeholders, "hostname") {
+		return Result{}, errors.New("{hostname} is unavailable for an explicit branch; omit the branch argument or remove that placeholder")
+	}
 	if explicitBranch && hasPrefix(placeholders, "ticket.") {
 		return Result{}, errors.New("ticket metadata is unavailable for an explicit branch because it belongs to a checked-out worktree")
 	}
@@ -145,14 +149,20 @@ func resolve(deps dependencies, options Options) (Result, error) {
 	}
 
 	commandNames := requiredCommands(placeholders, cfg.Metadata.Commands)
-	needsRepository := contains(placeholders, "repository")
+	needsRepository := contains(placeholders, "repository") || contains(placeholders, "hostname")
+	needsHostname := contains(placeholders, "hostname")
 	for _, name := range commandNames {
 		for _, argument := range cfg.Metadata.Commands[name][1:] {
 			names, _ := urltemplate.PlaceholdersRaw(argument)
 			if explicitBranch && contains(names, "worktree") {
 				return Result{}, fmt.Errorf("metadata command %q requires {worktree}, which is unavailable for an explicit branch", name)
 			}
+			if explicitBranch && contains(names, "hostname") {
+				return Result{}, fmt.Errorf("metadata command %q requires {hostname}, which is unavailable for an explicit branch", name)
+			}
 			needsRepository = needsRepository || contains(names, "repository")
+			needsRepository = needsRepository || contains(names, "hostname")
+			needsHostname = needsHostname || contains(names, "hostname")
 		}
 	}
 	if needsRepository {
@@ -162,6 +172,17 @@ func resolve(deps dependencies, options Options) (Result, error) {
 		}
 		builtins["repository"] = filepath.Base(primary)
 		values["repository"] = builtins["repository"]
+		if needsHostname {
+			if !cfg.LocalDNS.Enabled {
+				return Result{}, errors.New("{hostname} requires local_dns.enabled")
+			}
+			hostname, err := localdns.Hostname(primary, topLevel, cfg.LocalDNS.Domain)
+			if err != nil {
+				return Result{}, fmt.Errorf("resolve {hostname}: %w", err)
+			}
+			builtins["hostname"] = hostname
+			values["hostname"] = hostname
+		}
 	}
 	for _, name := range commandNames {
 		output, err := runMetadataCommand(deps.commands, topLevel, cfg.Metadata.Commands[name], builtins)

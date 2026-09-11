@@ -254,3 +254,86 @@ func TestCreateRequiresDescriptionOrBranchButNotBoth(t *testing.T) {
 		})
 	}
 }
+
+func TestDNSSetupStatusAndTeardownCommands(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := t.TempDir()
+	command := exec.Command("git", "-C", repo, "init", "-b", "main")
+	command.Env = gitutil.Environment()
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s: %v", output, err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("ports:\n  services: [web]\nlocal_dns:\n  enabled: true\n  domain: dev.test\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	for _, tool := range []string{"caddy", "dnsmasq"} {
+		if err := os.WriteFile(filepath.Join(bin, tool), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	root := New("test")
+	var setup bytes.Buffer
+	root.SetOut(&setup)
+	root.SetArgs([]string{"dns", "setup", "--cwd", repo, "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(setup.String(), `"dnsmasq_include"`) || !strings.Contains(setup.String(), `/hwt/local-dns/Caddyfile`) {
+		t.Fatalf("unexpected setup JSON: %s", setup.String())
+	}
+
+	root = New("test")
+	var status bytes.Buffer
+	root.SetOut(&status)
+	root.SetArgs([]string{"dns", "status", "--cwd", repo, "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(status.String(), `"entries": []`) {
+		t.Fatalf("unexpected status JSON: %s", status.String())
+	}
+
+	root = New("test")
+	var teardown bytes.Buffer
+	root.SetOut(&teardown)
+	root.SetArgs([]string{"dns", "teardown", "--cwd", repo, "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if teardown.String() != "{\n  \"removed\": true\n}\n" {
+		t.Fatalf("unexpected teardown JSON: %s", teardown.String())
+	}
+}
+
+func TestDNSSetupReportsMissingTools(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := t.TempDir()
+	command := exec.Command("git", "-C", repo, "init", "-b", "main")
+	command.Env = gitutil.Environment()
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s: %v", output, err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("ports:\n  services: [web]\nlocal_dns:\n  enabled: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Dir(mustLookPath(t, "git")))
+	root := New("test")
+	root.SetArgs([]string{"dns", "setup", "--cwd", repo})
+	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "required local DNS tools") {
+		t.Fatalf("expected missing tool error, got %v", err)
+	}
+}
+
+func mustLookPath(t *testing.T, name string) string {
+	t.Helper()
+	path, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
