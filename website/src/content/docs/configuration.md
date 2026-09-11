@@ -23,6 +23,7 @@ so it remains machine-local while being available to every linked worktree.
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
 ticket_command: [lnr, quick, --json]
+review_command: [tuicr]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
@@ -71,7 +72,7 @@ post_create:
 
 ## Resolution rules
 
-Project or Git-local scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning.
+Project or Git-local scalar values override global values. Repository `ticket_command` and `review_command` arrays replace their global values as a whole. Other lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning.
 
 The `<global>` marker is valid in repository `files.copy`, `ports.services`, and `post_create` lists. It cannot appear in the global configuration.
 
@@ -84,6 +85,22 @@ Command Herdr starts in the root pane after creation.
 ### `ticket_command`
 
 Argument array used by `hwt create DESCRIPTION`. The default is `[lnr, quick, --json]`. Repository configuration replaces the global array as a whole. HWT appends the full description as one final argument and runs the executable directly, without a shell. The command must write one JSON object to stdout with a non-empty string `branchName`, for example `{"branchName":"team/rms-90-task","metadata":{"identifier":"RMS-90"}}`. Only the optional dedicated string-valued `metadata` object becomes URL metadata; other top-level fields are ignored. Diagnostics belong on stderr; a non-zero exit includes its status and stderr in hwt's error.
+
+### `review_command`
+
+Argument array launched by `hwt review` from the review checkout. The default is
+`[tuicr]`, and repository configuration replaces the global array as a whole.
+HWT does not append the pull request URL, number, branch, title, or other remote
+metadata. It shell-quotes each configured argument before submitting the command
+to the Herdr pane, so arguments remain literal and no metadata is interpreted by
+the shell.
+
+HWT verifies that the executable is available before launch. A successful
+`launched` result means Herdr accepted the command; the tool then owns the pane.
+If it exits immediately or later returns non-zero, the worktree and workspace
+remain available and a later `hwt review` relaunches it. An open matching
+workspace returns `already_open` without starting a duplicate only while its
+recorded review pane remains busy.
 
 ### `worktree_dir`
 

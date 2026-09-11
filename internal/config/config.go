@@ -23,6 +23,7 @@ const DefaultCopyOnWrite = false
 const DefaultLocalDNSDomain = "hwt.test"
 
 var defaultTicketCommand = []string{"lnr", "quick", "--json"}
+var defaultReviewCommand = []string{"tuicr"}
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
@@ -30,6 +31,7 @@ var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za
 type Config struct {
 	Agent          string            `json:"agent,omitempty" yaml:"agent,omitempty"`
 	TicketCommand  []string          `json:"ticket_command" yaml:"ticket_command"`
+	ReviewCommand  []string          `json:"review_command" yaml:"review_command"`
 	WorktreeDir    string            `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
 	WorktreeNaming string            `json:"worktree_naming" yaml:"worktree_naming"`
 	WorktreePrefix string            `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
@@ -85,6 +87,7 @@ type Sources struct {
 type rawConfig struct {
 	Agent          *string            `yaml:"agent"`
 	TicketCommand  *[]string          `yaml:"ticket_command"`
+	ReviewCommand  *[]string          `yaml:"review_command"`
 	WorktreeDir    *string            `yaml:"worktree_dir"`
 	WorktreeNaming *string            `yaml:"worktree_naming"`
 	WorktreePrefix *string            `yaml:"worktree_prefix"`
@@ -284,13 +287,11 @@ func ValidateFile(path string) error {
 }
 
 func Validate(cfg Config) error {
-	if len(cfg.TicketCommand) == 0 {
-		return errors.New("ticket_command must contain an executable")
+	if err := validateArgv("ticket_command", cfg.TicketCommand); err != nil {
+		return err
 	}
-	for _, argument := range cfg.TicketCommand {
-		if argument == "" {
-			return errors.New("ticket_command entries cannot be empty")
-		}
+	if err := validateArgv("review_command", cfg.ReviewCommand); err != nil {
+		return err
 	}
 	if cfg.WorktreeNaming != "full" && cfg.WorktreeNaming != "basename" {
 		return fmt.Errorf("worktree_naming must be full or basename, got %q", cfg.WorktreeNaming)
@@ -421,6 +422,18 @@ func Validate(cfg Config) error {
 	return nil
 }
 
+func validateArgv(name string, command []string) error {
+	if len(command) == 0 {
+		return fmt.Errorf("%s must contain an executable", name)
+	}
+	for _, argument := range command {
+		if argument == "" {
+			return fmt.Errorf("%s entries cannot be empty", name)
+		}
+	}
+	return nil
+}
+
 func validServiceName(value string) bool {
 	return serviceNamePattern.MatchString(value)
 }
@@ -505,6 +518,15 @@ func resolve(global, project rawConfig) Config {
 		cfg.TicketCommand = append([]string(nil), defaultTicketCommand...)
 	} else {
 		cfg.TicketCommand = append([]string(nil), (*ticketCommand)...)
+	}
+	reviewCommand := global.ReviewCommand
+	if project.ReviewCommand != nil {
+		reviewCommand = project.ReviewCommand
+	}
+	if reviewCommand == nil {
+		cfg.ReviewCommand = append([]string(nil), defaultReviewCommand...)
+	} else {
+		cfg.ReviewCommand = append([]string(nil), (*reviewCommand)...)
 	}
 	cfg.WorktreeDir = scalar(global.WorktreeDir, project.WorktreeDir, "")
 	cfg.WorktreeNaming = scalar(global.WorktreeNaming, project.WorktreeNaming, DefaultWorktreeNaming)

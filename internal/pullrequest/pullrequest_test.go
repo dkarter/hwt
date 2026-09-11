@@ -2,6 +2,8 @@ package pullrequest
 
 import (
 	"errors"
+	"fmt"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -88,6 +90,98 @@ func TestResolveNumberRejectsMissingNumber(t *testing.T) {
 	_, err := resolveNumber(commands, Options{CWD: "/repo", Branch: "feature", Repository: "acme/app"})
 	if err == nil || !strings.Contains(err.Error(), "returned no number") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveMetadata(t *testing.T) {
+	title := "Fix $(touch /tmp/nope); `whoami`"
+	head := "feature; echo nope"
+	commands := &fakeRunner{responses: []response{{output: `{"number":42,"url":"https://github.com/acme/app/pull/42","title":"Fix $(touch /tmp/nope); ` + "`whoami`" + `","headRefName":"feature; echo nope","headRefOid":"abc123","baseRefName":"main","isCrossRepository":true}`}}}
+
+	metadata, err := resolveMetadata(commands, Options{CWD: "/repo", Branch: "https://github.com/acme/app/pull/42", Repository: "acme/app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.Number != 42 || metadata.URL != "https://github.com/acme/app/pull/42" || metadata.Title != title || metadata.HeadRefName != head || metadata.HeadRefOID != "abc123" || metadata.BaseRefName != "main" || !metadata.IsCrossRepository {
+		t.Fatalf("unexpected metadata: %#v", metadata)
+	}
+	want := []string{"gh", "pr", "view", "https://github.com/acme/app/pull/42", "--json", "number,url,title,headRefName,headRefOid,baseRefName,isCrossRepository", "--repo", "acme/app"}
+	if !reflect.DeepEqual(commands.calls, [][]string{want}) {
+		t.Fatalf("calls = %#v, want %#v", commands.calls, [][]string{want})
+	}
+}
+
+func TestResolveMetadataWithoutRepository(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: `{"number":7,"url":"https://github.example.com/upstream/app/pull/7","title":"Title","headRefName":"fork","headRefOid":"def456","baseRefName":"main","isCrossRepository":false}`}}}
+	_, err := resolveMetadata(commands, Options{CWD: "/repo", Branch: "https://github.example.com/upstream/app/pull/7"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"gh", "pr", "view", "https://github.example.com/upstream/app/pull/7", "--json", "number,url,title,headRefName,headRefOid,baseRefName,isCrossRepository"}
+	if !reflect.DeepEqual(commands.calls, [][]string{want}) {
+		t.Fatalf("calls = %#v, want %#v", commands.calls, [][]string{want})
+	}
+}
+
+func TestResolveMetadataRejectsMalformedURLBeforeRunningCommands(t *testing.T) {
+	values := []string{
+		"", "http://github.com/acme/app/pull/1", "https://user@github.com/acme/app/pull/1",
+		"https://github.com:443/acme/app/pull/1", "https://github.com:/acme/app/pull/1", "https://github.com/acme/app/pull/1?x=y",
+		"https://github.com/acme/app/pull/1#fragment", "https://github.com/acme/app/pull/1/files",
+		"https://github.com/acme/app/issues/1", "https://github.com/acme/app/pull/nope",
+	}
+	for _, value := range values {
+		t.Run(value, func(t *testing.T) {
+			commands := &fakeRunner{}
+			_, err := resolveMetadata(commands, Options{CWD: "/repo", Branch: value})
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if len(commands.calls) != 0 {
+				t.Fatalf("unexpected calls: %#v", commands.calls)
+			}
+		})
+	}
+}
+
+func TestResolveMetadataValidatesResponse(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   string
+	}{
+		{name: "missing field", output: `{"number":42,"url":"https://github.com/acme/app/pull/42"}`, want: "incomplete"},
+		{name: "different repository", output: `{"number":42,"url":"https://github.com/other/app/pull/42","title":"Title","headRefName":"head","headRefOid":"abc","baseRefName":"main","isCrossRepository":false}`, want: "different host, repository, or number"},
+		{name: "invalid canonical URL", output: `{"number":42,"url":"http://github.com/acme/app/pull/42","title":"Title","headRefName":"head","headRefOid":"abc","baseRefName":"main","isCrossRepository":false}`, want: "invalid canonical"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			commands := &fakeRunner{responses: []response{{output: test.output}}}
+			_, err := resolveMetadata(commands, Options{CWD: "/repo", Branch: "https://github.com/acme/app/pull/42"})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want containing %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestResolveMetadataErrorsAreActionable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "missing gh", err: fmt.Errorf("wrapped: %w", exec.ErrNotFound), want: "install it"},
+		{name: "authentication", err: errors.New("HTTP 401"), want: "gh auth login"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			commands := &fakeRunner{responses: []response{{err: test.err}}}
+			_, err := resolveMetadata(commands, Options{CWD: "/repo", Branch: "https://github.com/acme/app/pull/42"})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want containing %q", err, test.want)
+			}
+		})
 	}
 }
 

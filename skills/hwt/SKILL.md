@@ -1,6 +1,6 @@
 ---
 name: hwt
-description: Create, inspect, and remove Herdr-managed Git worktrees with hwt. Use when an agent needs an isolated Herdr workspace, must clean one up safely, or is asked to create or edit a project's .herdr-worktree.yaml configuration.
+description: Create, review, inspect, and remove Herdr-managed Git worktrees with hwt. Use when an agent needs an isolated Herdr workspace, a pull request review checkout, safe cleanup, or project configuration.
 ---
 
 # hwt
@@ -31,6 +31,24 @@ Use the returned IDs for subsequent Herdr commands.
 Omit `--base` only when intentionally using the current branch. A detached HEAD
 requires an explicit base. Use `--focus` only when the user asks to switch to the
 new workspace.
+
+## Review
+
+Create or reuse an exact-commit review workspace from a full GitHub pull request
+URL or branch reference:
+
+```bash
+hwt review --cwd <repository-path> --json <pull-request-url-or-branch>
+```
+
+The command does not focus the workspace unless `--focus` is passed. Parse
+`commit`, `path`, `workspace_id`, `pane_id`, `reused`, and `review_command.status`
+from JSON instead of predicting them. Use `--remote NAME` when a branch or pull
+request base remote is ambiguous. An `already_open` launch status means HWT
+reused the existing review session and deliberately did not launch a duplicate
+tool because its recorded review pane is still busy. An idle pane is relaunched.
+A failed review tool launch leaves the checkout and workspace available for
+repair or manual launch.
 
 ## Inspect
 

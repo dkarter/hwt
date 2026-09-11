@@ -19,6 +19,14 @@
       "items": { "type": "string", "minLength": 1 },
       "examples": [["acme-tickets", "create", "--json"]]
     },
+    "review_command": {
+      "type": "array",
+      "description": "Argument vector launched in a review workspace. hwt shell-quotes every configured argument before asking Herdr to run it and never appends pull request metadata.",
+      "default": ["tuicr"],
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "examples": [["tuicr"], ["custom-review", "--local"]]
+    },
     "worktree_dir": {
       "type": "string",
       "description": "Directory for worktrees. Relative paths resolve from the repository root.",

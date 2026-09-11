@@ -14,7 +14,7 @@ func TestEmbeddedSchemaIsValidJSON(t *testing.T) {
 		t.Fatalf("unexpected schema draft: %v", document["$schema"])
 	}
 	properties, ok := document["properties"].(map[string]any)
-	if !ok || properties["urls"] == nil || properties["metadata"] == nil || properties["local_dns"] == nil {
-		t.Fatal("schema does not define named URLs, metadata, and local DNS")
+	if !ok || properties["urls"] == nil || properties["metadata"] == nil || properties["local_dns"] == nil || properties["review_command"] == nil {
+		t.Fatal("schema does not define named URLs, metadata, local DNS, and review commands")
 	}
 }

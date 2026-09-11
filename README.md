@@ -67,6 +67,8 @@ hwt preview
 hwt preview feature/name --json
 hwt pr
 hwt pr feature/name --json
+hwt review https://github.com/owner/repository/pull/123 --json
+hwt review origin/feature/name --focus
 hwt remove --workspace w1A --json
 hwt config show
 hwt config validate
@@ -96,6 +98,8 @@ hwt completion zsh
 
 `hwt pr [branch]` resolves the branch's pull request through the authenticated GitHub CLI and opens it in the default browser. It uses the current branch when omitted; `--json` prints `{"url":"..."}` without opening a browser. Repositories with multiple remotes require `--repo [HOST/]OWNER/REPO`, which also supports pull requests from forks.
 
+`hwt review SELECTOR` creates a dedicated review workspace for a full HTTPS GitHub pull request URL or a branch reference. Pull requests are fetched through the base repository's `refs/pull/NUMBER/head`, so same-repository and fork heads work without changing the primary checkout. Local branches are used as already fetched; `REMOTE/BRANCH`, `--remote`, or a single configured remote selects remote branches. HWT creates a deterministic `hwt/review/...` branch, verifies its exact commit before reuse, opens the linked worktree in Herdr without focusing it by default, and launches `review_command`. An exact workspace whose recorded review pane is still busy is returned without launching a duplicate tool; an idle session is relaunched. Use `--focus` to switch workspaces and `--json` for identity, commit, path, workspace/pane IDs, reuse state, and launch status.
+
 `hwt url NAME [branch]` resolves a configured named URL and prints it without opening anything. `--json` returns its name and URL; `--open` explicitly opens only HTTP(S) URLs. `hwt preview [branch]` is the convenient opening workflow for `urls.preview`; its `--json` mode does not open a browser. Explicit branches need not exist locally, but cannot use `{worktree}` or worktree-local `ticket.*` metadata.
 
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
@@ -108,6 +112,7 @@ Global defaults live at `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml`. A repos
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
 ticket_command: [lnr, quick, --json]
+review_command: [tuicr]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
@@ -153,7 +158,7 @@ post_create:
   - mise install
 ```
 
-Project values override global values. `ticket_command` is an argv array and is replaced as a whole; hwt appends the task description as one final argument and requires JSON output containing a non-empty string `branchName`. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
+Project values override global values. `ticket_command` and `review_command` are argv arrays and are replaced as a whole. HWT appends the task description to `ticket_command`; it never appends pull request or branch metadata to `review_command`. Every review argument is shell-quoted before the command is submitted to the Herdr pane. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
 
 Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{hostname}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
 

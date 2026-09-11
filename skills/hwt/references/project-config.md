@@ -25,6 +25,7 @@ hwt schema
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
 ticket_command: [lnr, quick, --json]
+review_command: [tuicr]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
@@ -76,6 +77,10 @@ be inserted.
 - `agent`: Set the command an orchestrator should start in the root pane.
 - `ticket_command`: Set an argv array for ticket-backed creation. HWT appends the
   task description as one argument and expects JSON with a string `branchName`.
+- `review_command`: Set the argv launched by `hwt review`; the default is
+  `[tuicr]`. Repository configuration replaces the global argv. HWT adds no PR,
+  branch, title, or URL arguments and shell-quotes each configured argument
+  before asking Herdr to run it in the review checkout.
 - `worktree_dir`: Resolve relative values from the repository root.
 - `worktree_naming`: Use `full` to preserve branch hierarchy in the checkout
   name, or `basename` to use only the final branch component.

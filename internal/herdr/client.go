@@ -3,6 +3,7 @@ package herdr
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -25,6 +26,25 @@ type Workspace struct {
 	Label          string
 	CheckoutPath   string
 	LinkedWorktree bool
+}
+
+type Worktree struct {
+	Branch          string
+	Path            string
+	Linked          bool
+	Detached        bool
+	OpenWorkspaceID string
+}
+
+type Pane struct {
+	ID          string
+	WorkspaceID string
+}
+
+type Process struct {
+	Name  string
+	Argv0 string
+	Argv  []string
 }
 
 func (c Client) Run(args ...string) ([]byte, error) {
@@ -65,7 +85,15 @@ func (c Client) SourceCheckout(cwd string) (string, error) {
 }
 
 func (c Client) Create(args ...string) (Created, error) {
-	data, err := c.Run(append([]string{"worktree", "create"}, args...)...)
+	return c.created("create", args...)
+}
+
+func (c Client) Open(args ...string) (Created, error) {
+	return c.created("open", args...)
+}
+
+func (c Client) created(action string, args ...string) (Created, error) {
+	data, err := c.Run(append([]string{"worktree", action}, args...)...)
 	if err != nil {
 		return Created{}, err
 	}
@@ -83,7 +111,7 @@ func (c Client) Create(args ...string) (Created, error) {
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(data, &response); err != nil {
-		return Created{}, fmt.Errorf("decode Herdr worktree create response: %w", err)
+		return Created{}, fmt.Errorf("decode Herdr worktree %s response: %w", action, err)
 	}
 	created := Created{
 		WorkspaceID: response.Result.Workspace.ID,
@@ -92,9 +120,112 @@ func (c Client) Create(args ...string) (Created, error) {
 		Raw:         append(json.RawMessage(nil), data...),
 	}
 	if created.WorkspaceID == "" || created.PaneID == "" || created.Path == "" {
-		return created, fmt.Errorf("Herdr returned an incomplete worktree create response")
+		return created, fmt.Errorf("Herdr returned an incomplete worktree %s response", action)
 	}
 	return created, nil
+}
+
+func (c Client) Worktrees(cwd string) ([]Worktree, error) {
+	data, err := c.Run("worktree", "list", "--cwd", cwd, "--json")
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Result struct {
+			Worktrees []struct {
+				Branch          string `json:"branch"`
+				Path            string `json:"path"`
+				Linked          bool   `json:"is_linked_worktree"`
+				Detached        bool   `json:"is_detached"`
+				OpenWorkspaceID string `json:"open_workspace_id"`
+			} `json:"worktrees"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("decode Herdr worktree list response: %w", err)
+	}
+	result := make([]Worktree, 0, len(response.Result.Worktrees))
+	for _, item := range response.Result.Worktrees {
+		result = append(result, Worktree{
+			Branch:          item.Branch,
+			Path:            item.Path,
+			Linked:          item.Linked,
+			Detached:        item.Detached,
+			OpenWorkspaceID: item.OpenWorkspaceID,
+		})
+	}
+	return result, nil
+}
+
+func (c Client) Panes(workspaceID string) ([]Pane, error) {
+	data, err := c.Run("pane", "list", "--workspace", workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Result struct {
+			Panes []struct {
+				ID          string `json:"pane_id"`
+				WorkspaceID string `json:"workspace_id"`
+			} `json:"panes"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("decode Herdr pane list response: %w", err)
+	}
+	result := make([]Pane, 0, len(response.Result.Panes))
+	for _, item := range response.Result.Panes {
+		result = append(result, Pane{ID: item.ID, WorkspaceID: item.WorkspaceID})
+	}
+	return result, nil
+}
+
+func (c Client) ProcessInfo(paneID string) ([]Process, error) {
+	data, err := c.Run("pane", "process-info", "--pane", paneID)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Result struct {
+			Info struct {
+				Processes []struct {
+					Name  string   `json:"name"`
+					Argv0 string   `json:"argv0"`
+					Argv  []string `json:"argv"`
+				} `json:"foreground_processes"`
+			} `json:"process_info"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("decode Herdr pane process response: %w", err)
+	}
+	result := make([]Process, 0, len(response.Result.Info.Processes))
+	for _, item := range response.Result.Info.Processes {
+		result = append(result, Process{Name: item.Name, Argv0: item.Argv0, Argv: append([]string(nil), item.Argv...)})
+	}
+	return result, nil
+}
+
+func (c Client) Split(paneID, cwd string) (Pane, error) {
+	data, err := c.Run("pane", "split", paneID, "--direction", "right", "--cwd", cwd, "--no-focus")
+	if err != nil {
+		return Pane{}, err
+	}
+	var response struct {
+		Result struct {
+			Pane struct {
+				ID          string `json:"pane_id"`
+				WorkspaceID string `json:"workspace_id"`
+			} `json:"pane"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return Pane{}, fmt.Errorf("decode Herdr pane split response: %w", err)
+	}
+	if response.Result.Pane.ID == "" {
+		return Pane{}, errors.New("Herdr returned an incomplete pane split response")
+	}
+	return Pane{ID: response.Result.Pane.ID, WorkspaceID: response.Result.Pane.WorkspaceID}, nil
 }
 
 func (c Client) Workspace(id string) (Workspace, error) {

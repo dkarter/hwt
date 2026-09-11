@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/dkarter/hwt/internal/gitutil"
@@ -19,6 +21,16 @@ type Options struct {
 
 type Result struct {
 	URL string `json:"url"`
+}
+
+type Metadata struct {
+	Number            int    `json:"number"`
+	URL               string `json:"url"`
+	Title             string `json:"title"`
+	HeadRefName       string `json:"headRefName"`
+	HeadRefOID        string `json:"headRefOid"`
+	BaseRefName       string `json:"baseRefName"`
+	IsCrossRepository bool   `json:"isCrossRepository"`
 }
 
 type runner interface {
@@ -59,6 +71,101 @@ func resolve(commands runner, options Options) (Result, error) {
 
 func ResolveNumber(options Options) (int, error) {
 	return resolveNumber(commandRunner{}, options)
+}
+
+func ResolveMetadata(options Options) (Metadata, error) {
+	return resolveMetadata(commandRunner{}, options)
+}
+
+func resolveMetadata(commands runner, options Options) (Metadata, error) {
+	requested, owner, repository, number, err := parsePullRequestURL(options.Branch)
+	if err != nil {
+		return Metadata{}, fmt.Errorf("resolve pull request metadata: %w", err)
+	}
+	if options.Repository != "" && !repositoryMatchesURL(options.Repository, requested.Hostname(), owner, repository) {
+		return Metadata{}, fmt.Errorf("repository %q does not match pull request URL repository %s/%s", options.Repository, owner, repository)
+	}
+	if options.CWD == "" {
+		options.CWD, err = os.Getwd()
+		if err != nil {
+			return Metadata{}, err
+		}
+	}
+
+	arguments := []string{"pr", "view", options.Branch, "--json", "number,url,title,headRefName,headRefOid,baseRefName,isCrossRepository"}
+	if options.Repository != "" {
+		arguments = append(arguments, "--repo", options.Repository)
+	}
+	output, err := commands.Run(options.CWD, "gh", arguments...)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return Metadata{}, errors.New("GitHub CLI (gh) is required to resolve pull request metadata; install it and authenticate with gh auth login")
+		}
+		return Metadata{}, fmt.Errorf("query GitHub pull request metadata (ensure gh is authenticated with `gh auth login`): %w", err)
+	}
+
+	var response struct {
+		Number            *int    `json:"number"`
+		URL               *string `json:"url"`
+		Title             *string `json:"title"`
+		HeadRefName       *string `json:"headRefName"`
+		HeadRefOID        *string `json:"headRefOid"`
+		BaseRefName       *string `json:"baseRefName"`
+		IsCrossRepository *bool   `json:"isCrossRepository"`
+	}
+	if err := json.Unmarshal(output, &response); err != nil {
+		return Metadata{}, fmt.Errorf("decode GitHub pull request metadata: %w", err)
+	}
+	if response.Number == nil || *response.Number <= 0 || response.URL == nil || *response.URL == "" || response.Title == nil || *response.Title == "" || response.HeadRefName == nil || *response.HeadRefName == "" || response.HeadRefOID == nil || *response.HeadRefOID == "" || response.BaseRefName == nil || *response.BaseRefName == "" || response.IsCrossRepository == nil {
+		return Metadata{}, errors.New("GitHub returned incomplete pull request metadata; number, url, title, headRefName, headRefOid, baseRefName, and isCrossRepository are required")
+	}
+	canonical, canonicalOwner, canonicalRepository, canonicalNumber, err := parsePullRequestURL(*response.URL)
+	if err != nil {
+		return Metadata{}, fmt.Errorf("GitHub returned an invalid canonical pull request URL: %w", err)
+	}
+	if !strings.EqualFold(requested.Hostname(), canonical.Hostname()) || !strings.EqualFold(owner, canonicalOwner) || !strings.EqualFold(repository, canonicalRepository) || number != canonicalNumber || number != *response.Number {
+		return Metadata{}, errors.New("GitHub returned pull request metadata for a different host, repository, or number")
+	}
+
+	return Metadata{
+		Number:            *response.Number,
+		URL:               *response.URL,
+		Title:             *response.Title,
+		HeadRefName:       *response.HeadRefName,
+		HeadRefOID:        *response.HeadRefOID,
+		BaseRefName:       *response.BaseRefName,
+		IsCrossRepository: *response.IsCrossRepository,
+	}, nil
+}
+
+func parsePullRequestURL(value string) (*url.URL, string, string, int, error) {
+	if value == "" {
+		return nil, "", "", 0, errors.New("Branch must contain a full pull request URL")
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return nil, "", "", 0, fmt.Errorf("invalid pull request URL %q: %w", value, err)
+	}
+	if parsed.Scheme != "https" || parsed.Hostname() == "" || strings.Contains(parsed.Host, ":") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.RawPath != "" {
+		return nil, "", "", 0, fmt.Errorf("pull request URL must be a full HTTPS GitHub URL without userinfo, port, query, or fragment: %q", value)
+	}
+	parts := strings.Split(parsed.Path, "/")
+	if len(parts) != 5 || parts[0] != "" || parts[1] == "" || parts[2] == "" || parts[3] != "pull" || parts[4] == "" {
+		return nil, "", "", 0, fmt.Errorf("pull request URL path must be exactly /OWNER/REPO/pull/NUMBER: %q", value)
+	}
+	number, err := strconv.Atoi(parts[4])
+	if err != nil || number <= 0 || strconv.Itoa(number) != parts[4] {
+		return nil, "", "", 0, fmt.Errorf("pull request URL has an invalid pull request number: %q", value)
+	}
+	return parsed, parts[1], parts[2], number, nil
+}
+
+func repositoryMatchesURL(value, host, owner, repository string) bool {
+	parts := strings.Split(value, "/")
+	if len(parts) == 2 {
+		return strings.EqualFold(parts[0], owner) && strings.EqualFold(parts[1], repository)
+	}
+	return len(parts) == 3 && strings.EqualFold(parts[0], host) && strings.EqualFold(parts[1], owner) && strings.EqualFold(parts[2], repository)
 }
 
 func resolveNumber(commands runner, options Options) (int, error) {

@@ -80,6 +80,7 @@ func TestLoadMergesGlobalAndProjectConfig(t *testing.T) {
 	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), `
 agent: global-agent
 ticket_command: [global-tickets, create, --json]
+review_command: [global-review]
 worktree_dir: ~/.herdr/worktrees
 files:
   copy: [.env, global.txt]
@@ -89,6 +90,7 @@ post_create: [global-command]
 	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `
 agent: repo-agent
 ticket_command: [project-tickets, quick]
+review_command: [project-review, --local]
 worktree_prefix: repo-
 files:
   copy: [local.txt, <global>]
@@ -105,6 +107,9 @@ post_create: [<global>, local-command]
 	}
 	if !reflect.DeepEqual(cfg.TicketCommand, []string{"project-tickets", "quick"}) {
 		t.Fatalf("project ticket command did not replace global command: %#v", cfg.TicketCommand)
+	}
+	if !reflect.DeepEqual(cfg.ReviewCommand, []string{"project-review", "--local"}) {
+		t.Fatalf("project review command did not replace global command: %#v", cfg.ReviewCommand)
 	}
 	expectedCopy := []CopyEntry{
 		{Path: "local.txt", Parallel: true},
@@ -134,6 +139,18 @@ func TestLoadDefaultsTicketCommandToLNR(t *testing.T) {
 	}
 	if !reflect.DeepEqual(cfg.TicketCommand, []string{"lnr", "quick", "--json"}) {
 		t.Fatalf("unexpected default ticket command: %#v", cfg.TicketCommand)
+	}
+}
+
+func TestLoadDefaultsReviewCommandToTuicr(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, _, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.ReviewCommand, []string{"tuicr"}) {
+		t.Fatalf("unexpected default review command: %#v", cfg.ReviewCommand)
 	}
 }
 
@@ -228,6 +245,17 @@ func TestLoadRejectsInvalidTicketCommand(t *testing.T) {
 	_, _, err := Load(repo)
 	if err == nil || !strings.Contains(err.Error(), "must contain an executable") {
 		t.Fatalf("expected ticket command validation error, got %v", err)
+	}
+}
+
+func TestLoadRejectsInvalidReviewCommand(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: []\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "review_command must contain an executable") {
+		t.Fatalf("expected review command validation error, got %v", err)
 	}
 }
 

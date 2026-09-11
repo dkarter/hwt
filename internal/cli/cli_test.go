@@ -255,6 +255,17 @@ func TestCreateRequiresDescriptionOrBranchButNotBoth(t *testing.T) {
 	}
 }
 
+func TestReviewRequiresExactlyOneUnambiguousSelector(t *testing.T) {
+	for _, args := range [][]string{{"review"}, {"review", "one", "two"}} {
+		command := New("test")
+		command.SetArgs(args)
+		err := command.Execute()
+		if err == nil || !strings.Contains(err.Error(), "arg(s)") {
+			t.Fatalf("hwt %v error = %v", args, err)
+		}
+	}
+}
+
 func TestDNSSetupStatusAndTeardownCommands(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())

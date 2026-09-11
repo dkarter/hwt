@@ -6,6 +6,9 @@ description: Resolve and open the GitHub pull request for a worktree branch.
 `hwt pr` resolves the pull request for the current worktree branch and opens it
 in the default browser:
 
+To fetch code into a dedicated Herdr workspace and launch a review tool instead,
+use [`hwt review`](/docs/cli/review-pull-request/).
+
 ```sh
 hwt pr
 ```
