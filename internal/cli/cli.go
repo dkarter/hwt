@@ -229,7 +229,14 @@ func (a *app) pluginInstallCommand(use, short string) *cobra.Command {
 
 func releaseRef(version string) string {
 	version = strings.TrimPrefix(version, "v")
-	parts := strings.Split(version, ".")
+	core := version
+	if candidate, prerelease, found := strings.Cut(version, "-"); found {
+		if !strings.HasPrefix(prerelease, "dev.") {
+			return ""
+		}
+		core = candidate
+	}
+	parts := strings.Split(core, ".")
 	if len(parts) != 3 {
 		return ""
 	}

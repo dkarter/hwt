@@ -48,6 +48,7 @@ func TestPluginCommandsForwardToHerdr(t *testing.T) {
 	}{
 		{version: "test", command: []string{"plugin", "install"}, want: "plugin\ninstall\ndkarter/hwt/plugins/herdr\n--yes\n"},
 		{version: "1.2.3", command: []string{"plugin", "update"}, want: "plugin\ninstall\ndkarter/hwt/plugins/herdr\n--ref\nv1.2.3\n--yes\n"},
+		{version: "1.2.4-dev.20260911.42.1.gabcdef0", command: []string{"plugin", "update"}, want: "plugin\ninstall\ndkarter/hwt/plugins/herdr\n--ref\nv1.2.4-dev.20260911.42.1.gabcdef0\n--yes\n"},
 		{version: "test", command: []string{"plugin", "uninstall"}, want: "plugin\nuninstall\nhwt.worktrees\n"},
 	}
 	for _, test := range tests {

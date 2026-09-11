@@ -38,8 +38,12 @@ run = "./scripts/test-herdr-plugin-e2e.sh"
 
 [tasks.check]
 description = "Runs all quality checks"
-depends = ["fmt-check", "test", "website-build"]
+depends = ["fmt-check", "test", "website-build", "release-check"]
 run = "go vet ./..."
+
+[tasks.release-check]
+description = "Validates development release versioning and configuration"
+run = "./scripts/test-development-release.sh && goreleaser check"
 
 [tasks.snapshot]
 description = "Builds release artifacts without publishing"
