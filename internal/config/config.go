@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/dkarter/hwt/internal/gitutil"
-	"github.com/dkarter/hwt/internal/previewurl"
+	"github.com/dkarter/hwt/internal/urltemplate"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -26,16 +26,17 @@ var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type Config struct {
-	Agent          string      `json:"agent,omitempty" yaml:"agent,omitempty"`
-	TicketCommand  []string    `json:"ticket_command" yaml:"ticket_command"`
-	WorktreeDir    string      `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
-	WorktreeNaming string      `json:"worktree_naming" yaml:"worktree_naming"`
-	WorktreePrefix string      `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
-	Files          Files       `json:"files" yaml:"files"`
-	PostCreate     []string    `json:"post_create,omitempty" yaml:"post_create,omitempty"`
-	Ports          Ports       `json:"ports" yaml:"ports"`
-	Environment    Environment `json:"environment" yaml:"environment"`
-	PreviewURL     string      `json:"preview_url,omitempty" yaml:"preview_url,omitempty"`
+	Agent          string            `json:"agent,omitempty" yaml:"agent,omitempty"`
+	TicketCommand  []string          `json:"ticket_command" yaml:"ticket_command"`
+	WorktreeDir    string            `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
+	WorktreeNaming string            `json:"worktree_naming" yaml:"worktree_naming"`
+	WorktreePrefix string            `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
+	Files          Files             `json:"files" yaml:"files"`
+	PostCreate     []string          `json:"post_create,omitempty" yaml:"post_create,omitempty"`
+	Ports          Ports             `json:"ports" yaml:"ports"`
+	Environment    Environment       `json:"environment" yaml:"environment"`
+	URLs           map[string]string `json:"urls,omitempty" yaml:"urls,omitempty"`
+	Metadata       Metadata          `json:"metadata" yaml:"metadata"`
 }
 
 type Ports struct {
@@ -46,6 +47,11 @@ type Ports struct {
 
 type Environment struct {
 	Variables map[string]string `json:"variables,omitempty" yaml:"variables,omitempty"`
+}
+
+type Metadata struct {
+	Values   map[string]string   `json:"values,omitempty" yaml:"values,omitempty"`
+	Commands map[string][]string `json:"commands,omitempty" yaml:"commands,omitempty"`
 }
 
 type Files struct {
@@ -68,16 +74,22 @@ type Sources struct {
 }
 
 type rawConfig struct {
-	Agent          *string         `yaml:"agent"`
-	TicketCommand  *[]string       `yaml:"ticket_command"`
-	WorktreeDir    *string         `yaml:"worktree_dir"`
-	WorktreeNaming *string         `yaml:"worktree_naming"`
-	WorktreePrefix *string         `yaml:"worktree_prefix"`
-	Files          *rawFiles       `yaml:"files"`
-	PostCreate     *[]string       `yaml:"post_create"`
-	Ports          *rawPorts       `yaml:"ports"`
-	Environment    *rawEnvironment `yaml:"environment"`
-	PreviewURL     *string         `yaml:"preview_url"`
+	Agent          *string            `yaml:"agent"`
+	TicketCommand  *[]string          `yaml:"ticket_command"`
+	WorktreeDir    *string            `yaml:"worktree_dir"`
+	WorktreeNaming *string            `yaml:"worktree_naming"`
+	WorktreePrefix *string            `yaml:"worktree_prefix"`
+	Files          *rawFiles          `yaml:"files"`
+	PostCreate     *[]string          `yaml:"post_create"`
+	Ports          *rawPorts          `yaml:"ports"`
+	Environment    *rawEnvironment    `yaml:"environment"`
+	URLs           *map[string]string `yaml:"urls"`
+	Metadata       *rawMetadata       `yaml:"metadata"`
+}
+
+type rawMetadata struct {
+	Values   *map[string]string   `yaml:"values"`
+	Commands *map[string][]string `yaml:"commands"`
 }
 
 type rawPorts struct {
@@ -312,9 +324,48 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("environment variable %q uses the reserved HWT_ prefix", name)
 		}
 	}
-	if cfg.PreviewURL != "" {
-		if err := previewurl.ValidateTemplate(cfg.PreviewURL); err != nil {
-			return fmt.Errorf("preview_url: %w", err)
+	for name, template := range cfg.URLs {
+		if !validServiceName(name) {
+			return fmt.Errorf("URL name %q must start with a letter and contain only letters, numbers, underscores, or hyphens", name)
+		}
+		if err := urltemplate.ValidateTemplate(template); err != nil {
+			return fmt.Errorf("urls.%s: %w", name, err)
+		}
+	}
+	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "pr_number": true}
+	for name := range cfg.Metadata.Values {
+		if !urltemplate.ValidPlaceholder(name) {
+			return fmt.Errorf("metadata value name %q must be a dot-separated identifier", name)
+		}
+		if reserved[name] {
+			return fmt.Errorf("metadata value name %q is reserved", name)
+		}
+	}
+	for name, command := range cfg.Metadata.Commands {
+		if !validServiceName(name) {
+			return fmt.Errorf("metadata command name %q must start with a letter and contain only letters, numbers, underscores, or hyphens", name)
+		}
+		if reserved[name] {
+			return fmt.Errorf("metadata command name %q is reserved", name)
+		}
+		if len(command) == 0 || command[0] == "" {
+			return fmt.Errorf("metadata command %q must contain an executable", name)
+		}
+		for _, argument := range command {
+			if argument == "" {
+				return fmt.Errorf("metadata command %q entries cannot be empty", name)
+			}
+		}
+		for index, argument := range command[1:] {
+			placeholders, err := urltemplate.PlaceholdersRaw(argument)
+			if err != nil {
+				return fmt.Errorf("metadata command %q argument %d: %w", name, index+1, err)
+			}
+			for _, placeholder := range placeholders {
+				if placeholder != "repository" && placeholder != "branch" && placeholder != "sanitized_branch" && placeholder != "worktree" {
+					return fmt.Errorf("metadata command %q argument %d uses unsupported placeholder {%s}; only repository, branch, sanitized_branch, and worktree are available", name, index+1, placeholder)
+				}
+			}
 		}
 	}
 	return nil
@@ -363,9 +414,6 @@ func read(path string, required bool) (rawConfig, error) {
 	if err := decoder.Decode(&cfg); err != nil {
 		return rawConfig{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	if cfg.PreviewURL != nil && strings.TrimSpace(*cfg.PreviewURL) == "" {
-		return rawConfig{}, fmt.Errorf("parse %s: preview_url cannot be empty", path)
-	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
@@ -406,8 +454,57 @@ func resolve(global, project rawConfig) Config {
 	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
 	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
 	cfg.Environment.Variables = stringMap(environmentVariables(global.Environment), environmentVariables(project.Environment))
-	cfg.PreviewURL = scalar(global.PreviewURL, project.PreviewURL, "")
+	cfg.URLs = mergeStringMaps(global.URLs, project.URLs)
+	cfg.Metadata.Values = mergeStringMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
+	cfg.Metadata.Commands = mergeCommandMaps(metadataCommands(global.Metadata), metadataCommands(project.Metadata))
 	return cfg
+}
+
+func metadataValues(metadata *rawMetadata) *map[string]string {
+	if metadata == nil {
+		return nil
+	}
+	return metadata.Values
+}
+
+func metadataCommands(metadata *rawMetadata) *map[string][]string {
+	if metadata == nil {
+		return nil
+	}
+	return metadata.Commands
+}
+
+func mergeStringMaps(global, project *map[string]string) map[string]string {
+	result := map[string]string{}
+	if global != nil {
+		for key, value := range *global {
+			result[key] = value
+		}
+	}
+	if project != nil {
+		for key, value := range *project {
+			result[key] = value
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func mergeCommandMaps(global, project *map[string][]string) map[string][]string {
+	result := map[string][]string{}
+	for _, source := range []*map[string][]string{global, project} {
+		if source != nil {
+			for key, value := range *source {
+				result[key] = append([]string(nil), value...)
+			}
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func portStart(ports *rawPorts) *int {

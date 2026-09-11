@@ -26,7 +26,17 @@ ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
-preview_url: https://{sanitized_branch}.preview.example.com
+
+urls:
+  preview: https://{sanitized_branch}.preview.example.com
+  ticket: https://linear.example/issue/{ticket.identifier}
+  database: postgres://{database.user}:{database.password}@{database.host}/app
+
+metadata:
+  values:
+    region: us-east-1
+  commands:
+    database: [bin/database-metadata, --branch, '{branch}', --json]
 
 ports:
   start: 20000
@@ -56,7 +66,7 @@ post_create:
 
 ## Resolution rules
 
-Project or Git-local scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit.
+Project or Git-local scalar values override global values. Repository lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning.
 
 The `<global>` marker is valid in repository `files.copy`, `ports.services`, and `post_create` lists. It cannot appear in the global configuration.
 
@@ -68,7 +78,7 @@ Command Herdr starts in the root pane after creation.
 
 ### `ticket_command`
 
-Argument array used by `hwt create DESCRIPTION`. The default is `[lnr, quick, --json]`. Repository configuration replaces the global array as a whole. HWT appends the full description as one final argument and runs the executable directly, without a shell. The command must write one JSON object to stdout with a non-empty string `branchName`, for example `{"branchName":"team/rms-90-task"}`. Diagnostics belong on stderr; a non-zero exit includes its status and stderr in hwt's error.
+Argument array used by `hwt create DESCRIPTION`. The default is `[lnr, quick, --json]`. Repository configuration replaces the global array as a whole. HWT appends the full description as one final argument and runs the executable directly, without a shell. The command must write one JSON object to stdout with a non-empty string `branchName`, for example `{"branchName":"team/rms-90-task","metadata":{"identifier":"RMS-90"}}`. Only the optional dedicated string-valued `metadata` object becomes URL metadata; other top-level fields are ignored. Diagnostics belong on stderr; a non-zero exit includes its status and stderr in hwt's error.
 
 ### `worktree_dir`
 
@@ -82,10 +92,10 @@ Controls the checkout name. Accepted values are `full` and `basename`; the defau
 
 Text prepended to the generated checkout name.
 
-### `preview_url`
+### `urls` and `metadata`
 
-Absolute HTTP(S) URL template used by `hwt preview [branch]`. It is a scalar, so
-repository configuration replaces the global value. Supported placeholders are:
+`urls` maps arbitrary names to absolute URL templates. Global and repository
+maps merge by name, with repository entries winning. Built-in placeholders are:
 
 | Placeholder          | Value                                                                 |
 | -------------------- | --------------------------------------------------------------------- |
@@ -93,6 +103,7 @@ repository configuration replaces the global value. Supported placeholders are:
 | `{branch}`           | Current branch, or the explicit branch argument.                      |
 | `{sanitized_branch}` | Branch normalized for preview hostnames and identifiers.              |
 | `{worktree}`         | Current checkout directory name; unavailable with an explicit branch. |
+| `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.   |
 
 Sanitization lowercases ASCII letters, replaces each run of characters outside
 `a-z` and `0-9` with one `-`, removes leading and trailing separators, and limits
@@ -101,8 +112,39 @@ then UTF-8 percent-encodes every substituted value except the RFC 3986
 unreserved set (`A-Z`, `a-z`, `0-9`, `-._~`). Use `{sanitized_branch}` in a
 hostname; all placeholders are safe as a path segment or query value. Literal
 braces are not supported. Configuration validation rejects malformed templates,
-unknown placeholders, invalid percent escapes, and templates that are not
-absolute HTTP(S) URLs.
+invalid percent escapes, and templates without a URL scheme.
+
+`metadata.values` provides static strings. A command under
+`metadata.commands.NAME` is an argv array run directly without a shell only when
+the template requests `{NAME.key}`. Built-in placeholders in individual command
+arguments (`repository`, `branch`, `sanitized_branch`, and `worktree`) are
+substituted as one argument; custom metadata, `pr_number`, and ambient
+environment variables are not expanded. The command must return one JSON object
+whose values are strings.
+
+Ticket commands may return a dedicated string-valued `metadata` object alongside
+`branchName`. HWT exposes it as `{ticket.key}` for that worktree. It ignores
+arbitrary top-level ticket fields. Ticket metadata is stored in a mode-`0600`
+file under private Git worktree metadata and removed with the worktree. Command
+output and resolved URLs, including credentials, are never persisted.
+
+Do not put credentials in tracked `metadata.values`. Use a lazy metadata command
+for database passwords, tokens, and other secrets.
+
+Precedence is static values, then `ticket.*`, then command namespaces, then
+reserved built-ins. Unknown and missing placeholders fail resolution. Explicit
+branches cannot use `{worktree}` or worktree-local `ticket.*` values.
+
+To migrate from the earlier `preview_url` form:
+
+```yaml
+# Before
+preview_url: https://{sanitized_branch}.preview.example.com
+
+# After
+urls:
+  preview: https://{sanitized_branch}.preview.example.com
+```
 
 ### `files`
 

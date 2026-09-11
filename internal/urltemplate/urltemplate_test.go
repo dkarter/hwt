@@ -1,17 +1,18 @@
-package previewurl
+package urltemplate
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
 
 func TestExpandEscapesComponents(t *testing.T) {
-	template := "https://{sanitized_branch}.preview.example/{repository}/{branch}?worktree={worktree}"
+	template := "https://{sanitized_branch}.preview.example/{repository}/{branch}?worktree={deployment.worktree}"
 	values := map[string]string{
-		"repository":       "my app",
-		"branch":           "Feature/café + tea",
-		"sanitized_branch": SanitizeBranch("Feature/café + tea"),
-		"worktree":         "feature café",
+		"repository":          "my app",
+		"branch":              "Feature/café + tea",
+		"sanitized_branch":    SanitizeBranch("Feature/café + tea"),
+		"deployment.worktree": "feature café",
 	}
 	result, err := Expand(template, values)
 	if err != nil {
@@ -42,11 +43,11 @@ func TestTemplateErrors(t *testing.T) {
 		values   map[string]string
 		want     string
 	}{
-		{name: "unknown", template: "https://example.com/{ref}", want: "unknown placeholder"},
+		{name: "invalid name", template: "https://example.com/{bad name}", want: "invalid placeholder"},
 		{name: "unclosed", template: "https://example.com/{branch", want: "unclosed"},
-		{name: "relative", template: "/{branch}", want: "absolute http or https"},
+		{name: "relative", template: "/{branch}", want: "absolute URL"},
 		{name: "invalid escape", template: "https://example.com/%zz/{branch}", want: "valid URL"},
-		{name: "missing value", template: "https://example.com/{worktree}", values: map[string]string{"branch": "main"}, want: "unavailable"},
+		{name: "unknown value", template: "https://example.com/{worktree}", values: map[string]string{"branch": "main"}, want: "unknown placeholder"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -60,5 +61,27 @@ func TestTemplateErrors(t *testing.T) {
 				t.Fatalf("error = %v, want containing %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestPlaceholdersPreservesFirstUseOrder(t *testing.T) {
+	names, err := Placeholders("postgres://{database.user}@{database.host}/{repository}?user={database.user}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"database.user", "database.host", "repository"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("placeholders = %#v, want %#v", names, want)
+	}
+}
+
+func TestExpandDoesNotReadAmbientEnvironment(t *testing.T) {
+	t.Setenv("HWT_TEST_SECRET", "expanded-secret")
+	result, err := Expand("https://example.com/$HWT_TEST_SECRET/{branch}", map[string]string{"branch": "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result != "https://example.com/$HWT_TEST_SECRET/main" {
+		t.Fatalf("ambient environment was expanded: %q", result)
 	}
 }

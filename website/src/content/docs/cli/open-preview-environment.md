@@ -3,7 +3,7 @@ title: Open a preview environment
 description: Resolve and open a configured preview URL for a worktree or branch.
 ---
 
-Set `preview_url` in the repository, Git-local, or global configuration, then run:
+Set `urls.preview` in the repository, Git-local, or global configuration, then run:
 
 ```sh
 hwt preview
@@ -18,7 +18,7 @@ hwt preview feature/name
 ```
 
 An explicit branch has no associated worktree, so its template cannot use
-`{worktree}`. See [configuration](/docs/configuration/#preview_url) for the
+`{worktree}` or `ticket.*`. See [configuration](/docs/configuration/#urls-and-metadata) for the
 placeholder, sanitization, and escaping contract.
 
 ## Machine-readable output
@@ -31,16 +31,18 @@ hwt preview --json
 
 ```json
 {
+  "name": "preview",
   "url": "https://feature-name.preview.example.com"
 }
 ```
 
 ## Flags
 
-| Flag         | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `--cwd PATH` | Repository path. Defaults to the current directory. |
-| `--json`     | Print the resolved URL without opening a browser.   |
+| Flag                    | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| `--cwd PATH`            | Repository path. Defaults to the current directory. |
+| `--json`                | Print the resolved URL without opening a browser.   |
+| `-R, --repo REPOSITORY` | GitHub repository used to resolve `{pr_number}`.    |
 
 Without a branch argument, detached HEAD cannot identify a preview; pass the
 branch explicitly. On macOS hwt opens URLs with `open`; on Linux it uses
@@ -49,3 +51,8 @@ branch explicitly. On macOS hwt opens URLs with `open`; on Linux it uses
 HWT does not poll or wait for a deployment. Preview providers differ in status
 APIs, authentication, and readiness semantics, so this command only resolves and
 opens the configured URL.
+
+Use `hwt url NAME [branch]` for any named URL. It prints plain output by default,
+`--json` prints `{"name":"...","url":"..."}`, and `--open` explicitly opens
+only HTTP(S) URLs. Database and other non-browser schemes are never opened by
+default and are rejected with `--open`.

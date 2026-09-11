@@ -49,6 +49,10 @@ Open the configured preview environment with `hwt preview [branch]`. Use
 `--json` to resolve the URL without opening a browser. An explicit branch cannot
 use a preview template containing `{worktree}`.
 
+Resolve any configured URL with `hwt url <name> [branch]`. Plain and `--json`
+output never open a browser; use `--open` only when explicitly requested. Never
+open database or other non-HTTP(S) URLs.
+
 ## Remove
 
 ```bash

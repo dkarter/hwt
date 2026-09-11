@@ -238,7 +238,7 @@ func TestCreateFromDescriptionUsesLNRBranchAndConfiguredPath(t *testing.T) {
 	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "worktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
 	arguments := filepath.Join(t.TempDir(), "arguments")
 	binDir := t.TempDir()
-	writeExecutable(t, filepath.Join(binDir, "lnr"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HWT_TEST_ARGUMENTS\"\nprintf '{\"branchName\":\"dorian/rms-90-ticket-flow\"}\\n'\n")
+	writeExecutable(t, filepath.Join(binDir, "lnr"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HWT_TEST_ARGUMENTS\"\nprintf '{\"branchName\":\"dorian/rms-90-ticket-flow\",\"metadata\":{\"identifier\":\"RMS-90\"},\"url\":\"not metadata\"}\\n'\n")
 	t.Setenv("HWT_TEST_ARGUMENTS", arguments)
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	expectedPath := filepath.Join(worktreeDir, "project-rms-90-ticket-flow")
@@ -256,6 +256,24 @@ func TestCreateFromDescriptionUsesLNRBranchAndConfiguredPath(t *testing.T) {
 		t.Fatalf("unexpected ticket worktree result: %#v", result)
 	}
 	assertFile(t, arguments, "quick\n--json\nsomething; $(unsafe)\n")
+	metadata, err := ReadTicketMetadata(expectedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(metadata, map[string]string{"identifier": "RMS-90"}) {
+		t.Fatalf("unexpected ticket metadata: %#v", metadata)
+	}
+	gitDir := output(t, expectedPath, "git", "rev-parse", "--path-format=absolute", "--git-dir")
+	info, err := os.Stat(filepath.Join(gitDir, ticketMetadataName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("ticket metadata mode = %o", info.Mode().Perm())
+	}
+	if status := output(t, expectedPath, "git", "status", "--porcelain"); status != "" {
+		t.Fatalf("ticket metadata appeared in worktree status: %q", status)
+	}
 	joined := strings.Join(client.creates[0], "\n")
 	if !strings.Contains(joined, "--branch\ndorian/rms-90-ticket-flow") || !strings.Contains(joined, "--path\n"+expectedPath) {
 		t.Fatalf("ticket branch or configured path not forwarded to Herdr: %#v", client.creates[0])
@@ -275,6 +293,8 @@ func TestCreateFromDescriptionRejectsTicketFailuresBeforeHerdrCreate(t *testing.
 		{name: "command failure", script: "#!/bin/sh\nprintf 'authentication required' >&2\nexit 23\n", want: "authentication required"},
 		{name: "malformed output", script: "#!/bin/sh\nprintf 'not json'\n", want: "decode ticket command JSON output"},
 		{name: "missing branch", script: "#!/bin/sh\nprintf '{}\\n'\n", want: "missing a non-empty branchName"},
+		{name: "malformed metadata", script: "#!/bin/sh\nprintf '{\"branchName\":\"feature/test\",\"metadata\":{\"number\":42}}\\n'\n", want: "must be a string"},
+		{name: "null metadata value", script: "#!/bin/sh\nprintf '{\"branchName\":\"feature/test\",\"metadata\":{\"identifier\":null}}\\n'\n", want: "must be a string"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -805,6 +825,9 @@ func TestRemoveRenamesCheckoutAndRemovesMetadata(t *testing.T) {
 	checkout := filepath.Join(t.TempDir(), "remove-me")
 	run(t, repo, "git", "worktree", "add", "-b", "remove-me", checkout, "main")
 	gitDir := output(t, checkout, "git", "rev-parse", "--path-format=absolute", "--git-dir")
+	if err := writeTicketMetadata(checkout, map[string]string{"identifier": "RMS-85"}); err != nil {
+		t.Fatal(err)
+	}
 	client := &fakeClient{workspace: herdr.Workspace{
 		ID:             "w9",
 		CheckoutPath:   checkout,

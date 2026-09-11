@@ -12,7 +12,7 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/herdr"
-	"github.com/dkarter/hwt/internal/preview"
+	"github.com/dkarter/hwt/internal/namedurl"
 	"github.com/dkarter/hwt/internal/pullrequest"
 	"github.com/dkarter/hwt/internal/urlopen"
 	"github.com/dkarter/hwt/internal/worktree"
@@ -22,16 +22,22 @@ import (
 )
 
 type app struct {
-	herdrBin string
-	version  string
+	herdrBin   string
+	version    string
+	resolveURL func(namedurl.Options) (namedurl.Result, error)
+	openURL    func(string) error
 }
 
 func New(version string) *cobra.Command {
+	return newCommand(version, namedurl.Resolve, urlopen.Open)
+}
+
+func newCommand(version string, resolveURL func(namedurl.Options) (namedurl.Result, error), openURL func(string) error) *cobra.Command {
 	herdrBin := os.Getenv("HERDR_BIN_PATH")
 	if herdrBin == "" {
 		herdrBin = "herdr"
 	}
-	a := &app{herdrBin: herdrBin, version: version}
+	a := &app{herdrBin: herdrBin, version: version, resolveURL: resolveURL, openURL: openURL}
 	root := &cobra.Command{
 		Use:           "hwt",
 		Short:         "Frictionless Herdr worktree orchestration",
@@ -40,12 +46,12 @@ func New(version string) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), previewCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.previewCommand(), a.urlCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
 }
 
-func previewCommand() *cobra.Command {
-	options := preview.Options{}
+func (a *app) previewCommand() *cobra.Command {
+	options := namedurl.Options{Name: "preview"}
 	jsonOutput := false
 	command := &cobra.Command{
 		Use:   "preview [branch]",
@@ -55,14 +61,17 @@ func previewCommand() *cobra.Command {
 			if len(args) == 1 {
 				options.Branch = args[0]
 			}
-			result, err := preview.Resolve(options)
+			result, err := a.resolveURL(options)
 			if err != nil {
 				return err
 			}
 			if jsonOutput {
 				return worktree.EncodeResult(cmd.OutOrStdout(), result)
 			}
-			if err := urlopen.Open(result.URL); err != nil {
+			if err := namedurl.BrowserURL(result.URL); err != nil {
+				return err
+			}
+			if err := a.openURL(result.URL); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Opened %s\n", result.URL)
@@ -70,7 +79,50 @@ func previewCommand() *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format for {pr_number}")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print the resolved URL without opening a browser")
+	return command
+}
+
+func (a *app) urlCommand() *cobra.Command {
+	options := namedurl.Options{}
+	jsonOutput := false
+	open := false
+	command := &cobra.Command{
+		Use:   "url NAME [branch]",
+		Short: "Resolve a configured named URL",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			options.Name = args[0]
+			if len(args) == 2 {
+				options.Branch = args[1]
+			}
+			result, err := a.resolveURL(options)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return worktree.EncodeResult(cmd.OutOrStdout(), result)
+			}
+			if open {
+				if err := namedurl.BrowserURL(result.URL); err != nil {
+					return err
+				}
+				if err := a.openURL(result.URL); err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Opened %s\n", result.URL)
+				return err
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), result.URL)
+			return err
+		},
+	}
+	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
+	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format for {pr_number}")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	command.Flags().BoolVar(&open, "open", false, "open an http or https URL in the default browser")
+	command.MarkFlagsMutuallyExclusive("json", "open")
 	return command
 }
 

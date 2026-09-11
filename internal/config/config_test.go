@@ -151,41 +151,72 @@ func TestLoadUsesGlobalTicketCommand(t *testing.T) {
 	}
 }
 
-func TestLoadResolvesPreviewURL(t *testing.T) {
+func TestLoadMergesNamedURLsAndMetadata(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 	repo := t.TempDir()
-	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "preview_url: https://global.example/{branch}\n")
-	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: https://{sanitized_branch}.project.example/{repository}\n")
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  ticket: https://tickets.example/{ticket.identifier}\n  preview: https://global.example/{branch}\nmetadata:\n  values:\n    region: global\n    shared: global\n  commands:\n    deploy: [global-deploy, --json]\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview: https://{sanitized_branch}.project.example/{repository}\nmetadata:\n  values:\n    region: project\n  commands:\n    deploy: [project-deploy, --json]\n")
 
 	cfg, _, err := Load(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.PreviewURL != "https://{sanitized_branch}.project.example/{repository}" {
-		t.Fatalf("unexpected preview URL: %q", cfg.PreviewURL)
+	if cfg.URLs["ticket"] != "https://tickets.example/{ticket.identifier}" || cfg.URLs["preview"] != "https://{sanitized_branch}.project.example/{repository}" {
+		t.Fatalf("unexpected URLs: %#v", cfg.URLs)
+	}
+	if !reflect.DeepEqual(cfg.Metadata.Values, map[string]string{"region": "project", "shared": "global"}) {
+		t.Fatalf("unexpected metadata values: %#v", cfg.Metadata.Values)
+	}
+	if !reflect.DeepEqual(cfg.Metadata.Commands["deploy"], []string{"project-deploy", "--json"}) {
+		t.Fatalf("unexpected metadata command: %#v", cfg.Metadata.Commands)
 	}
 }
 
-func TestLoadRejectsInvalidPreviewURL(t *testing.T) {
+func TestLoadRejectsInvalidNamedURL(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := t.TempDir()
-	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: https://example.com/{unknown}\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview: https://example.com/{bad value}\n")
 
 	_, _, err := Load(repo)
-	if err == nil || !strings.Contains(err.Error(), "preview_url: unknown placeholder") {
-		t.Fatalf("expected preview URL validation error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "urls.preview: invalid placeholder") {
+		t.Fatalf("expected named URL validation error, got %v", err)
 	}
 }
 
-func TestLoadRejectsEmptyPreviewURL(t *testing.T) {
+func TestLoadRejectsLegacyPreviewURL(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := t.TempDir()
-	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: ''\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "preview_url: https://example.com/{branch}\n")
 
 	_, _, err := Load(repo)
-	if err == nil || !strings.Contains(err.Error(), "preview_url cannot be empty") {
-		t.Fatalf("expected empty preview URL validation error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "field preview_url not found") {
+		t.Fatalf("expected legacy preview_url rejection, got %v", err)
+	}
+}
+
+func TestLoadRejectsReservedMetadataNames(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, contents := range []string{
+		"metadata:\n  values:\n    branch: override\n",
+		"metadata:\n  commands:\n    pr_number: [helper]\n",
+	} {
+		repo := t.TempDir()
+		writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), contents)
+		if _, _, err := Load(repo); err == nil || !strings.Contains(err.Error(), "reserved") {
+			t.Fatalf("expected reserved metadata rejection for %q, got %v", contents, err)
+		}
+	}
+}
+
+func TestLoadRejectsUnsupportedMetadataCommandPlaceholder(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "metadata:\n  commands:\n    deploy: [helper, '{ticket.identifier}']\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "unsupported placeholder") {
+		t.Fatalf("expected command placeholder validation error, got %v", err)
 	}
 }
 

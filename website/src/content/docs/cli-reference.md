@@ -28,6 +28,7 @@ hwt --herdr-bin /path/to/herdr list
 - [`hwt list`](/docs/cli/list-worktrees/) lists Herdr worktrees for a repository.
 - [`hwt pr`](/docs/cli/open-pull-request/) opens the pull request for a branch.
 - [`hwt preview`](/docs/cli/open-preview-environment/) opens the configured preview environment for a branch.
+- `hwt url NAME [branch] [--json, --open]` resolves any configured named URL and opens it only when explicitly requested.
 - `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment.
 
 ## Configuration

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dkarter/hwt/internal/gitutil"
+	"github.com/dkarter/hwt/internal/namedurl"
 	"github.com/dkarter/hwt/skills"
 )
 
@@ -126,7 +127,7 @@ func TestPreviewCommandJSONDoesNotOpenBrowser(t *testing.T) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %s: %v", output, err)
 	}
-	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("preview_url: https://preview.example/{branch}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("urls:\n  preview: https://preview.example/{branch}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,8 +138,71 @@ func TestPreviewCommandJSONDoesNotOpenBrowser(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if output.String() != "{\n  \"url\": \"https://preview.example/feature%2Ftest\"\n}\n" {
+	if output.String() != "{\n  \"name\": \"preview\",\n  \"url\": \"https://preview.example/feature%2Ftest\"\n}\n" {
 		t.Fatalf("unexpected output: %q", output.String())
+	}
+}
+
+func TestURLCommandOpeningIsExplicitAndBrowserSafe(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		url        string
+		wantOutput string
+		wantOpened bool
+		wantError  string
+	}{
+		{name: "plain", args: []string{"url", "database"}, url: "postgres://db.example/app", wantOutput: "postgres://db.example/app\n"},
+		{name: "json", args: []string{"url", "preview", "--json"}, url: "https://example.com", wantOutput: "{\n  \"name\": \"preview\",\n  \"url\": \"https://example.com\"\n}\n"},
+		{name: "open", args: []string{"url", "preview", "--open"}, url: "https://example.com", wantOutput: "Opened https://example.com\n", wantOpened: true},
+		{name: "reject database open", args: []string{"url", "database", "--open"}, url: "postgres://db.example/app", wantError: "refusing to open non-browser URL"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opened := false
+			resolve := func(options namedurl.Options) (namedurl.Result, error) {
+				return namedurl.Result{Name: options.Name, URL: test.url}, nil
+			}
+			command := newCommand("test", resolve, func(string) error { opened = true; return nil })
+			var output bytes.Buffer
+			command.SetOut(&output)
+			command.SetArgs(test.args)
+			err := command.Execute()
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("error = %v, want containing %q", err, test.wantError)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if output.String() != test.wantOutput || opened != test.wantOpened {
+				t.Fatalf("output = %q, opened = %t", output.String(), opened)
+			}
+		})
+	}
+}
+
+func TestPreviewCommandRemainsConvenientOpener(t *testing.T) {
+	var resolved namedurl.Options
+	var opened string
+	command := newCommand("test", func(options namedurl.Options) (namedurl.Result, error) {
+		resolved = options
+		return namedurl.Result{Name: options.Name, URL: "https://preview.example"}, nil
+	}, func(value string) error {
+		opened = value
+		return nil
+	})
+	var output bytes.Buffer
+	command.SetOut(&output)
+	command.SetArgs([]string{"preview", "feature/test", "--repo", "acme/app"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Name != "preview" || resolved.Branch != "feature/test" || resolved.Repository != "acme/app" {
+		t.Fatalf("unexpected options: %#v", resolved)
+	}
+	if opened != "https://preview.example" || output.String() != "Opened https://preview.example\n" {
+		t.Fatalf("opened = %q, output = %q", opened, output.String())
 	}
 }
 

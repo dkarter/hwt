@@ -64,6 +64,33 @@ func TestResolveExplicitBranchAndRepositorySupportsForkPR(t *testing.T) {
 	}
 }
 
+func TestResolveNumberUsesExistingLookup(t *testing.T) {
+	commands := &fakeRunner{responses: []response{
+		{output: "true\n"},
+		{output: `{"number":42}`},
+	}}
+
+	number, err := resolveNumber(commands, Options{CWD: "/repo", Branch: "feature", Repository: "acme/app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if number != 42 {
+		t.Fatalf("number = %d, want 42", number)
+	}
+	want := []string{"gh", "pr", "view", "feature", "--json", "number", "--repo", "acme/app"}
+	if !reflect.DeepEqual(commands.calls[1], want) {
+		t.Fatalf("GitHub call = %#v, want %#v", commands.calls[1], want)
+	}
+}
+
+func TestResolveNumberRejectsMissingNumber(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "true\n"}, {output: `{}`}}}
+	_, err := resolveNumber(commands, Options{CWD: "/repo", Branch: "feature", Repository: "acme/app"})
+	if err == nil || !strings.Contains(err.Error(), "returned no number") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestResolveActionableErrors(t *testing.T) {
 	tests := []struct {
 		name      string

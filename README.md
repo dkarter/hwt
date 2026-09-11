@@ -58,6 +58,9 @@ hwt env --json
 hwt env --refresh
 hwt env -- bin/dev
 hwt list
+hwt url ticket
+hwt url database --json
+hwt url preview --open
 hwt preview
 hwt preview feature/name --json
 hwt pr
@@ -79,7 +82,7 @@ hwt skill config
 hwt completion zsh
 ```
 
-`hwt create DESCRIPTION` runs `lnr quick --json DESCRIPTION`, reads its `branchName`, and creates that branch through the normal Herdr flow. The description is passed as one process argument without a shell. Use `hwt create --branch BRANCH` for explicit branch creation; a description and `--branch` are mutually exclusive. Creation defaults to the current Git branch as its base and does not change focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
+`hwt create DESCRIPTION` runs `lnr quick --json DESCRIPTION`, reads its `branchName`, and creates that branch through the normal Herdr flow. An optional dedicated string-valued `metadata` object is stored for named URL templates; unrelated top-level output fields are ignored. The description is passed as one process argument without a shell. Use `hwt create --branch BRANCH` for explicit branch creation; a description and `--branch` are mutually exclusive. Creation defaults to the current Git branch as its base and does not change focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
 
 `hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
 
@@ -89,7 +92,7 @@ hwt completion zsh
 
 `hwt pr [branch]` resolves the branch's pull request through the authenticated GitHub CLI and opens it in the default browser. It uses the current branch when omitted; `--json` prints `{"url":"..."}` without opening a browser. Repositories with multiple remotes require `--repo [HOST/]OWNER/REPO`, which also supports pull requests from forks.
 
-`hwt preview [branch]` expands the configured `preview_url` and opens it in the default browser. It uses the current branch and worktree when omitted; `--json` prints `{"url":"..."}` without opening a browser. Explicit branches need not exist locally, but cannot use the `{worktree}` placeholder because they are not associated with the current checkout.
+`hwt url NAME [branch]` resolves a configured named URL and prints it without opening anything. `--json` returns its name and URL; `--open` explicitly opens only HTTP(S) URLs. `hwt preview [branch]` is the convenient opening workflow for `urls.preview`; its `--json` mode does not open a browser. Explicit branches need not exist locally, but cannot use `{worktree}` or worktree-local `ticket.*` metadata.
 
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 
@@ -104,7 +107,16 @@ ticket_command: [lnr, quick, --json]
 worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
-preview_url: https://{sanitized_branch}.preview.example.com
+urls:
+  preview: https://{sanitized_branch}.preview.example.com
+  ticket: https://linear.example/issue/{ticket.identifier}
+  database: postgres://{database.user}:{database.password}@{database.host}/app
+
+metadata:
+  values:
+    region: us-east-1
+  commands:
+    database: [bin/database-metadata, --branch, '{branch}', --json]
 
 ports:
   start: 20000
@@ -132,9 +144,15 @@ post_create:
   - mise install
 ```
 
-Project values override global values. `ticket_command` is an argv array and is replaced as a whole; hwt appends the task description as one final argument and requires JSON output containing a non-empty string `branchName`. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Missing copy sources are ignored. Copy paths must remain within the repository.
+Project values override global values. `ticket_command` is an argv array and is replaced as a whole; hwt appends the task description as one final argument and requires JSON output containing a non-empty string `branchName`. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
 
-`preview_url` is a scalar and supports `{repository}`, `{branch}`, `{sanitized_branch}`, and `{worktree}`. Repository is the primary checkout directory name; worktree is the current checkout directory name and is available only when the branch argument is omitted. Sanitization lowercases ASCII letters, replaces each run of characters outside `a-z0-9` with `-`, removes leading or trailing separators, and limits the result to 63 characters. HWT UTF-8 percent-encodes every substituted value except RFC 3986 unreserved characters (`A-Z`, `a-z`, `0-9`, `-._~`), so use `{sanitized_branch}` for a hostname label and any placeholder in a path or query component. Unknown, malformed, unavailable, or non-HTTP(S) templates are rejected before a browser opens.
+Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
+
+Global and repository URL/metadata maps merge by name, with repository entries winning. During resolution static values load first, persisted `ticket.*` values override matching static values, command namespace values override both, and reserved built-ins win last. Ticket metadata comes only from the ticket command's dedicated `metadata` object, is stored mode `0600` in private per-worktree Git state, and is removed with that worktree. Command results and resolved URLs are never persisted.
+
+Do not put credentials in tracked `metadata.values`. Use a lazy metadata command for database passwords, tokens, and other secrets.
+
+Repository is the primary checkout directory name; worktree is the current checkout directory name. Sanitization lowercases ASCII letters, replaces runs outside `a-z0-9` with `-`, trims separators, and limits the result to 63 characters. Every substitution is UTF-8 percent-encoded except RFC 3986 unreserved characters (`A-Z`, `a-z`, `0-9`, `-._~`). Unknown, malformed, or missing placeholders are rejected before output or browser opening. To migrate, replace the `preview_url` key with a `preview` entry under `urls`.
 
 HWT reserves stable, collision-free ports in `${XDG_STATE_HOME:-~/.local/state}/hwt/ports.json` under a process lock. It writes `HWT_PORT_WEB`, `HWT_PORT_ASSETS`, the worktree path and branch, and configured non-secret variables to a mode-`0600` `.env.worktree`. The generated file is added to Git's repository-local exclude file and is available to `post_create`; see the [environment design](website/src/content/docs/worktree-environment.md) for lifecycle, security, mise, Herdr, and reverse-proxy details.
 

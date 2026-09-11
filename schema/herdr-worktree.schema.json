@@ -35,12 +35,39 @@
       "description": "Prefix added to generated worktree directory names.",
       "examples": ["houston-"]
     },
-    "preview_url": {
-      "type": "string",
-      "minLength": 1,
-      "format": "uri-template",
-      "description": "Absolute HTTP(S) preview URL template. Supported placeholders are {repository}, {branch}, {sanitized_branch}, and {worktree}. Values are RFC 3986 percent-encoded components before substitution.",
-      "examples": ["https://{sanitized_branch}.preview.example.com"]
+    "urls": {
+      "type": "object",
+      "description": "Named absolute URL templates. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, and {pr_number}; custom metadata placeholders may be dot-separated.",
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "format": "uri-template"
+      },
+      "examples": [{ "preview": "https://{sanitized_branch}.preview.example.com" }]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Static and command-backed custom metadata used by named URL templates.",
+      "additionalProperties": false,
+      "properties": {
+        "values": {
+          "type": "object",
+          "description": "Static string values. Dot-separated names are supported.",
+          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$" },
+          "additionalProperties": { "type": "string" }
+        },
+        "commands": {
+          "type": "object",
+          "description": "Named argv commands run lazily without a shell. Each command returns one JSON object with string values, exposed below the command name.",
+          "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
     },
     "files": {
       "type": "object",

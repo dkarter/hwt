@@ -1,4 +1,4 @@
-package previewurl
+package urltemplate
 
 import (
 	"errors"
@@ -7,38 +7,54 @@ import (
 	"strings"
 )
 
-var placeholders = map[string]bool{
-	"repository":       true,
-	"branch":           true,
-	"sanitized_branch": true,
-	"worktree":         true,
-}
-
 func ValidateTemplate(template string) error {
-	_, err := walk(template, func(name string) (string, error) {
-		if !placeholders[name] {
-			return "", fmt.Errorf("unknown placeholder {%s}; supported placeholders are {repository}, {branch}, {sanitized_branch}, and {worktree}", name)
-		}
-		return "value", nil
-	})
+	_, err := parse(template, func(string) (string, error) { return "value", nil }, true)
 	return err
 }
 
+func Placeholders(template string) ([]string, error) {
+	return placeholders(template, true)
+}
+
+func PlaceholdersRaw(template string) ([]string, error) {
+	return placeholders(template, false)
+}
+
+func placeholders(template string, validate bool) ([]string, error) {
+	seen := map[string]bool{}
+	var names []string
+	_, err := parse(template, func(name string) (string, error) {
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+		return "value", nil
+	}, validate)
+	return names, err
+}
+
 func Expand(template string, values map[string]string) (string, error) {
-	result, err := walk(template, func(name string) (string, error) {
-		if !placeholders[name] {
-			return "", fmt.Errorf("unknown placeholder {%s}; supported placeholders are {repository}, {branch}, {sanitized_branch}, and {worktree}", name)
+	return expand(template, values, true)
+}
+
+func ExpandRaw(template string, values map[string]string) (string, error) {
+	return expand(template, values, false)
+}
+
+func expand(template string, values map[string]string, encode bool) (string, error) {
+	return parse(template, func(name string) (string, error) {
+		value, exists := values[name]
+		if !exists {
+			return "", fmt.Errorf("unknown placeholder {%s}", name)
 		}
-		value := values[name]
 		if value == "" {
-			return "", fmt.Errorf("placeholder {%s} is unavailable in this context", name)
+			return "", fmt.Errorf("placeholder {%s} has no value", name)
 		}
-		return escape(value), nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return result, nil
+		if encode {
+			value = escape(value)
+		}
+		return value, nil
+	}, encode)
 }
 
 func SanitizeBranch(branch string) string {
@@ -67,7 +83,7 @@ func SanitizeBranch(branch string) string {
 	return strings.TrimRight(result.String(), "-")
 }
 
-func walk(template string, replace func(string) (string, error)) (string, error) {
+func parse(template string, replace func(string) (string, error), validate bool) (string, error) {
 	if strings.TrimSpace(template) == "" {
 		return "", errors.New("template cannot be empty")
 	}
@@ -93,7 +109,7 @@ func walk(template string, replace func(string) (string, error)) (string, error)
 		}
 		close := start + 1 + closeOffset
 		name := template[start+1 : close]
-		if name == "" || strings.ContainsRune(name, '{') {
+		if !ValidPlaceholder(name) {
 			return "", fmt.Errorf("invalid placeholder %q", template[start:close+1])
 		}
 		value, err := replace(name)
@@ -104,10 +120,26 @@ func walk(template string, replace func(string) (string, error)) (string, error)
 		position = close + 1
 	}
 	value := result.String()
-	if err := validateURL(value); err != nil {
-		return "", err
+	if validate {
+		if err := validateURL(value); err != nil {
+			return "", err
+		}
 	}
 	return value, nil
+}
+
+func ValidPlaceholder(name string) bool {
+	for _, part := range strings.Split(name, ".") {
+		if part == "" {
+			return false
+		}
+		for position, character := range part {
+			if !(character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character == '_' || position > 0 && (character >= '0' && character <= '9' || character == '-')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func validateURL(value string) error {
@@ -115,8 +147,8 @@ func validateURL(value string) error {
 	if err != nil {
 		return fmt.Errorf("template does not produce a valid URL: %w", err)
 	}
-	if (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
-		return errors.New("template must produce an absolute http or https URL")
+	if parsed.Scheme == "" {
+		return errors.New("template must produce an absolute URL with a scheme")
 	}
 	return nil
 }
