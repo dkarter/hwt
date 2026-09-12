@@ -42,7 +42,7 @@ required_workflow_text=(
   'contents: write'
   'path: workflow-tools'
   'ref: ${{ github.workflow_sha }}'
-  'gh release create "$tag"'
+  'gh release create "$tag" --repo "$GITHUB_REPOSITORY"'
   'gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$tag"'
   '--draft'
   '--prerelease'
@@ -50,9 +50,11 @@ required_workflow_text=(
   'args: release --skip=publish --clean --config ../workflow-tools/.goreleaser.yaml --release-notes ../workflow-tools/.github/development-release-notes.md'
   'uses: actions/upload-artifact@v7.0.1'
   'uses: actions/download-artifact@v8.0.1'
-  'gh release upload "$TAG" -- release-assets/*'
-  'gh release edit "$tag" --notes-file "$notes"'
-  'gh release edit "$tag" --draft=false --prerelease --latest=false'
+  'gh release view "$tag" --repo "$GITHUB_REPOSITORY"'
+  'gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" -- release-assets/*'
+  'gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"'
+  'gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false'
+  'gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes'
   'mise use -g github:dkarter/hwt@${tag#v}'
 )
 
@@ -100,5 +102,12 @@ if grep -E '(^|[[:space:]])git([[:space:]]|$)' <<<"$publish_job" >/dev/null; the
   echo 'checkout-free publish job must not invoke git' >&2
   exit 1
 fi
+
+while IFS= read -r command; do
+  if [[ $command != *'--repo "$GITHUB_REPOSITORY"'* ]]; then
+    echo "checkout-free release command must specify its repository: $command" >&2
+    exit 1
+  fi
+done < <(grep -E 'gh release (view|create|upload|edit|delete)' "$workflow")
 
 echo 'development release checks passed'

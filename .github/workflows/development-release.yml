@@ -124,7 +124,7 @@ jobs:
             echo "Tag already exists: $tag" >&2
             exit 1
           fi
-          if gh release view "$tag" >/dev/null 2>&1; then
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already exists: $tag" >&2
             exit 1
           fi
@@ -204,12 +204,12 @@ jobs:
             echo "Tag already exists: $tag" >&2
             exit 1
           fi
-          if gh release view "$tag" >/dev/null 2>&1; then
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already exists: $tag" >&2
             exit 1
           fi
 
-          gh release create "$tag" \
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET_COMMIT" \
             --title "hwt $tag" \
             --notes 'Development build artifacts are being uploaded.' \
@@ -221,7 +221,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.quality.outputs.tag }}
-        run: gh release upload "$TAG" -- release-assets/*
+        run: gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" -- release-assets/*
 
       - name: Publish complete prerelease
         id: publish
@@ -243,12 +243,12 @@ jobs:
 
           This prerelease was built with the normal GoReleaser packaging configuration. Report issues at https://github.com/dkarter/hwt/issues and include the tag and commit above.
           EOF
-          gh release edit "$tag" --notes-file "$notes"
-          gh release edit "$tag" --draft=false --prerelease --latest=false
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
 
       - name: Remove incomplete draft
         if: ${{ always() && steps.draft.outcome == 'success' && steps.publish.outcome != 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.quality.outputs.tag }}
-        run: gh release delete "$TAG" --cleanup-tag --yes
+        run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
