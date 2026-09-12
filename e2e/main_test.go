@@ -17,6 +17,7 @@ var (
 	specLinksBinary string
 	repoRoot        string
 	gitBinary       string
+	gitUploadPack   string
 )
 
 func TestMain(m *testing.M) {
@@ -28,6 +29,11 @@ func TestMain(m *testing.M) {
 	gitBinary, err = exec.LookPath("git")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "git is required:", err)
+		os.Exit(1)
+	}
+	gitUploadPack, err = exec.LookPath("git-upload-pack")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "git-upload-pack is required:", err)
 		os.Exit(1)
 	}
 	cwd, err := os.Getwd()
@@ -119,6 +125,9 @@ func newSandbox(t *testing.T) *sandbox {
 		}
 	}
 	if err := os.Symlink(gitBinary, filepath.Join(s.bin, "git")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(gitUploadPack, filepath.Join(s.bin, "git-upload-pack")); err != nil {
 		t.Fatal(err)
 	}
 	global := filepath.Join(root, "gitconfig")
