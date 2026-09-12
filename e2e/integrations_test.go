@@ -27,7 +27,7 @@ metadata:
     deploy: [metadata, --branch, '{branch}', --json]
 `, 0o600)
 
-	preview := decode(t, s.run(repo, "preview", "Feature/URL Test", "--json"))
+	preview := decode(t, s.run(repo, "url", "preview", "Feature/URL Test", "--json"))
 	if preview["url"] != "https://feature-url-test.preview.invalid/us%20west/blue%20team" {
 		t.Fatalf("preview URL = %#v", preview)
 	}
@@ -37,6 +37,27 @@ metadata:
 	pull := strings.TrimSpace(s.run(repo, "url", "pull", "feature/pr", "--repo", "acme/app"))
 	if pull != "https://reviews.invalid/repo/42" {
 		t.Fatalf("PR template URL = %q", pull)
+	}
+}
+
+func TestURL008_URL009_ListAndCompleteConfiguredURLs(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	s.git(repo, "remote", "add", "origin", filepath.Join(s.root, "offline-origin.git"))
+	s.tool("gh", `printf '%s\n' '{"url":"https://github.com/acme/app/pull/12"}'`)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview: https://preview.invalid/{branch}\n  ticket: https://tickets.invalid/{branch}\n", 0o600)
+
+	listed := s.run(repo, "url", "--json")
+	for _, expected := range []string{`"name": "pr"`, `"url": "https://github.com/acme/app/pull/12"`, `"name": "preview"`, `"name": "ticket"`} {
+		requireContains(t, listed, expected)
+	}
+	completion := s.run(repo, "__complete", "url", "")
+	for _, name := range []string{"pr", "preview", "ticket"} {
+		requireContains(t, completion, name+"\n")
+	}
+	help := s.run(repo, "--help")
+	if strings.Contains(help, "\n  pr ") || strings.Contains(help, "\n  preview ") {
+		t.Fatalf("legacy root URL commands remain in help:\n%s", help)
 	}
 }
 
@@ -53,15 +74,15 @@ printf '%s\n' '{"url":"https://github.com/acme/app/pull/9"}'`)
 	openLog := filepath.Join(s.root, "open.log")
 	s.env = append(s.env, "OPEN_LOG="+openLog)
 	s.tool(opener, `printf '%s\n' "$1" > "$OPEN_LOG"`)
-	if got := decode(t, s.run(repo, "pr", "--json"))["url"]; got != "https://github.com/acme/app/pull/9" {
+	if got := decode(t, s.run(repo, "url", "pr", "--json"))["url"]; got != "https://github.com/acme/app/pull/9" {
 		t.Fatalf("PR URL = %#v", got)
 	}
-	requireContains(t, s.run(repo, "pr"), "Opened https://github.com/acme/app/pull/9")
+	requireContains(t, s.run(repo, "url", "pr", "--open"), "Opened https://github.com/acme/app/pull/9")
 	if strings.TrimSpace(mustRead(t, openLog)) != "https://github.com/acme/app/pull/9" {
 		t.Fatalf("opened URL = %q", mustRead(t, openLog))
 	}
 	s.env = append(s.env, "GH_FAIL=1")
-	_, stderr, err := s.command(repo, "pr", "--json")
+	_, stderr, err := s.command(repo, "url", "pr", "--json")
 	if err == nil || !strings.Contains(stderr, "query GitHub pull requests") || !strings.Contains(stderr, "not found") {
 		t.Fatalf("PR failure = %q, %v", stderr, err)
 	}
@@ -94,10 +115,10 @@ func TestURL001_URL002_URL003_URL005_ExplicitOpeningAndUnavailableValues(t *test
 	if strings.TrimSpace(mustRead(t, openLog)) != "https://example.invalid/feature-open" {
 		t.Fatalf("opened URL = %q", mustRead(t, openLog))
 	}
-	if got := decode(t, s.run(repo, "preview", "Feature/Open", "--json"))["url"]; got != "https://preview.invalid/feature-open" {
+	if got := decode(t, s.run(repo, "url", "preview", "Feature/Open", "--json"))["url"]; got != "https://preview.invalid/feature-open" {
 		t.Fatalf("preview JSON = %#v", got)
 	}
-	requireContains(t, s.run(repo, "preview", "Feature/Open"), "Opened https://preview.invalid/feature-open")
+	requireContains(t, s.run(repo, "url", "preview", "Feature/Open", "--open"), "Opened https://preview.invalid/feature-open")
 	for _, args := range [][]string{{"url", "database", "--open"}, {"url", "local", "other-branch"}} {
 		_, stderr, err := s.command(repo, args...)
 		if err == nil {

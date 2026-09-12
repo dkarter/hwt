@@ -45,7 +45,7 @@
     },
     "urls": {
       "type": "object",
-      "description": "Named absolute URL templates. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, and {pr_number}; custom metadata placeholders may be dot-separated.",
+      "description": "Named absolute URL templates exposed through hwt url. The default pr entry targets GitHub and can be overridden. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
       "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
       "additionalProperties": {
         "type": "string",

@@ -29,6 +29,7 @@ worktree_naming: full
 worktree_prefix: project-
 
 urls:
+  pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}
   preview: https://{sanitized_branch}.preview.example.com
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
@@ -116,17 +117,23 @@ Text prepended to the generated checkout name.
 
 ### `urls` and `metadata`
 
-`urls` maps arbitrary names to absolute URL templates. Global and repository
-maps merge by name, with repository entries winning. Built-in placeholders are:
+`urls` maps arbitrary names to absolute URL templates. HWT includes a `pr` URL
+for GitHub by default. Global and repository maps merge by name, with repository
+entries winning, so an `urls.pr` entry can target GitLab, Forgejo, or another
+forge. Shell completion reads the merged names for the current repository.
+Built-in placeholders are:
 
-| Placeholder          | Value                                                                 |
-| -------------------- | --------------------------------------------------------------------- |
-| `{repository}`       | Primary checkout directory name.                                      |
-| `{branch}`           | Current branch, or the explicit branch argument.                      |
-| `{sanitized_branch}` | Branch normalized for preview hostnames and identifiers.              |
-| `{worktree}`         | Current checkout directory name; unavailable with an explicit branch. |
-| `{hostname}`         | Stable HWT local hostname; unavailable with an explicit branch.       |
-| `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.   |
+| Placeholder          | Value                                                                   |
+| -------------------- | ----------------------------------------------------------------------- |
+| `{repository}`       | Primary checkout directory name.                                        |
+| `{branch}`           | Current branch, or the explicit branch argument.                        |
+| `{sanitized_branch}` | Branch normalized for preview hostnames and identifiers.                |
+| `{worktree}`         | Current checkout directory name; unavailable with an explicit branch.   |
+| `{hostname}`         | Stable HWT local hostname; unavailable with an explicit branch.         |
+| `{pr_host}`          | GitHub pull request host resolved lazily with authenticated `gh`.       |
+| `{pr_owner}`         | GitHub pull request owner resolved lazily with authenticated `gh`.      |
+| `{pr_repository}`    | GitHub pull request repository resolved lazily with authenticated `gh`. |
+| `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.     |
 
 Sanitization lowercases ASCII letters, replaces each run of characters outside
 `a-z` and `0-9` with one `-`, removes leading and trailing separators, and limits
@@ -136,6 +143,11 @@ unreserved set (`A-Z`, `a-z`, `0-9`, `-._~`). Use `{sanitized_branch}` in a
 hostname; all placeholders are safe as a path segment or query value. Literal
 braces are not supported. Configuration validation rejects malformed templates,
 invalid percent escapes, and templates without a URL scheme.
+
+`hwt url NAME [branch]` prints one resolved URL. Add `--open` for HTTP(S) URLs.
+`hwt url --json` computes every configured URL and prints a sorted array of
+name and URL objects. It fails if any configured URL cannot be resolved for the
+current branch.
 
 `metadata.values` provides static strings. A command under
 `metadata.commands.NAME` is an argv array run directly without a shell only when

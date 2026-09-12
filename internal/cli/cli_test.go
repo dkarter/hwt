@@ -95,10 +95,10 @@ func TestPluginCommandReportsHerdrFailure(t *testing.T) {
 	}
 }
 
-func TestPullRequestCommandJSONDoesNotOpenBrowser(t *testing.T) {
+func TestDefaultPullRequestURLJSONDoesNotOpenBrowser(t *testing.T) {
 	bin := t.TempDir()
 	git := filepath.Join(bin, "git")
-	if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$1\" in\n  rev-parse) echo true ;;\n  branch) echo feature/test ;;\n  remote) echo origin ;;\nesac\n"), 0o755); err != nil {
+	if err := os.WriteFile(git, []byte("#!/bin/sh\ncase \"$1\" in\n  rev-parse) pwd ;;\n  branch) echo feature/test ;;\n  remote) echo origin ;;\nesac\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	gh := filepath.Join(bin, "gh")
@@ -110,17 +110,17 @@ func TestPullRequestCommandJSONDoesNotOpenBrowser(t *testing.T) {
 	root := New("test")
 	var output bytes.Buffer
 	root.SetOut(&output)
-	root.SetArgs([]string{"pr", "--json"})
+	root.SetArgs([]string{"url", "pr", "--json"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if output.String() != "{\n  \"url\": \"https://github.com/acme/app/pull/9\"\n}\n" {
+	if output.String() != "{\n  \"name\": \"pr\",\n  \"url\": \"https://github.com/acme/app/pull/9\"\n}\n" {
 		t.Fatalf("unexpected output: %q", output.String())
 	}
 }
 
-func TestPreviewCommandJSONDoesNotOpenBrowser(t *testing.T) {
+func TestConfiguredPreviewURLJSONDoesNotOpenBrowser(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := t.TempDir()
 	command := exec.Command("git", "-C", repo, "init", "-b", "feature/test")
@@ -135,7 +135,7 @@ func TestPreviewCommandJSONDoesNotOpenBrowser(t *testing.T) {
 	root := New("test")
 	var output bytes.Buffer
 	root.SetOut(&output)
-	root.SetArgs([]string{"preview", "--cwd", repo, "--json"})
+	root.SetArgs([]string{"url", "preview", "--cwd", repo, "--json"})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestURLCommandOpeningIsExplicitAndBrowserSafe(t *testing.T) {
 	}
 }
 
-func TestPreviewCommandRemainsConvenientOpener(t *testing.T) {
+func TestURLCommandPassesBranchAndRepository(t *testing.T) {
 	var resolved namedurl.Options
 	var opened string
 	command := newCommand("test", func(options namedurl.Options) (namedurl.Result, error) {
@@ -195,7 +195,7 @@ func TestPreviewCommandRemainsConvenientOpener(t *testing.T) {
 	})
 	var output bytes.Buffer
 	command.SetOut(&output)
-	command.SetArgs([]string{"preview", "feature/test", "--repo", "acme/app"})
+	command.SetArgs([]string{"url", "preview", "feature/test", "--repo", "acme/app", "--open"})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
