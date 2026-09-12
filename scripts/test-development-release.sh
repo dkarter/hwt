@@ -43,6 +43,7 @@ required_workflow_text=(
   'path: workflow-tools'
   'ref: ${{ github.workflow_sha }}'
   'gh release create "$tag"'
+  'gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$tag"'
   '--draft'
   '--prerelease'
   '--latest=false'
@@ -65,6 +66,7 @@ done
 push_checkout=$(sed -n '/      - name: Checkout pushed commit/,/      - name: Checkout requested revision/p' "$workflow")
 manual_checkout=$(sed -n '/      - name: Checkout requested revision/,/      - name: Set up Go/p' "$workflow")
 build_step=$(sed -n '/      - name: Build release artifacts/,/      - name: Transfer release artifacts/p' "$workflow")
+publish_job=$(sed -n '/  publish:/,$p' "$workflow")
 
 for text in \
   'if: ${{ github.event_name == '\''push'\'' }}' \
@@ -91,6 +93,11 @@ fi
 
 if grep -E 'GITHUB_TOKEN|GH_TOKEN|github\.token|secrets\.' <<<"$build_step" >/dev/null; then
   echo 'development artifact build must not receive GitHub credentials' >&2
+  exit 1
+fi
+
+if grep -E '(^|[[:space:]])git([[:space:]]|$)' <<<"$publish_job" >/dev/null; then
+  echo 'checkout-free publish job must not invoke git' >&2
   exit 1
 fi
 

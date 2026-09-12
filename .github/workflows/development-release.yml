@@ -120,7 +120,7 @@ jobs:
             "${stable_tag#v}" "$(date -u +%Y%m%d)" \
             "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT" "$commit")
 
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$tag" >/dev/null 2>&1; then
             echo "Tag already exists: $tag" >&2
             exit 1
           fi
@@ -200,7 +200,7 @@ jobs:
             echo "Stable release changed during the build: $TESTED_STABLE_TAG -> $current_stable_tag" >&2
             exit 1
           fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$tag" >/dev/null 2>&1; then
             echo "Tag already exists: $tag" >&2
             exit 1
           fi
