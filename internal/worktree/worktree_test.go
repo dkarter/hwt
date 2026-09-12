@@ -462,7 +462,7 @@ func TestEnvironmentRegistersAndRefreshesLocalDNS(t *testing.T) {
 	}
 
 	oldPort, _ := strconv.Atoi(first.Variables["HWT_PORT_WEB"])
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(oldPort))
+	listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(oldPort))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +536,7 @@ func TestPortRegistryReclaimsStalePathsAndRefreshesConflicts(t *testing.T) {
 	if reclaimed["web"] != first["web"] {
 		t.Fatalf("stale port was not reclaimed: first=%d next=%d", first["web"], reclaimed["web"])
 	}
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(reclaimed["web"]))
+	listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(reclaimed["web"]))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,6 +547,19 @@ func TestPortRegistryReclaimsStalePathsAndRefreshesConflicts(t *testing.T) {
 	}
 	if refreshed["web"] == reclaimed["web"] {
 		t.Fatalf("refresh retained occupied port %d", reclaimed["web"])
+	}
+}
+
+func TestPortAvailableRejectsIPv4LoopbackListener(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	if portAvailable(port) {
+		t.Fatalf("occupied IPv4 loopback port %d reported available", port)
 	}
 }
 

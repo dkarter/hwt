@@ -435,7 +435,7 @@ func canonicalWorktreePath(root string) (string, error) {
 }
 
 func portAvailable(port int) bool {
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(port))
 	if err != nil {
 		return false
 	}
