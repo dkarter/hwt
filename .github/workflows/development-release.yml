@@ -1,7 +1,9 @@
 name: Publish development build
-run-name: Development build from ${{ inputs.ref }}
+run-name: Development build from ${{ github.event_name == 'push' && github.sha || inputs.ref }}
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -30,7 +32,17 @@ jobs:
           path: workflow-tools
           ref: ${{ github.workflow_sha }}
 
+      - name: Checkout pushed commit
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: source
+          ref: ${{ github.sha }}
+
       - name: Checkout requested revision
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0

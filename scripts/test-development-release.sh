@@ -32,6 +32,9 @@ assert_rejected 0.6.1 20260911 0 1 abcdef0123456789
 assert_rejected 0.6.1 20260911 42 1 not-a-sha
 
 required_workflow_text=(
+  'run-name: Development build from ${{ github.event_name == '\''push'\'' && github.sha || inputs.ref }}'
+  'push:'
+  'branches: [main]'
   'workflow_dispatch:'
   'permissions: {}'
   'contents: read'
@@ -52,6 +55,27 @@ required_workflow_text=(
 for text in "${required_workflow_text[@]}"; do
   if ! grep -F -- "$text" "$workflow" >/dev/null; then
     echo "development release workflow is missing: $text" >&2
+    exit 1
+  fi
+done
+
+push_checkout=$(sed -n '/      - name: Checkout pushed commit/,/      - name: Checkout requested revision/p' "$workflow")
+manual_checkout=$(sed -n '/      - name: Checkout requested revision/,/      - name: Set up Go/p' "$workflow")
+
+for text in \
+  'if: ${{ github.event_name == '\''push'\'' }}' \
+  'ref: ${{ github.sha }}'; do
+  if ! grep -F -- "$text" <<<"$push_checkout" >/dev/null; then
+    echo "push checkout is missing: $text" >&2
+    exit 1
+  fi
+done
+
+for text in \
+  'if: ${{ github.event_name == '\''workflow_dispatch'\'' }}' \
+  'ref: ${{ inputs.ref }}'; do
+  if ! grep -F -- "$text" <<<"$manual_checkout" >/dev/null; then
+    echo "manual checkout is missing: $text" >&2
     exit 1
   fi
 done
