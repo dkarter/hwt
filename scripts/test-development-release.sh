@@ -5,6 +5,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 version_script="$root/scripts/development-version.sh"
 workflow="$root/.github/workflows/development-release.yml"
+release_notes="$root/.github/development-release-notes.md"
 
 assert_version() {
   local expected=$1
@@ -39,11 +40,13 @@ required_workflow_text=(
   'permissions: {}'
   'contents: read'
   'contents: write'
+  'path: workflow-tools'
+  'ref: ${{ github.workflow_sha }}'
   'gh release create "$tag"'
   '--draft'
   '--prerelease'
   '--latest=false'
-  'args: release --skip=publish --clean --config ../workflow-tools/.goreleaser.yaml'
+  'args: release --skip=publish --clean --config ../workflow-tools/.goreleaser.yaml --release-notes ../workflow-tools/.github/development-release-notes.md'
   'uses: actions/upload-artifact@v7.0.1'
   'uses: actions/download-artifact@v8.0.1'
   'gh release upload "$TAG" -- release-assets/*'
@@ -61,6 +64,7 @@ done
 
 push_checkout=$(sed -n '/      - name: Checkout pushed commit/,/      - name: Checkout requested revision/p' "$workflow")
 manual_checkout=$(sed -n '/      - name: Checkout requested revision/,/      - name: Set up Go/p' "$workflow")
+build_step=$(sed -n '/      - name: Build release artifacts/,/      - name: Transfer release artifacts/p' "$workflow")
 
 for text in \
   'if: ${{ github.event_name == '\''push'\'' }}' \
@@ -79,5 +83,15 @@ for text in \
     exit 1
   fi
 done
+
+if [[ ! -s $release_notes ]]; then
+  echo "trusted development release notes are missing or empty: $release_notes" >&2
+  exit 1
+fi
+
+if grep -E 'GITHUB_TOKEN|GH_TOKEN|github\.token|secrets\.' <<<"$build_step" >/dev/null; then
+  echo 'development artifact build must not receive GitHub credentials' >&2
+  exit 1
+fi
 
 echo 'development release checks passed'

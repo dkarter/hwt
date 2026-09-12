@@ -154,7 +154,7 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --skip=publish --clean --config ../workflow-tools/.goreleaser.yaml
+          args: release --skip=publish --clean --config ../workflow-tools/.goreleaser.yaml --release-notes ../workflow-tools/.github/development-release-notes.md
           workdir: source
 
       - name: Transfer release artifacts
