@@ -12,6 +12,7 @@ lefthook = "latest"
 pitchfork = "latest"
 node = "24"
 aube = "latest"
+"npm:@fission-ai/openspec" = { version = "1.13.0", allow_builds = false }
 
 [hooks]
 postinstall = "lefthook install"
@@ -33,12 +34,24 @@ description = "Runs tests"
 run = "go test ./..."
 
 [tasks.e2e]
-description = "Runs the Herdr plugin end-to-end tests"
-run = "./scripts/test-herdr-plugin-e2e.sh"
+description = "Runs hermetic end-to-end tests"
+run = "go test ./e2e"
+
+[tasks.e2e-live]
+description = "Runs live Herdr plugin tests in an isolated container"
+run = "./scripts/test-herdr-plugin-e2e-docker.sh"
+
+[tasks.spec-check]
+description = "Validates OpenSpec documents and test traceability"
+run = "openspec validate --all --strict --no-interactive && go run ./cmd/spec-links validate"
+
+[tasks.test-spec]
+description = "Runs E2E tests linked to a scenario, capability, or spec"
+run = "go run ./cmd/spec-links run"
 
 [tasks.check]
 description = "Runs all quality checks"
-depends = ["fmt-check", "test", "website-build", "release-check"]
+depends = ["fmt-check", "test", "spec-check", "website-build", "release-check"]
 run = "go vet ./..."
 
 [tasks.release-check]

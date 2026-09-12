@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Project: hwt, a Go CLI for creating and managing Herdr-backed Git worktrees.
+
+  Runtime: Go with Cobra. HWT integrates with Git, Herdr, GitHub CLI, local
+  browsers, and optional user-managed dnsmasq and Caddy services on macOS and
+  Linux. Configuration is YAML and machine-readable command output is JSON.
+
+  Tests: Go tests plus shell-based lifecycle and release checks run through mise.
+  Linked end-to-end Go test names encode one or more scenario IDs as uppercase
+  PREFIXNNN tokens. Shell checks are invoked by linked Go end-to-end tests.
+
+  Conventions: specify observable command and lifecycle behavior, preserve safe
+  worktree cleanup and machine-readable output, and keep configuration, schema,
+  documentation, and bundled agent guidance aligned.
+
+rules:
+  proposal:
+    - Keep proposals focused on one user-facing capability or lifecycle contract.
+    - State compatibility, data-loss, external-tool, and platform risks explicitly.
+  design:
+    - Identify CLI, configuration, lifecycle, test, and documentation ownership.
+    - Prefer extending existing command and result contracts over parallel abstractions.
+  tasks:
+    - Include tests for observable behavior changes.
+    - Include live Herdr verification when plugin or workspace behavior changes.
+  specs:
+    - Use normative SHALL requirements and Given/When/Then scenarios.
+    - Give every scenario a globally unique stable ID with a 2-8 letter uppercase prefix and three digits, such as `{#CREATE-001}`.
+    - Encode every linked scenario in the Go end-to-end test name as `PREFIXNNN`, such as `TestCREATE001CreatesWorktree`.

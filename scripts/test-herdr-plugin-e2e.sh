@@ -11,16 +11,28 @@ for command in git go herdr jq; do
 done
 
 [ "${HERDR_ENV:-}" = 1 ] || fail "run this test inside a Herdr-managed pane"
+[ "${HWT_E2E_ISOLATED:-}" = 1 ] || fail "run this test only through mise run e2e-live"
+[ "${HERDR_SESSION:-}" = hwt-e2e ] || fail "refusing to use a non-test Herdr session"
+case ${HERDR_CONFIG_PATH:-} in
+  /tmp/hwt-herdr-e2e/*) ;;
+  *) fail "refusing to use a Herdr config outside the isolated test root" ;;
+esac
+for root in "${XDG_CONFIG_HOME:-}" "${XDG_STATE_HOME:-}" "${XDG_DATA_HOME:-}" "${XDG_CACHE_HOME:-}"; do
+  case $root in
+    /tmp/hwt-herdr-e2e/*) ;;
+    *) fail "refusing to use an XDG root outside the isolated test root" ;;
+  esac
+done
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 plugin_root=$repo_root/plugins/herdr
 source_workspace=
 created_workspace=
 created_path=
-linked_plugin=false
 temp_root=
 original_workspace=
-original_hwt=
+active_config=${HERDR_CONFIG_PATH:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml}
+config_existed=false
 
 cleanup() {
   status=$?
@@ -39,14 +51,20 @@ cleanup() {
       herdr workspace focus "$original_workspace" >/dev/null 2>&1
     fi
   fi
-  if [ "$linked_plugin" = true ]; then
-    herdr plugin unlink hwt.worktrees >/dev/null 2>&1
-  fi
   if [ -n "$temp_root" ]; then
-    if [ -n "$original_hwt" ]; then
-      cp "$original_hwt" "$repo_root/hwt"
-    else
-      rm -f "$repo_root/hwt"
+    herdr plugin list --plugin hwt.worktrees --json >"$temp_root/plugin-after.json" 2>/dev/null
+    if ! cmp -s "$temp_root/plugin-before.json" "$temp_root/plugin-after.json"; then
+      printf 'error: active Herdr plugin registry changed during the test\n' >&2
+      status=1
+    fi
+    if [ "$config_existed" = true ]; then
+      if ! cmp -s "$temp_root/config-before.toml" "$active_config"; then
+        printf 'error: active Herdr configuration changed during the test\n' >&2
+        status=1
+      fi
+    elif [ -e "$active_config" ]; then
+      printf 'error: active Herdr configuration was created during the test\n' >&2
+      status=1
     fi
     rm -rf "$temp_root"
   fi
@@ -59,13 +77,15 @@ trap 'exit 143' TERM
 temp_root=$(mktemp -d "${TMPDIR:-/tmp}/hwt-herdr-e2e.XXXXXX")
 fixture=$temp_root/repository
 worktree_root=$temp_root/worktrees
-hwt_bin=$repo_root/hwt
-original_workspace=$(herdr workspace list | jq -er '.result.workspaces[] | select(.focused) | .workspace_id')
-if [ -f "$hwt_bin" ]; then
-  original_hwt=$temp_root/original-hwt
-  cp "$hwt_bin" "$original_hwt"
+hwt_bin=$temp_root/hwt
+herdr plugin list --plugin hwt.worktrees --json >"$temp_root/plugin-before.json"
+[ "$(jq '.result.plugins | length' "$temp_root/plugin-before.json")" -eq 1 ] || fail "the live tier requires one pre-installed hwt.worktrees plugin"
+[ "$(jq -r '.result.plugins[0].enabled' "$temp_root/plugin-before.json")" = true ] || fail "the pre-installed hwt.worktrees plugin must be enabled"
+if [ -e "$active_config" ]; then
+  cp "$active_config" "$temp_root/config-before.toml"
+  config_existed=true
 fi
-
+original_workspace=$(herdr workspace list | jq -er '.result.workspaces[] | select(.focused) | .workspace_id')
 mkdir "$fixture"
 cat >"$fixture/README.md" <<'EOF'
 # HWT Herdr plugin end-to-end fixture
@@ -90,15 +110,6 @@ git -C "$fixture" add -f README.md
 git -C "$fixture" commit -m "test: initialize fixture" >/dev/null
 go build -o "$hwt_bin" "$repo_root/cmd/hwt"
 
-plugin_json=$(herdr plugin list --plugin hwt.worktrees --json)
-if [ "$(printf '%s' "$plugin_json" | jq '.result.plugins | length')" -eq 0 ]; then
-  herdr plugin link "$plugin_root" >/dev/null
-  linked_plugin=true
-else
-  manifest_path=$(printf '%s' "$plugin_json" | jq -r '.result.plugins[0].manifest_path')
-  [ "$manifest_path" = "$plugin_root/herdr-plugin.toml" ] || fail "hwt.worktrees is linked from $manifest_path"
-fi
-
 source_json=$(herdr workspace create --cwd "$fixture" --label hwt-plugin-e2e --no-focus)
 source_workspace=$(printf '%s' "$source_json" | jq -er '.result.workspace.workspace_id')
 create_context=$(jq -cn \
@@ -106,7 +117,7 @@ create_context=$(jq -cn \
   --arg cwd "$fixture" \
   '{workspace_id: $workspace_id, workspace_cwd: $cwd, focused_pane_cwd: $cwd}')
 
-printf 'Creating a worktree directly through Herdr and waiting for configured files...\n'
+printf 'Creating a disposable linked worktree through Herdr...\n'
 event_path=$worktree_root/feature-herdr-event
 event_json=$(herdr worktree create \
   --cwd "$fixture" \
@@ -121,11 +132,11 @@ while [ "$attempt" -lt 100 ] && [ ! -f "$created_path/.env.test" ]; do
   attempt=$((attempt + 1))
   sleep 0.1
 done
-[ -f "$created_path/.env.test" ] || fail "Herdr worktree.created event did not copy configured files"
-[ "$(cat "$created_path/.env.test")" = "HWT_E2E=created" ] || fail "event-copied file content is incorrect"
-[ ! -e "$created_path/.hwt-e2e-hook" ] || fail "copy event unexpectedly ran HWT post-create hooks"
+[ -f "$created_path/.env.test" ] || fail "the installed plugin did not prepare the Herdr-created worktree"
 copy_json=$("$hwt_bin" copy --cwd "$created_path" --json)
-[ "$(printf '%s' "$copy_json" | jq -r '.already_prepared')" = true ] || fail "second copy was not a no-op"
+[ "$(printf '%s' "$copy_json" | jq -r '.already_prepared')" = true ] || fail "repeated copy was not idempotent"
+[ "$(cat "$created_path/.env.test")" = "HWT_E2E=created" ] || fail "event-copied file content is incorrect"
+[ ! -e "$created_path/.hwt-e2e-hook" ] || fail "hwt copy unexpectedly ran post-create hooks"
 "$hwt_bin" remove --workspace "$created_workspace" --force --json >/dev/null
 created_workspace=
 created_path=

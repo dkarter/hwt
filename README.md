@@ -198,16 +198,20 @@ mise run check
 mise run snapshot
 ```
 
+Product behavior is specified under `openspec/specs/` and linked to compiled-binary E2E tests by
+scenario IDs. See [the testing guide](docs/testing.md) for adding scenarios, running one linked test,
+and diagnosing hermetic or live Herdr failures.
+
 Releases are managed by Release Please and GoReleaser. CI tests on macOS and Linux and builds the CLI on every pull request. Maintainers can publish an immutable development prerelease for any Git ref with the **Publish development build** workflow. Its version uses the next patch after the highest published stable SemVer release, followed by `-dev.YYYYMMDD.RUN.ATTEMPT.gSHA`; for example, stable `v0.6.1` produces `v0.6.2-dev.20260911.42.1.gabcdef1`. This keeps the build above the current stable version and below its possible patch release while making every workflow attempt unique.
 
 The normal `mise use -g github:dkarter/hwt` command excludes prereleases by default. Install a development build only through the exact command in its release notes, such as `mise use -g github:dkarter/hwt@0.6.2-dev.20260911.42.1.gabcdef1`. Advanced users can opt into prerelease resolution with `"github:dkarter/hwt" = { version = "latest", prerelease = true }` in their mise TOML configuration.
 
 Repository administrators must enable **Release immutability** in the GitHub repository settings. GitHub applies that setting only to releases published after it is enabled; it does not retroactively lock existing releases. The development workflow uploads every asset and the checksum file to a draft before publication so an enabled policy locks a complete release.
 
-Run the live Herdr plugin lifecycle test from a Herdr-managed pane:
+Run the live Herdr plugin lifecycle tier in its isolated Docker server:
 
 ```bash
-./scripts/test-herdr-plugin-e2e.sh
+mise run e2e-live
 ```
 
 The Astro and Starlight site lives in `website/`. Run `mise run website-dev` locally or `mise run website-build` for a production build.

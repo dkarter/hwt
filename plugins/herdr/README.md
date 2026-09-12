@@ -23,15 +23,16 @@ herdr plugin link ./plugins/herdr
 When linked from the repository, the plugin automatically uses the local
 `./hwt` development binary if it exists.
 
-Run the automated lifecycle test from a Herdr-managed pane:
+Run the automated lifecycle test in its isolated Docker server:
 
 ```sh
-./scripts/test-herdr-plugin-e2e.sh
+mise run e2e-live
 ```
 
-The test uses controllable tabs in a disposable background workspace instead
-of the normal modal popup, then verifies creation, configuration, unchanged
-user focus, dirty-worktree confirmation, removal, and branch preservation.
+The test never connects to the host Herdr server or configuration. It uses
+controllable tabs in disposable container workspaces instead of the normal
+modal popup, then verifies creation, configuration, unchanged focus,
+dirty-worktree confirmation, removal, and branch preservation.
 
 The plugin provides these qualified actions:
 
