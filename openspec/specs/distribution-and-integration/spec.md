@@ -47,13 +47,15 @@ HWT SHALL derive a development prerelease from the next patch after the highest 
 - THEN it is `vMAJOR.MINOR.(PATCH+1)-dev.YYYYMMDD.RUN.ATTEMPT.gSHA7`
 - AND invalid version inputs are rejected
 
-### Requirement: Publish complete immutable-ready prereleases
+### Requirement: Publish complete immutable-ready prereleases automatically or on demand
 
-The development release workflow SHALL build with normal packaging, upload all assets and checksums to a draft, and publish it as a non-latest prerelease only after quality checks pass.
+The development release workflow SHALL build with normal packaging, upload all assets and checksums to a draft, and publish it as a non-latest prerelease only after quality checks pass. Artifact generation SHALL use trusted release notes without receiving GitHub credentials.
 
 #### Scenario: Development release publication {#DIST-005}
 
-- GIVEN a manual dispatch for a Git ref and no conflicting development tag
+- GIVEN a push to `main` or a manual dispatch for a Git ref and no conflicting development tag
 - WHEN quality, version, and packaging checks succeed
 - THEN the workflow publishes a complete prerelease with exact-install instructions
+- AND workflow tools come from the workflow revision while artifacts come from the selected commit
+- AND GoReleaser receives trusted release notes but no GitHub credential
 - AND failure before publication cleans up the draft and tag
