@@ -49,19 +49,23 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, "go is required:", err)
 		os.Exit(1)
 	}
-	moduleCacheCommand := exec.Command(goBinary, "env", "GOMODCACHE")
-	moduleCacheCommand.Env = []string{"HOME=" + os.Getenv("HOME"), "GOTOOLCHAIN=local", "PATH=" + filepath.Dir(goBinary)}
-	moduleCache, err := moduleCacheCommand.Output()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "resolve Go module cache:", err)
-		os.Exit(1)
+	moduleCache := os.Getenv("GOMODCACHE")
+	if moduleCache == "" {
+		moduleCacheCommand := exec.Command(goBinary, "env", "GOMODCACHE")
+		moduleCacheCommand.Env = []string{"HOME=" + os.Getenv("HOME"), "GOTOOLCHAIN=local", "PATH=" + filepath.Dir(goBinary)}
+		output, resolveErr := moduleCacheCommand.Output()
+		if resolveErr != nil {
+			fmt.Fprintln(os.Stderr, "resolve Go module cache:", resolveErr)
+			os.Exit(1)
+		}
+		moduleCache = strings.TrimSpace(string(output))
 	}
 	build := exec.Command(goBinary, "build", "-ldflags", "-X main.version=1.2.3", "-o", hwtBinary, "./cmd/hwt")
 	build.Dir = repoRoot
 	build.Env = []string{
 		"HOME=" + buildDir,
 		"GOCACHE=" + filepath.Join(buildDir, "go-cache"),
-		"GOMODCACHE=" + strings.TrimSpace(string(moduleCache)),
+		"GOMODCACHE=" + moduleCache,
 		"GOTOOLCHAIN=local",
 		"GOPROXY=off",
 		"CGO_ENABLED=0",

@@ -77,7 +77,7 @@ trap 'exit 143' TERM
 temp_root=$(mktemp -d "${TMPDIR:-/tmp}/hwt-herdr-e2e.XXXXXX")
 fixture=$temp_root/repository
 worktree_root=$temp_root/worktrees
-hwt_bin=$temp_root/hwt
+hwt_bin=${HWT_E2E_HWT_PATH:-$temp_root/hwt}
 herdr plugin list --plugin hwt.worktrees --json >"$temp_root/plugin-before.json"
 [ "$(jq '.result.plugins | length' "$temp_root/plugin-before.json")" -eq 1 ] || fail "the live tier requires one pre-installed hwt.worktrees plugin"
 [ "$(jq -r '.result.plugins[0].enabled' "$temp_root/plugin-before.json")" = true ] || fail "the pre-installed hwt.worktrees plugin must be enabled"

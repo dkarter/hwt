@@ -11,6 +11,9 @@ export HERDR_CONFIG_PATH=$root/config/herdr/config.toml
 export HERDR_SESSION=hwt-e2e
 export HERDR_ENV=1
 export HWT_E2E_ISOLATED=1
+export HWT_E2E_LIVE=1
+export HWT_E2E_HWT_PATH=/workspace/hwt
+export GOMODCACHE=/go/pkg/mod
 mkdir -p "$HOME" "$XDG_CONFIG_HOME/herdr" "$XDG_STATE_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$root/bin"
 
 cat >"$root/bin/herdr" <<'EOF'
@@ -45,5 +48,6 @@ case $HERDR_CONFIG_PATH:$XDG_CONFIG_HOME:$XDG_STATE_HOME:$XDG_DATA_HOME:$XDG_CAC
   *) echo 'refusing to mutate a non-isolated Herdr session' >&2; exit 1 ;;
 esac
 herdr plugin link /workspace/plugins/herdr --enabled
+herdr workspace create --cwd /workspace --label hwt-e2e-control --focus >/dev/null
 
 go test ./e2e -run TestHDR004_HDR005_HDR006_HDR007_HDR008_LiveHerdrPlugin -count=1 -v

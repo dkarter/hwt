@@ -13,6 +13,7 @@ pitchfork = "latest"
 node = "24"
 aube = "latest"
 "npm:@fission-ai/openspec" = { version = "1.13.0", allow_builds = false }
+"aqua:rhysd/actionlint" = "1.7.12"
 
 [hooks]
 postinstall = "lefthook install"
