@@ -87,6 +87,18 @@ hwt env -- printenv HWT_URL_WEB
 service or port. `HWT_URL_<SERVICE>` is the complete browser URL for that
 service. Hyphens in service names become underscores in variable names.
 
+Expose the same complete value through `hwt url` with a named service URL:
+
+```yaml
+urls:
+  local:
+    service: web
+```
+
+`hwt url local` allocates or reuses the current worktree's port and prints the
+generated URL verbatim. No metadata command, script, or URL placeholder is
+needed.
+
 Change `ports.url_template` to use another order or a loopback domain already
 available on your machine. The template supports normalized `{worktree}` and
 `{service}` labels, the generic `{hostname}`, and the allocated `{port}`:
@@ -206,9 +218,8 @@ Each service is routed at `<service>.<base-hostname>`, for example
 `http://web.app-feature-login-a1b2c3d4e5f6.hwt.test`. Service labels use the
 same lowercase ASCII sanitization; configurations where two names sanitize to
 the same label are rejected. `.env.worktree` exposes the base hostname as
-`HWT_WORKTREE_HOSTNAME` and each service URL as `HWT_URL_<SERVICE>`. The
-`{hostname}` named-URL placeholder exposes the same base hostname, so a project
-can configure `urls.local: http://web.{hostname}` and use `hwt url local`.
+`HWT_WORKTREE_HOSTNAME` and each service URL as `HWT_URL_<SERVICE>`. A named URL
+with `service: web` exposes the complete generated URL through `hwt url local`.
 Managed URLs omit ports because Caddy proxies each hostname to its allocated
 service port. This behavior is unchanged and `{hostname}` remains available only
 when `local_dns.enabled` is true.

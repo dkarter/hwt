@@ -36,12 +36,9 @@ type portAllocation struct {
 }
 
 func Environment(cwd string, refresh bool) (EnvironmentResult, error) {
-	gitDir, commonDir, root, err := metadata(cwd)
+	commonDir, root, err := environmentWorktree(cwd)
 	if err != nil {
-		return EnvironmentResult{}, fmt.Errorf("resolve worktree environment: %w", err)
-	}
-	if samePath(gitDir, commonDir) {
-		return EnvironmentResult{}, errors.New("worktree environment is only available in a linked worktree")
+		return EnvironmentResult{}, err
 	}
 	source, err := primaryWorktree(root)
 	if err != nil {
@@ -52,6 +49,25 @@ func Environment(cwd string, refresh bool) (EnvironmentResult, error) {
 		return EnvironmentResult{}, err
 	}
 	return prepareEnvironment(root, cfg, refresh)
+}
+
+func EnvironmentWithConfig(cwd string, cfg config.Config, refresh bool) (EnvironmentResult, error) {
+	_, root, err := environmentWorktree(cwd)
+	if err != nil {
+		return EnvironmentResult{}, err
+	}
+	return prepareEnvironment(root, cfg, refresh)
+}
+
+func environmentWorktree(cwd string) (string, string, error) {
+	gitDir, commonDir, root, err := metadata(cwd)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve worktree environment: %w", err)
+	}
+	if samePath(gitDir, commonDir) {
+		return "", "", errors.New("worktree environment is only available in a linked worktree")
+	}
+	return commonDir, root, nil
 }
 
 func prepareEnvironment(root string, cfg config.Config, refresh bool) (EnvironmentResult, error) {

@@ -105,8 +105,10 @@ be inserted.
   name, or `basename` to use only the final branch component.
 - `worktree_prefix`: Add a stable project prefix when checkout names could
   collide.
-- `urls`: Map names to absolute template strings or objects with `template` and
-  an optional display `label` for `hwt url NAME`. HWT provides a GitHub `pr` URL
+- `urls`: Map names to absolute template strings or objects with exactly one of
+  `template` or `service` and an optional display `label` for `hwt url NAME`.
+  A `service` entry returns the configured port service's generated current-worktree URL
+  verbatim. HWT provides a GitHub `pr` URL
   by default; configure `urls.pr` to replace it for another forge. Built-ins are
   `{repository}`, `{branch}`, `{sanitized_branch}`,
   `{worktree}`, `{hostname}`, `{pr_host}`, `{pr_owner}`, `{pr_repository}`, and

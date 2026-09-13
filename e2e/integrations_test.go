@@ -40,6 +40,31 @@ metadata:
 	}
 }
 
+func TestURL010_NamedServiceURL(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	linked := s.linked(repo, "feature/service-url")
+	mustWrite(t, filepath.Join(linked, ".herdr-worktree.yaml"), `ports:
+  start: 32400
+  end: 32410
+  services: [web]
+  url_template: http://{service}.{hostname}:{port}
+urls:
+  local:
+    service: web
+`, 0o600)
+
+	got := strings.TrimSpace(s.run(linked, "url", "local"))
+	prefix := "http://web.feature-service-url.localhost:"
+	if !strings.HasPrefix(got, prefix) || strings.TrimPrefix(got, prefix) == "" {
+		t.Fatalf("named service URL did not preserve template and port: %q", got)
+	}
+	environment := mustRead(t, filepath.Join(linked, ".env.worktree"))
+	for _, expected := range []string{`HWT_URL_WEB="` + got + `"`, `HWT_PORT_WEB="` + strings.TrimPrefix(got, prefix) + `"`} {
+		requireContains(t, environment, expected)
+	}
+}
+
 func TestURL008_URL009_ListAndCompleteConfiguredURLs(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()

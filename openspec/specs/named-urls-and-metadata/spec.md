@@ -42,7 +42,7 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 
 ### Requirement: Define URL commands through configuration
 
-HWT SHALL accept each configured URL as a template string or an object with a required `template` and optional display `label`, expose configured URL names only through `hwt url`, and provide an overridable GitHub pull request URL named `pr` by default.
+HWT SHALL accept each configured URL as a template string or an object with exactly one of `template` or `service` and an optional display `label`, expose configured URL names only through `hwt url`, and provide an overridable GitHub pull request URL named `pr` by default.
 
 #### Scenario: Preview output modes {#URL-003}
 
@@ -50,6 +50,14 @@ HWT SHALL accept each configured URL as a template string or an object with a re
 - WHEN the user runs `hwt url preview [branch]`
 - THEN HWT prints its computed URL without waiting for deployment readiness
 - AND `--open` opens it in the platform browser
+
+#### Scenario: Generated service URL {#URL-010}
+
+- GIVEN a named URL references a configured port service
+- WHEN the user runs `hwt url NAME` from a linked worktree
+- THEN HWT allocates or reuses that worktree's service port
+- AND prints the generated service URL verbatim
+- AND the service URL is unavailable with an explicit branch
 
 ### Requirement: Expand built-in placeholders safely
 
