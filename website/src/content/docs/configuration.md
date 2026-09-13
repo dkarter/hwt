@@ -279,7 +279,7 @@ urls:
 
 ### `files`
 
-Controls files and directories transferred from the source checkout. Missing sources are ignored, and every path must stay inside the repository. See [copy strategies](/docs/copy-strategies/).
+Controls files and directories transferred from the source checkout. Missing sources are ignored, and every path must stay inside the repository. See [copy strategies](../copy-strategies/).
 
 ### `post_create`
 
@@ -291,7 +291,7 @@ Defines service names and the inclusive local allocation range. Service `web`
 becomes `HWT_PORT_WEB` and `HWT_URL_WEB`; hyphens become underscores. Without
 managed local DNS, the URL uses an RFC 6761 localhost subdomain and the allocated
 port with no system setup. The defaults are `20000` through `39999`. See
-[worktree ports and environment](/docs/worktree-environment/).
+[worktree ports and environment](../worktree-environment/).
 
 `ports.url_template` controls direct URLs when `local_dns.enabled` is false. It
 supports `{worktree}`, `{service}`, `{hostname}`, and `{port}`. The first two

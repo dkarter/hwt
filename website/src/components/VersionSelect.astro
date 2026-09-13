@@ -1,0 +1,71 @@
+---
+const stableVersion = import.meta.env.PUBLIC_HWT_STABLE_VERSION;
+const currentVersion = import.meta.env.PUBLIC_HWT_DOCS_VERSION;
+const stableRoutes = import.meta.env.PUBLIC_HWT_STABLE_ROUTES.split("|").filter(Boolean);
+const devPrefix = "/dev";
+const currentPath = Astro.url.pathname;
+const stablePath = currentPath.startsWith(`${devPrefix}/`)
+  ? currentPath.slice(devPrefix.length)
+  : currentPath;
+const sectionPath = stablePath.startsWith("/docs/") ? "/docs/" : "/";
+const stableTarget = stableRoutes.length === 0 || stableRoutes.includes(stablePath)
+  ? stablePath
+  : sectionPath;
+const devPath = `${devPrefix}${stablePath}`;
+---
+
+<hwt-version-select>
+  <label>
+    <span class="sr-only">Documentation version</span>
+    <select aria-label="Documentation version">
+      <option value={stableTarget} selected={currentVersion !== "dev"}>
+        v{stableVersion} (stable)
+      </option>
+      <option value={devPath} selected={currentVersion === "dev"}>dev</option>
+    </select>
+  </label>
+</hwt-version-select>
+
+<script>
+class HwtVersionSelect extends HTMLElement {
+  constructor() {
+    super();
+    const select = this.querySelector("select");
+    select?.addEventListener("change", () => {
+      window.location.href = select.value;
+    });
+  }
+}
+
+customElements.define("hwt-version-select", HwtVersionSelect);
+</script>
+
+<style>
+select {
+  width: 10.5rem;
+  min-height: 2rem;
+  padding: 0.25rem 1.8rem 0.25rem 0.55rem;
+  border: 1px solid var(--sl-color-hairline-light, #44484e);
+  border-radius: 2px;
+  color: var(--sl-color-text, #f2f0e8);
+  background: var(--sl-color-bg-nav, #1b1d20);
+  font: 600 0.78rem var(--sl-font-mono, "SFMono-Regular", Consolas, monospace);
+}
+
+select:focus-visible {
+  outline: 2px solid var(--sl-color-accent, #b9f27c);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>

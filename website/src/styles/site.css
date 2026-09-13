@@ -859,7 +859,7 @@ footer a {
     display: none;
   }
   .nav-cta {
-    padding: 8px 12px;
+    display: none;
   }
   .hero {
     padding-top: 74px;

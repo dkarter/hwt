@@ -1,8 +1,26 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
+import { existsSync, readFileSync } from "node:fs";
+
+const releaseManifest = JSON.parse(
+  readFileSync(new URL("../.release-please-manifest.json", import.meta.url), "utf8"),
+);
+const docsVersion = process.env.HWT_DOCS_VERSION || "dev";
+const stableVersion = process.env.HWT_STABLE_VERSION || releaseManifest["."];
+const base = process.env.HWT_SITE_BASE || (docsVersion === "dev" ? "/dev" : "/");
+
+process.env.PUBLIC_HWT_STABLE_VERSION = stableVersion;
+process.env.PUBLIC_HWT_DOCS_VERSION = docsVersion;
+process.env.PUBLIC_HWT_STABLE_ROUTES = process.env.HWT_STABLE_ROUTES || "";
+
+const docsRoot = new URL("./src/content/docs/", import.meta.url);
+const doc = (label, slug, file = `${slug.replace(/^docs\//, "")}.md`) =>
+  existsSync(new URL(file, docsRoot)) ? { label, slug } : null;
+const available = (items) => items.filter(Boolean);
 
 export default defineConfig({
   site: "https://hwt.doriankarter.com",
+  base,
   prefetch: false,
   integrations: [
     starlight({
@@ -62,9 +80,12 @@ export default defineConfig({
       components: {
         Search: "./src/components/Search.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
+        LanguageSelect: "./src/components/VersionSelect.astro",
       },
       editLink: {
-        baseUrl: "https://github.com/dkarter/hwt/edit/main/website/",
+        baseUrl: `https://github.com/dkarter/hwt/edit/${
+          docsVersion === "dev" ? "main" : `v${stableVersion}`
+        }/website/`,
       },
       lastUpdated: true,
       disable404Route: true,
@@ -79,24 +100,24 @@ export default defineConfig({
         },
         {
           label: "Guides",
-          items: [
-            { label: "Configuration", slug: "docs/configuration" },
-            { label: "Herdr plugin", slug: "docs/herdr-plugin" },
-            { label: "Copy strategies", slug: "docs/copy-strategies" },
-          ],
+          items: available([
+            doc("Configuration", "docs/configuration"),
+            doc("Herdr plugin", "docs/herdr-plugin"),
+            doc("Copy strategies", "docs/copy-strategies", "copy-strategies.mdx"),
+          ]),
         },
         {
           label: "Reference",
-          items: [
-            { label: "CLI overview", slug: "docs/cli-reference" },
-            { label: "Create worktree", slug: "docs/cli/create-worktree" },
-            { label: "Remove worktree", slug: "docs/cli/remove-worktree" },
-            { label: "List worktrees", slug: "docs/cli/list-worktrees" },
-            { label: "Review pull request", slug: "docs/cli/review-pull-request" },
-            { label: "Open pull request", slug: "docs/cli/open-pull-request" },
-            { label: "Open preview", slug: "docs/cli/open-preview-environment" },
-            { label: "Agent skill", slug: "docs/agent-skill" },
-          ],
+          items: available([
+            doc("CLI overview", "docs/cli-reference"),
+            doc("Create worktree", "docs/cli/create-worktree"),
+            doc("Remove worktree", "docs/cli/remove-worktree"),
+            doc("List worktrees", "docs/cli/list-worktrees"),
+            doc("Review pull request", "docs/cli/review-pull-request"),
+            doc("Open pull request", "docs/cli/open-pull-request"),
+            doc("Open preview", "docs/cli/open-preview-environment"),
+            doc("Agent skill", "docs/agent-skill"),
+          ]),
         },
         {
           label: "Misc",

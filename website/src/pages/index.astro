@@ -1,22 +1,19 @@
 ---
 import "../styles/site.css";
 import { codeToHtml } from "shiki";
+import VersionSelect from "../components/VersionSelect.astro";
 import WorktreeComparison from "../components/WorktreeComparison.astro";
+
+const base = `${import.meta.env.BASE_URL.replace(/[/]$/, "")}/`;
+const path = (value: string) => `${base}${value.replace(/^[/]/, "")}`;
 
 const configExample = [
   "# .herdr-worktree.yaml",
-  "agent: opencode --port",
-  "worktree_dir: ../",
-  "worktree_naming: full",
+  "worktree_naming: basename",
   "",
   "files:",
   "  copy:",
   "    - .env.local",
-  "    - path: node_modules",
-  "      symlink: true",
-  "",
-  "post_create:",
-  "  - mise install",
 ].join("\n");
 const highlightedConfig = await codeToHtml(configExample, {
   lang: "yaml",
@@ -117,19 +114,20 @@ const demoWorkers = [
     />
     <link rel="canonical" href="https://hwt.doriankarter.com/" />
     <title>hwt: your next worktree, ready for work.</title>
-    <link rel="icon" href="/favicon.svg" />
+    <link rel="icon" href={path("/favicon.svg")} />
   </head>
   <body>
     <div class="page-grid" aria-hidden="true"></div>
     <header class="nav shell">
-      <a class="brand" href="/" aria-label="hwt home">
+      <a class="brand" href={path("/")} aria-label="hwt home">
         <span class="mark"><i></i><i></i></span>
         <strong>hwt</strong>
       </a>
       <nav aria-label="Main navigation">
-        <a href="/docs/">Docs</a>
+        <a href={path("/docs/")}>Docs</a>
         <a href="https://github.com/dkarter/hwt">GitHub</a>
-        <a class="nav-cta" href="/#overview">Overview</a>
+        <VersionSelect />
+        <a class="nav-cta" href={path("/#overview")}>Overview</a>
       </nav>
     </header>
 
@@ -143,8 +141,8 @@ const demoWorkers = [
           same result for you and every agent.
         </p>
         <div class="actions">
-          <a class="primary" href="/docs/quick-start/">Create a worktree <span>→</span></a>
-          <a class="secondary" href="/docs/">Read the docs</a>
+          <a class="primary" href={path("/docs/quick-start/")}>Create a worktree <span>→</span></a>
+          <a class="secondary" href={path("/docs/")}>Read the docs</a>
         </div>
 
         <div class="demo-frame is-ready" data-herdr-demo>
@@ -307,7 +305,7 @@ const demoWorkers = [
             Open a polished branch prompt from your Herdr keybindings. Name the worktree, fuzzy-find
             its base branch, and let hwt apply the repository's complete ready-state policy.
           </p>
-          <a href="/docs/herdr-plugin/">Explore the Herdr plugin →</a>
+          <a href={path("/docs/herdr-plugin/")}>Explore the Herdr plugin →</a>
         </div>
 
         <div
@@ -341,7 +339,7 @@ const demoWorkers = [
             Commit one small YAML file. hwt resolves it with your global defaults, validates every
             path, and performs the work in a predictable order.
           </p>
-          <a href="/docs/configuration/">Explore configuration →</a>
+          <a href={path("/docs/configuration/")}>Explore configuration →</a>
         </div>
         <Fragment set:html={highlightedConfig} />
       </section>
@@ -355,10 +353,12 @@ const demoWorkers = [
     </main>
 
     <footer class="shell">
-      <a class="brand" href="/"><span class="mark"><i></i><i></i></span><strong>hwt</strong></a>
+      <a class="brand" href={path("/")}><span class="mark"><i></i><i></i></span><strong
+        >hwt</strong></a>
       <span>Frictionless Herdr worktree orchestration.</span>
       <div>
-        <a href="/docs/">Docs</a><a href="https://github.com/dkarter/hwt">GitHub</a><span>MIT</span>
+        <a href={path("/docs/")}>Docs</a><a href="https://github.com/dkarter/hwt">GitHub</a><span
+        >MIT</span>
       </div>
     </footer>
 

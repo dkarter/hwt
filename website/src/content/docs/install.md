@@ -61,4 +61,4 @@ Repository administrators must enable **Release immutability** in the GitHub rep
 The experimental Herdr plugin adds interactive actions for creating and removing
 configured worktrees without leaving Herdr.
 
-[Install and configure the Herdr plugin →](/docs/herdr-plugin/)
+[Install and configure the Herdr plugin →](../herdr-plugin/)

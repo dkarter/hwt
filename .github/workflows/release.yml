@@ -14,6 +14,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
     steps:
       - name: Release Please
         id: release
@@ -57,3 +59,12 @@ jobs:
         run: gh release edit "${{ steps.release.outputs.tag_name }}" --draft=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-docs:
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      pages: write
+    uses: ./.github/workflows/pages.yml
