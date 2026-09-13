@@ -305,7 +305,7 @@ func TestCreateFromDescriptionRejectsTicketCommandFailuresBeforeHerdrCreate(t *t
 		script string
 		want   string
 	}{
-		{name: "command failure", script: "#!/bin/sh\nprintf 'authentication required' >&2\nexit 23\n", want: "authentication required"},
+		{name: "command failure", script: "#!/bin/sh\nprintf 'authentication required' >&2\nexit 23\n", want: "exit status 23"},
 		{name: "malformed output", script: "#!/bin/sh\nprintf 'not json'\n", want: "decode ticket command JSON output"},
 		{name: "missing branch", script: "#!/bin/sh\nprintf '{}\\n'\n", want: `field "branchName" is missing`},
 		{name: "malformed metadata", script: "#!/bin/sh\nprintf '{\"branchName\":\"feature/test\",\"metadata\":{\"number\":42}}\\n'\n", want: "must be a string"},

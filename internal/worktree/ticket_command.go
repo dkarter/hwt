@@ -14,6 +14,10 @@ import (
 )
 
 func runTicketCommand(cwd string, ticket config.TicketCommand, input string) (ticketResult, error) {
+	return runTicketCommandWithStderr(cwd, ticket, input, os.Stderr)
+}
+
+func runTicketCommandWithStderr(cwd string, ticket config.TicketCommand, input string, terminalStderr io.Writer) (ticketResult, error) {
 	arguments, err := ticketCommandArguments(ticket.Command[1:], input)
 	if err != nil {
 		return ticketResult{}, err
@@ -23,20 +27,13 @@ func runTicketCommand(cwd string, ticket config.TicketCommand, input string) (ti
 	cmd.Stdin = os.Stdin
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
-	if strings.TrimSpace(input) == "" {
-		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
-	} else {
-		cmd.Stderr = &stderr
-	}
+	cmd.Stderr = io.MultiWriter(terminalStderr, &stderr)
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return ticketResult{}, fmt.Errorf("find ticket command %q: %w", ticket.Command[0], err)
 		}
-		message := strings.TrimSpace(stderr.String())
-		if strings.TrimSpace(input) == "" && message != "" {
-			message = ""
-		}
-		if message == "" && strings.TrimSpace(stderr.String()) == "" {
+		message := ""
+		if strings.TrimSpace(stderr.String()) == "" {
 			message = strings.TrimSpace(stdout.String())
 		}
 		if message != "" {

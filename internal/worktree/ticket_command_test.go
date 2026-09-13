@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"bytes"
 	"reflect"
 	"strings"
 	"testing"
@@ -112,5 +113,38 @@ func TestRunTicketCommandRejectsInvalidMappedOutput(t *testing.T) {
 				t.Fatalf("error = %v, want substring %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestRunTicketCommandStreamsStderrWithInput(t *testing.T) {
+	ticket := config.TicketCommand{Command: []string{
+		"sh", "-c",
+		`printf 'selecting %s\n' "$1" >&2; printf '%s\n' '{"branchName":"feature/selected"}'`,
+		"hwt-ticket", "{input}",
+	}}
+	var terminalStderr bytes.Buffer
+
+	result, err := runTicketCommandWithStderr(t.TempDir(), ticket, "authentication bug", &terminalStderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.BranchName != "feature/selected" {
+		t.Fatalf("selected branch = %q", result.BranchName)
+	}
+	if got := terminalStderr.String(); got != "selecting authentication bug\n" {
+		t.Fatalf("streamed stderr = %q", got)
+	}
+}
+
+func TestRunTicketCommandDoesNotRepeatStreamedFailureStderr(t *testing.T) {
+	ticket := config.TicketCommand{Command: []string{"sh", "-c", `printf 'authentication required\n' >&2; exit 23`}}
+	var terminalStderr bytes.Buffer
+
+	_, err := runTicketCommandWithStderr(t.TempDir(), ticket, "query", &terminalStderr)
+	if err == nil || strings.Contains(err.Error(), "authentication required") {
+		t.Fatalf("failure error repeated streamed stderr: %v", err)
+	}
+	if got := terminalStderr.String(); got != "authentication required\n" {
+		t.Fatalf("streamed stderr = %q", got)
 	}
 }
