@@ -194,14 +194,18 @@ Commands run in order after all copy operations finish. Empty commands are rejec
 ### `ports`
 
 Defines service names and the inclusive local allocation range. Service `web`
-becomes `HWT_PORT_WEB`; hyphens become underscores. The defaults are `20000`
-through `39999`. See [worktree ports and environment](/docs/worktree-environment/).
+becomes `HWT_PORT_WEB` and `HWT_URL_WEB`; hyphens become underscores. Without
+managed local DNS, the URL uses an RFC 6761 localhost subdomain and the allocated
+port with no system setup. The defaults are `20000` through `39999`. See
+[worktree ports and environment](/docs/worktree-environment/).
 
 ### `environment`
 
 `environment.variables` contains non-secret values for `.env.worktree` and
 `post_create`. Values may reference generated variables such as
-`${HWT_PORT_WEB}`. HWT does not read values from the parent process, `.env`, or
+`${HWT_PORT_WEB}` that are available before configured values are expanded.
+Hostname and URL variables should be consumed directly from the generated
+environment. HWT does not read values from the parent process, `.env`, or
 `.env.local` while expanding them.
 
 ### `local_dns`
@@ -209,7 +213,8 @@ through `39999`. See [worktree ports and environment](/docs/worktree-environment
 `local_dns.enabled` registers every `ports.services` entry in HWT-owned
 dnsmasq and Caddy snippets. `domain` defaults to `hwt.test`. HWT validates and
 lowercases DNS labels; it rejects `localhost`, path-like values, empty labels,
-and labels longer than 63 bytes.
+and labels longer than 63 bytes. Leave it disabled to use direct `.localhost`
+URLs with allocated ports and no dnsmasq or Caddy setup.
 
 `local_dns.reload` is an optional argv command run directly, without a shell,
 after generated files change. Arguments may contain `{caddyfile}`, `{dnsmasq}`,

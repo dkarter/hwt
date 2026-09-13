@@ -108,13 +108,18 @@ be inserted.
   such as dependency installation or code generation. Commands run in order
   after all file operations finish.
 - `ports`: List local services that need stable, distinct ports. HWT exposes
-  them as `HWT_PORT_<SERVICE>` in `.env.worktree` and `post_create`.
+  them as `HWT_PORT_<SERVICE>` and `HWT_URL_<SERVICE>` in `.env.worktree` and
+  `post_create`. With local DNS disabled, URLs use RFC 6761 localhost subdomains
+  and allocated ports without system setup.
 - `local_dns`: Opt in to HWT-owned dnsmasq and Caddy snippets. Run
   `hwt dns setup` once, include the reported files from user-managed services,
-  and use `hwt dns status` to inspect registrations. `reload` is an optional
-  argv command; HWT never edits system configuration or invokes `sudo`.
+  and use `hwt dns status` to inspect registrations. Leave it disabled for
+  zero-setup `.localhost` URLs. `reload` is an optional argv command; HWT never
+  edits system configuration or invokes `sudo`.
 - `environment.variables`: Add non-secret values. Generated HWT variables may
-  be referenced with `${NAME}`. Never put credentials in project config.
+  be referenced with `${NAME}` when available before configured expansion, such
+  as `HWT_PORT_<SERVICE>`. Consume hostname and URL variables directly from the
+  generated environment. Never put credentials in project config.
 
 All copy paths must stay within the repository. Prefer setup commands over
 copying generated state when regeneration is reliable and reasonably fast.

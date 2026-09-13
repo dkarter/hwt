@@ -208,6 +208,12 @@ func TestENV001_ENV002_ENV003_ENV004_EnvironmentStableRefreshAndRun(t *testing.T
 	if a["HWT_PORT_WEB"] != b["HWT_PORT_WEB"] || a["HWT_PORT_ASSETS"] != b["HWT_PORT_ASSETS"] {
 		t.Fatalf("ports changed without refresh: %#v %#v", a, b)
 	}
+	if a["HWT_WORKTREE_HOSTNAME"] != "feature-env.localhost" || a["HWT_URL_WEB"] != "http://web.feature-env.localhost:"+a["HWT_PORT_WEB"].(string) || a["HWT_URL_ASSETS"] != "http://assets.feature-env.localhost:"+a["HWT_PORT_ASSETS"].(string) {
+		t.Fatalf("zero-setup localhost variables = %#v", a)
+	}
+	if a["HWT_URL_WEB"] != b["HWT_URL_WEB"] || a["HWT_URL_ASSETS"] != b["HWT_URL_ASSETS"] {
+		t.Fatalf("localhost URLs changed without refresh: %#v %#v", a, b)
+	}
 	c := otherResult["variables"].(map[string]any)
 	if a["HWT_PORT_WEB"] == c["HWT_PORT_WEB"] || a["HWT_PORT_ASSETS"] == c["HWT_PORT_ASSETS"] {
 		t.Fatalf("worktrees received conflicting ports: %#v %#v", a, c)
@@ -215,6 +221,9 @@ func TestENV001_ENV002_ENV003_ENV004_EnvironmentStableRefreshAndRun(t *testing.T
 	refreshed := decode(t, s.run(linked, "env", "--refresh", "--json"))["variables"].(map[string]any)
 	if refreshed["HWT_PORT_WEB"] == c["HWT_PORT_WEB"] || refreshed["HWT_PORT_ASSETS"] == c["HWT_PORT_ASSETS"] {
 		t.Fatalf("refresh conflicted with another worktree: other=%#v refreshed=%#v", c, refreshed)
+	}
+	if refreshed["HWT_URL_WEB"] != "http://web.feature-env.localhost:"+refreshed["HWT_PORT_WEB"].(string) {
+		t.Fatalf("refresh did not update localhost URL: %#v", refreshed)
 	}
 	if mustRead(t, filepath.Join(linked, ".env.worktree")) == "" {
 		t.Fatal("refresh did not republish the environment")

@@ -328,6 +328,9 @@ func Validate(cfg Config) error {
 		if !validServiceName(service) {
 			return fmt.Errorf("port service %q must start with a letter and contain only letters, numbers, underscores, or hyphens", service)
 		}
+		if len(service) > 63 {
+			return fmt.Errorf("port service %q exceeds the 63-byte DNS label limit", service)
+		}
 		environmentName := PortEnvironmentName(service)
 		if previous, exists := serviceNames[environmentName]; exists {
 			return fmt.Errorf("port services %q and %q produce the same environment variable", previous, service)
@@ -353,11 +356,7 @@ func Validate(cfg Config) error {
 	}
 	if cfg.LocalDNS.Enabled {
 		for _, service := range cfg.Ports.Services {
-			label := strings.ToLower(strings.ReplaceAll(service, "_", "-"))
-			if len(label) > 63 {
-				return fmt.Errorf("port service %q exceeds the 63-byte local DNS label limit", service)
-			}
-			if len(label)+1+63+1+len(cfg.LocalDNS.Domain) > 253 {
+			if len(service)+1+63+1+len(cfg.LocalDNS.Domain) > 253 {
 				return fmt.Errorf("local DNS hostname for service %q exceeds 253 bytes", service)
 			}
 		}

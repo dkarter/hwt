@@ -501,6 +501,7 @@ func TestLoadRejectsInvalidPortConfiguration(t *testing.T) {
 	tests := []string{
 		"ports:\n  start: 40000\n  end: 30000\n",
 		"ports:\n  services: [web-api, web_api]\n",
+		"ports:\n  services: [" + strings.Repeat("a", 64) + "]\n",
 		"environment:\n  variables:\n    HWT_PORT_WEB: override\n",
 	}
 	for _, contents := range tests {

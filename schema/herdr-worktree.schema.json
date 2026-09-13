@@ -161,15 +161,19 @@
         },
         "services": {
           "type": "array",
-          "description": "Service names exposed as HWT_PORT_<NAME> variables.",
+          "description": "Service names exposed as HWT_PORT_<NAME> and HWT_URL_<NAME> variables. Direct URLs use RFC 6761 localhost subdomains unless managed local DNS is enabled.",
           "uniqueItems": true,
-          "items": { "type": "string", "pattern": "^(<global>|[A-Za-z][A-Za-z0-9_-]*)$" }
+          "items": {
+            "type": "string",
+            "maxLength": 63,
+            "pattern": "^(<global>|[A-Za-z][A-Za-z0-9_-]*)$"
+          }
         }
       }
     },
     "local_dns": {
       "type": "object",
-      "description": "Opt-in HWT-owned dnsmasq and Caddy snippet generation for worktree service hostnames.",
+      "description": "Opt-in HWT-owned dnsmasq and Caddy snippet generation. Disabled services use zero-setup RFC 6761 localhost URLs.",
       "additionalProperties": false,
       "properties": {
         "enabled": {
