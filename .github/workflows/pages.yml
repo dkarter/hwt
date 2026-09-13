@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - .github/workflows/pages.yml
+      - scripts/build-versioned-website.sh
       - website/**
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -19,10 +22,14 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'release' || !github.event.release.prerelease
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          ref: main
 
       - name: Set up Node
         # v7.0.0 is an immutable release.
@@ -41,7 +48,7 @@ jobs:
         run: aube --dir website install --frozen-lockfile
 
       - name: Build website
-        run: aube --dir website run build
+        run: ./scripts/build-versioned-website.sh
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5.0.0

@@ -1,5 +1,7 @@
 ---
 import "../styles/site.css";
+
+const base = `${import.meta.env.BASE_URL.replace(/[/]$/, "")}/`;
 ---
 
 <!DOCTYPE html>
@@ -9,7 +11,7 @@ import "../styles/site.css";
     <meta name="viewport" content="width=device-width" />
     <meta name="robots" content="noindex" />
     <title>Not found · hwt</title>
-    <link rel="icon" href="/favicon.svg" />
+    <link rel="icon" href={`${base}favicon.svg`} />
   </head>
   <body class="not-found">
     <main>
@@ -17,8 +19,8 @@ import "../styles/site.css";
       <h1>Worktree not found.</h1>
       <p>The page may have moved, but the docs are still attached.</p>
       <div class="actions">
-        <a class="primary" href="/docs/">Open the docs <span>→</span></a>
-        <a class="secondary" href="/">Return home</a>
+        <a class="primary" href={`${base}docs/`}>Open the docs <span>→</span></a>
+        <a class="secondary" href={base}>Return home</a>
       </div>
     </main>
   </body>

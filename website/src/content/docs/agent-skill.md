@@ -8,7 +8,7 @@ remove Herdr-managed worktrees safely. It also includes an on-demand reference
 for editing `.herdr-worktree.yaml`.
 
 :::note
-The skill does not install the `hwt` binary. [Install hwt](/docs/install/) before
+The skill does not install the `hwt` binary. [Install hwt](../install/) before
 asking an agent to use it.
 :::
 

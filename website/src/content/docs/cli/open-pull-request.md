@@ -7,7 +7,7 @@ description: Resolve and open the GitHub pull request for a worktree branch.
 provides this URL name by default for GitHub repositories:
 
 To fetch code into a dedicated Herdr workspace and launch a review tool instead,
-use [`hwt review`](/docs/cli/review-pull-request/).
+use [`hwt review`](../review-pull-request/).
 
 ```sh
 hwt url pr

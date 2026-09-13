@@ -18,7 +18,7 @@ hwt url preview feature/name
 ```
 
 An explicit branch has no associated worktree, so its template cannot use
-`{worktree}` or `ticket.*`. See [configuration](/docs/configuration/#urls-and-metadata) for the
+`{worktree}` or `ticket.*`. See [configuration](../../configuration/#urls-and-metadata) for the
 placeholder, sanitization, and escaping contract.
 
 ## Machine-readable output
