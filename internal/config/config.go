@@ -23,7 +23,6 @@ const DefaultCopyOnWrite = false
 const DefaultLocalDNSDomain = "hwt.test"
 const DefaultPortURLTemplate = "http://{worktree}.{service}.localhost:{port}"
 
-var defaultTicketCommand = []string{"lnr", "quick", "--json"}
 var defaultReviewCommand = []string{"tuicr"}
 var defaultURLs = map[string]string{"pr": "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"}
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
@@ -31,19 +30,19 @@ var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
 
 type Config struct {
-	Agent          string            `json:"agent,omitempty" yaml:"agent,omitempty"`
-	TicketCommand  []string          `json:"ticket_command" yaml:"ticket_command"`
-	ReviewCommand  []string          `json:"review_command" yaml:"review_command"`
-	WorktreeDir    string            `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
-	WorktreeNaming string            `json:"worktree_naming" yaml:"worktree_naming"`
-	WorktreePrefix string            `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
-	Files          Files             `json:"files" yaml:"files"`
-	PostCreate     []string          `json:"post_create,omitempty" yaml:"post_create,omitempty"`
-	Ports          Ports             `json:"ports" yaml:"ports"`
-	Environment    Environment       `json:"environment" yaml:"environment"`
-	LocalDNS       LocalDNS          `json:"local_dns" yaml:"local_dns"`
-	URLs           map[string]string `json:"urls,omitempty" yaml:"urls,omitempty"`
-	Metadata       Metadata          `json:"metadata" yaml:"metadata"`
+	Agent          string                   `json:"agent,omitempty" yaml:"agent,omitempty"`
+	TicketCommands map[string]TicketCommand `json:"ticket_commands,omitempty" yaml:"ticket_commands,omitempty"`
+	ReviewCommand  []string                 `json:"review_command" yaml:"review_command"`
+	WorktreeDir    string                   `json:"worktree_dir,omitempty" yaml:"worktree_dir,omitempty"`
+	WorktreeNaming string                   `json:"worktree_naming" yaml:"worktree_naming"`
+	WorktreePrefix string                   `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
+	Files          Files                    `json:"files" yaml:"files"`
+	PostCreate     []string                 `json:"post_create,omitempty" yaml:"post_create,omitempty"`
+	Ports          Ports                    `json:"ports" yaml:"ports"`
+	Environment    Environment              `json:"environment" yaml:"environment"`
+	LocalDNS       LocalDNS                 `json:"local_dns" yaml:"local_dns"`
+	URLs           map[string]string        `json:"urls,omitempty" yaml:"urls,omitempty"`
+	Metadata       Metadata                 `json:"metadata" yaml:"metadata"`
 }
 
 type Ports struct {
@@ -88,19 +87,19 @@ type Sources struct {
 }
 
 type rawConfig struct {
-	Agent          *string            `yaml:"agent"`
-	TicketCommand  *[]string          `yaml:"ticket_command"`
-	ReviewCommand  *[]string          `yaml:"review_command"`
-	WorktreeDir    *string            `yaml:"worktree_dir"`
-	WorktreeNaming *string            `yaml:"worktree_naming"`
-	WorktreePrefix *string            `yaml:"worktree_prefix"`
-	Files          *rawFiles          `yaml:"files"`
-	PostCreate     *[]string          `yaml:"post_create"`
-	Ports          *rawPorts          `yaml:"ports"`
-	Environment    *rawEnvironment    `yaml:"environment"`
-	LocalDNS       *rawLocalDNS       `yaml:"local_dns"`
-	URLs           *map[string]string `yaml:"urls"`
-	Metadata       *rawMetadata       `yaml:"metadata"`
+	Agent          *string                   `yaml:"agent"`
+	TicketCommands *map[string]TicketCommand `yaml:"ticket_commands"`
+	ReviewCommand  *[]string                 `yaml:"review_command"`
+	WorktreeDir    *string                   `yaml:"worktree_dir"`
+	WorktreeNaming *string                   `yaml:"worktree_naming"`
+	WorktreePrefix *string                   `yaml:"worktree_prefix"`
+	Files          *rawFiles                 `yaml:"files"`
+	PostCreate     *[]string                 `yaml:"post_create"`
+	Ports          *rawPorts                 `yaml:"ports"`
+	Environment    *rawEnvironment           `yaml:"environment"`
+	LocalDNS       *rawLocalDNS              `yaml:"local_dns"`
+	URLs           *map[string]string        `yaml:"urls"`
+	Metadata       *rawMetadata              `yaml:"metadata"`
 }
 
 type rawMetadata struct {
@@ -291,7 +290,7 @@ func ValidateFile(path string) error {
 }
 
 func Validate(cfg Config) error {
-	if err := validateArgv("ticket_command", cfg.TicketCommand); err != nil {
+	if err := validateTicketCommands(cfg.TicketCommands); err != nil {
 		return err
 	}
 	if err := validateArgv("review_command", cfg.ReviewCommand); err != nil {
@@ -525,24 +524,8 @@ func read(path string, required bool) (rawConfig, error) {
 func resolve(global, project rawConfig) Config {
 	cfg := Config{WorktreeNaming: DefaultWorktreeNaming, Ports: Ports{Start: 20000, End: 39999}}
 	cfg.Agent = scalar(global.Agent, project.Agent, "")
-	ticketCommand := global.TicketCommand
-	if project.TicketCommand != nil {
-		ticketCommand = project.TicketCommand
-	}
-	if ticketCommand == nil {
-		cfg.TicketCommand = append([]string(nil), defaultTicketCommand...)
-	} else {
-		cfg.TicketCommand = append([]string(nil), (*ticketCommand)...)
-	}
-	reviewCommand := global.ReviewCommand
-	if project.ReviewCommand != nil {
-		reviewCommand = project.ReviewCommand
-	}
-	if reviewCommand == nil {
-		cfg.ReviewCommand = append([]string(nil), defaultReviewCommand...)
-	} else {
-		cfg.ReviewCommand = append([]string(nil), (*reviewCommand)...)
-	}
+	cfg.TicketCommands = mergeTicketCommands(global.TicketCommands, project.TicketCommands)
+	cfg.ReviewCommand = replaceArgv(global.ReviewCommand, project.ReviewCommand, defaultReviewCommand)
 	cfg.WorktreeDir = scalar(global.WorktreeDir, project.WorktreeDir, "")
 	cfg.WorktreeNaming = scalar(global.WorktreeNaming, project.WorktreeNaming, DefaultWorktreeNaming)
 	cfg.WorktreePrefix = scalar(global.WorktreePrefix, project.WorktreePrefix, "")
@@ -575,6 +558,17 @@ func resolve(global, project rawConfig) Config {
 	cfg.Metadata.Values = mergeStringMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
 	cfg.Metadata.Commands = mergeCommandMaps(metadataCommands(global.Metadata), metadataCommands(project.Metadata))
 	return cfg
+}
+
+func replaceArgv(global, project *[]string, fallback []string) []string {
+	value := global
+	if project != nil {
+		value = project
+	}
+	if value == nil {
+		return append([]string(nil), fallback...)
+	}
+	return append([]string{}, (*value)...)
 }
 
 func metadataValues(metadata *rawMetadata) *map[string]string {

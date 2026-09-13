@@ -11,13 +11,57 @@
       "description": "Command an agent orchestrator should start in the new worktree.",
       "examples": ["opencode --port"]
     },
-    "ticket_command": {
-      "type": "array",
-      "description": "Argument vector used to create a ticket. hwt appends the task description as one argument and expects JSON containing a non-empty branchName string.",
-      "default": ["lnr", "quick", "--json"],
-      "minItems": 1,
-      "items": { "type": "string", "minLength": 1 },
-      "examples": [["acme-tickets", "create", "--json"]]
+    "ticket_commands": {
+      "type": "object",
+      "description": "Optional named commands used by hwt create --ticket. Global and repository entries merge by name.",
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command"],
+        "properties": {
+          "command": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Direct argv. The optional ticket input replaces {input}; an exact {input} argument is omitted when no input is provided."
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "branch": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$",
+                "default": "branchName",
+                "description": "Dot-separated selector for the string branch field in command JSON output."
+              },
+              "metadata": {
+                "type": "object",
+                "propertyNames": {
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$"
+                },
+                "description": "Persisted metadata names mapped to dot-separated selectors for string fields in command JSON output."
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "create": {
+            "command": ["lnr", "quick", "{input}", "--json"],
+            "output": {
+              "branch": "branchName",
+              "metadata": { "identifier": "issueId", "title": "title", "url": "url" }
+            }
+          }
+        }
+      ]
     },
     "review_command": {
       "type": "array",

@@ -22,7 +22,24 @@ so it remains machine-local while being available to every linked worktree.
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
-ticket_command: [lnr, quick, --json]
+# Optional example for Linear users:
+ticket_commands:
+  default:
+    command: [lnr, issue, search, --json, '{input}']
+    output:
+      branch: branchName
+      metadata:
+        identifier: issueId
+        title: title
+        url: url
+  create:
+    command: [lnr, quick, '{input}', --json]
+    output:
+      branch: branchName
+      metadata:
+        identifier: issueId
+        title: title
+        url: url
 review_command: [tuicr]
 worktree_dir: ../
 worktree_naming: full
@@ -74,7 +91,7 @@ post_create:
 
 ## Resolution rules
 
-Project or Git-local scalar values override global values. Repository `ticket_command` and `review_command` arrays replace their global values as a whole. Other lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning.
+Project or Git-local scalar values override global values. Named `ticket_commands` merge by name with repository entries winning. Repository `review_command` replaces the global array as a whole. Other lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning.
 
 The `<global>` marker is valid in repository `files.copy`, `ports.services`, and `post_create` lists. It cannot appear in the global configuration.
 
@@ -84,9 +101,58 @@ The `<global>` marker is valid in repository `files.copy`, `ports.services`, and
 
 Command Herdr starts in the root pane after creation.
 
-### `ticket_command`
+### `ticket_commands`
 
-Argument array used by `hwt create DESCRIPTION`. The default is `[lnr, quick, --json]`. Repository configuration replaces the global array as a whole. HWT appends the full description as one final argument and runs the executable directly, without a shell. The command must write one JSON object to stdout with a non-empty string `branchName`, for example `{"branchName":"team/rms-90-task","metadata":{"identifier":"RMS-90"}}`. Only the optional dedicated string-valued `metadata` object becomes URL metadata; other top-level fields are ignored. Diagnostics belong on stderr; a non-zero exit includes its status and stderr in hwt's error.
+Optional named commands used by `hwt create --ticket[=NAME]`. The plain
+`--ticket` flag selects the `default` entry. Each entry contains a direct argv
+and optional output selectors:
+
+```yaml
+ticket_commands:
+  default:
+    command: [lnr, issue, search, --json, '{input}']
+    output:
+      branch: branchName
+      metadata:
+        identifier: issueId
+        title: title
+        url: url
+  create:
+    command: [lnr, quick, '{input}', --json]
+    output:
+      branch: branchName
+      metadata:
+        identifier: issueId
+        title: title
+        url: url
+```
+
+HWT replaces `{input}` in place without invoking a shell. If no input is
+supplied, an argument that is exactly `{input}` is omitted. An embedded form
+such as `--query={input}` requires input. Commands without `{input}` receive no
+additional argument. Command stdout is reserved for final JSON, so interactive
+picker UI must use stderr. For pipelines or transformations beyond field selection,
+configure `sh -c` explicitly and pass `{input}` after a `$0` placeholder:
+
+```yaml
+ticket_commands:
+  transformed:
+    command:
+      - sh
+      - -c
+      - |
+          another-ticket-cli create --title "$1" --json |
+            jq '{branchName: .git.branch, metadata: {identifier: .key}}'
+      - hwt-ticket
+      - '{input}'
+```
+
+The command must print one JSON object. `output.branch` defaults to
+`branchName`; metadata maps stored names to source selectors. Selectors use dot
+notation for nested objects and must resolve to strings. If no metadata mapping
+is configured, HWT accepts a dedicated string-valued `metadata` object. Named
+commands from global and repository configuration merge with repository entries
+winning.
 
 ### `review_command`
 
@@ -159,9 +225,9 @@ substituted as one argument; custom metadata, `pr_number`, and ambient
 environment variables are not expanded. The command must return one JSON object
 whose values are strings.
 
-Ticket commands may return a dedicated string-valued `metadata` object alongside
-`branchName`. HWT exposes it as `{ticket.key}` for that worktree. It ignores
-arbitrary top-level ticket fields. Ticket metadata is stored in a mode-`0600`
+A ticket command without output metadata mappings may return a dedicated string-valued `metadata` object
+alongside `branchName`. HWT exposes it as `{ticket.key}` for that worktree. It
+ignores arbitrary top-level fields. Ticket metadata is stored in a mode-`0600`
 file under private Git worktree metadata and removed with the worktree. Command
 output and resolved URLs, including credentials, are never persisted.
 

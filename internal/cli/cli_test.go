@@ -234,7 +234,7 @@ func TestSkillCommand(t *testing.T) {
 	}
 }
 
-func TestCreateRequiresDescriptionOrBranchButNotBoth(t *testing.T) {
+func TestCreateRequiresPositionalBranchOrBranchFlagButNotBoth(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
@@ -248,10 +248,19 @@ func TestCreateRequiresDescriptionOrBranchButNotBoth(t *testing.T) {
 			command := New("test")
 			command.SetArgs(test.args)
 			err := command.Execute()
-			if err == nil || !strings.Contains(err.Error(), "exactly one task description or --branch") {
+			if err == nil || !strings.Contains(err.Error(), "exactly one branch name or --branch") {
 				t.Fatalf("expected unambiguous create contract error, got %v", err)
 			}
 		})
+	}
+}
+
+func TestCreateRejectsTicketWithBranchFlag(t *testing.T) {
+	command := New("test")
+	command.SetArgs([]string{"create", "--branch", "feature/task", "--ticket"})
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--ticket cannot be combined with --branch") {
+		t.Fatalf("unexpected combined flag error: %v", err)
 	}
 }
 

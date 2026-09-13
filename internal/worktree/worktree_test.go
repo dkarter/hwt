@@ -232,11 +232,11 @@ func TestWorktreePathUsesConfiguredNaming(t *testing.T) {
 	}
 }
 
-func TestCreateFromDescriptionUsesLNRBranchAndConfiguredPath(t *testing.T) {
+func TestCreateFromDescriptionUsesTicketCommandAndConfiguredPath(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := initRepo(t)
 	worktreeDir := t.TempDir()
-	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "worktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  default:\n    command: [lnr, quick, '{input}', --json]\nworktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
 	arguments := filepath.Join(t.TempDir(), "arguments")
 	binDir := t.TempDir()
 	writeExecutable(t, filepath.Join(binDir, "lnr"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HWT_TEST_ARGUMENTS\"\nprintf '{\"branchName\":\"dorian/rms-90-ticket-flow\",\"metadata\":{\"identifier\":\"RMS-90\"},\"url\":\"not metadata\"}\\n'\n")
@@ -249,14 +249,14 @@ func TestCreateFromDescriptionUsesLNRBranchAndConfiguredPath(t *testing.T) {
 		return herdr.Created{WorkspaceID: "w-ticket", PaneID: "w-ticket:p1", Path: expectedPath}, nil
 	}
 
-	result, err := Create(client, CreateOptions{CWD: repo, Description: "something; $(unsafe)", Base: "main"})
+	result, err := Create(client, CreateOptions{CWD: repo, Input: "something; $(unsafe)", Ticket: "default", Base: "main"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.Branch != "dorian/rms-90-ticket-flow" || result.Path != expectedPath {
 		t.Fatalf("unexpected ticket worktree result: %#v", result)
 	}
-	assertFile(t, arguments, "quick\n--json\nsomething; $(unsafe)\n")
+	assertFile(t, arguments, "quick\nsomething; $(unsafe)\n--json\n")
 	metadata, err := ReadTicketMetadata(expectedPath)
 	if err != nil {
 		t.Fatal(err)
@@ -281,7 +281,21 @@ func TestCreateFromDescriptionUsesLNRBranchAndConfiguredPath(t *testing.T) {
 	}
 }
 
-func TestCreateFromDescriptionRejectsTicketFailuresBeforeHerdrCreate(t *testing.T) {
+func TestCreateWithTicketRequiresDefaultCommand(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := initRepo(t)
+	client := &fakeClient{}
+
+	_, err := Create(client, CreateOptions{CWD: repo, Input: "a task", Ticket: "default", Base: "main"})
+	if err == nil || !strings.Contains(err.Error(), "--ticket requires ticket_commands.default") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.creates) != 0 {
+		t.Fatalf("Herdr create called without ticket_commands.default: %#v", client.creates)
+	}
+}
+
+func TestCreateFromDescriptionRejectsTicketCommandFailuresBeforeHerdrCreate(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := initRepo(t)
 	binDir := t.TempDir()
@@ -291,18 +305,18 @@ func TestCreateFromDescriptionRejectsTicketFailuresBeforeHerdrCreate(t *testing.
 		script string
 		want   string
 	}{
-		{name: "command failure", script: "#!/bin/sh\nprintf 'authentication required' >&2\nexit 23\n", want: "authentication required"},
+		{name: "command failure", script: "#!/bin/sh\nprintf 'authentication required' >&2\nexit 23\n", want: "exit status 23"},
 		{name: "malformed output", script: "#!/bin/sh\nprintf 'not json'\n", want: "decode ticket command JSON output"},
-		{name: "missing branch", script: "#!/bin/sh\nprintf '{}\\n'\n", want: "missing a non-empty branchName"},
+		{name: "missing branch", script: "#!/bin/sh\nprintf '{}\\n'\n", want: `field "branchName" is missing`},
 		{name: "malformed metadata", script: "#!/bin/sh\nprintf '{\"branchName\":\"feature/test\",\"metadata\":{\"number\":42}}\\n'\n", want: "must be a string"},
 		{name: "null metadata value", script: "#!/bin/sh\nprintf '{\"branchName\":\"feature/test\",\"metadata\":{\"identifier\":null}}\\n'\n", want: "must be a string"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			writeExecutable(t, filepath.Join(binDir, "tickets"), test.script)
-			write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: [tickets, create, --json]\n")
+			write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  default:\n    command: [tickets, create, '{input}', --json]\n")
 			client := &fakeClient{}
-			_, err := Create(client, CreateOptions{CWD: repo, Description: "a task", Base: "main"})
+			_, err := Create(client, CreateOptions{CWD: repo, Input: "a task", Ticket: "default", Base: "main"})
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("expected %q error, got %v", test.want, err)
 			}
@@ -319,10 +333,10 @@ func TestCreateFromDescriptionRejectsBranchConflictBeforeHerdrCreate(t *testing.
 	binDir := t.TempDir()
 	writeExecutable(t, filepath.Join(binDir, "tickets"), "#!/bin/sh\nprintf '{\"branchName\":\"main\"}\\n'\n")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: [tickets]\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  default:\n    command: [tickets]\n")
 	client := &fakeClient{}
 
-	_, err := Create(client, CreateOptions{CWD: repo, Description: "a task", Base: "main"})
+	_, err := Create(client, CreateOptions{CWD: repo, Input: "a task", Ticket: "default", Base: "main"})
 	if err == nil || !strings.Contains(err.Error(), "local branch already exists") {
 		t.Fatalf("expected branch conflict, got %v", err)
 	}
@@ -338,14 +352,14 @@ func TestCreateFromDescriptionRejectsWorktreePathConflictBeforeHerdrCreate(t *te
 	writeExecutable(t, filepath.Join(binDir, "tickets"), "#!/bin/sh\nprintf '{\"branchName\":\"feature/new-ticket\"}\\n'\n")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	worktreeDir := t.TempDir()
-	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: [tickets]\nworktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  default:\n    command: [tickets]\nworktree_dir: "+worktreeDir+"\nworktree_naming: basename\nworktree_prefix: project-\n")
 	existingPath := filepath.Join(worktreeDir, "project-new-ticket")
 	if err := os.Mkdir(existingPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	client := &fakeClient{}
 
-	_, err := Create(client, CreateOptions{CWD: repo, Description: "a task", Base: "main"})
+	_, err := Create(client, CreateOptions{CWD: repo, Input: "a task", Ticket: "default", Base: "main"})
 	if err == nil || !strings.Contains(err.Error(), "worktree path "+existingPath+" already exists") {
 		t.Fatalf("expected worktree path conflict, got %v", err)
 	}
