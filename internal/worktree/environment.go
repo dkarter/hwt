@@ -15,6 +15,7 @@ import (
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/localdns"
+	"github.com/dkarter/hwt/internal/urltemplate"
 	"golang.org/x/sys/unix"
 )
 
@@ -125,8 +126,25 @@ func prepareEnvironment(root string, cfg config.Config, refresh bool) (Environme
 			for service, localURL := range registration.URLs {
 				variables[config.URLEnvironmentName(service)] = localURL
 			}
-		} else if err := releaseLocalDNS(root, cfg); err != nil {
-			return err
+		} else {
+			hostname := localhostHostname(root)
+			variables["HWT_WORKTREE_HOSTNAME"] = hostname
+			urlValues := map[string]string{
+				"worktree": strings.TrimSuffix(hostname, ".localhost"),
+				"hostname": hostname,
+			}
+			for service, port := range ports {
+				urlValues["service"] = urltemplate.SanitizeBranch(service)
+				urlValues["port"] = strconv.Itoa(port)
+				localURL, err := urltemplate.Expand(cfg.Ports.URLTemplate, urlValues)
+				if err != nil {
+					return fmt.Errorf("generate URL for service %q: %w", service, err)
+				}
+				variables[config.URLEnvironmentName(service)] = localURL
+			}
+			if err := releaseLocalDNS(root, cfg); err != nil {
+				return err
+			}
 		}
 		if err := writeEnvironmentFile(result.Path, variables); err != nil {
 			var rollbackErr error
@@ -149,6 +167,14 @@ func prepareEnvironment(root string, cfg config.Config, refresh bool) (Environme
 		return EnvironmentResult{}, err
 	}
 	return result, nil
+}
+
+func localhostHostname(root string) string {
+	label := urltemplate.SanitizeBranch(filepath.Base(root))
+	if label == "" {
+		label = "worktree"
+	}
+	return label + ".localhost"
 }
 
 func localDNSConfig(cfg config.Config) localdns.Config {

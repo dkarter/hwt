@@ -50,7 +50,10 @@ Service names become uppercase variables with hyphens changed to underscores:
 ```dotenv
 HWT_PORT_ASSETS="20001"
 HWT_PORT_WEB="20000"
+HWT_URL_ASSETS="http://example.assets.localhost:20001"
+HWT_URL_WEB="http://example.web.localhost:20000"
 HWT_WORKTREE_BRANCH="feature/example"
+HWT_WORKTREE_HOSTNAME="example.localhost"
 HWT_WORKTREE_PATH="/path/to/example"
 APP_URL="http://localhost:20000"
 ```
@@ -58,6 +61,54 @@ APP_URL="http://localhost:20000"
 `HWT_ENV_FILE` also contains the absolute path to `.env.worktree`. The exact
 ports depend on active reservations and other listeners, not service order
 alone.
+
+## Zero-setup localhost URLs
+
+By default, each configured service also receives a direct HTTP URL with its
+allocated port. HWT normalizes the worktree directory name into a DNS label and
+uses it under `.localhost`:
+
+```text
+HWT_WORKTREE_HOSTNAME=feature-login.localhost
+HWT_URL_WEB=http://feature-login.web.localhost:20000
+HWT_URL_ASSETS=http://feature-login.assets.localhost:20001
+```
+
+RFC 6761 reserves `localhost` names for loopback resolution. These URLs need no
+sudo, daemon, dnsmasq, Caddy, hosts-file entry, or operating-system setup. They
+remain stable while the worktree keeps its allocated ports. Use the URL variable
+directly in application configuration or inspect it with:
+
+```sh
+hwt env -- printenv HWT_URL_WEB
+```
+
+`HWT_WORKTREE_HOSTNAME` is the generic worktree hostname and does not include a
+service or port. `HWT_URL_<SERVICE>` is the complete browser URL for that
+service. Hyphens in service names become underscores in variable names.
+
+Change `ports.url_template` to use another order or a loopback domain already
+available on your machine. The template supports normalized `{worktree}` and
+`{service}` labels, the generic `{hostname}`, and the allocated `{port}`:
+
+```yaml
+ports:
+  services: [web]
+  url_template: http://{service}.{hostname}:{port}
+```
+
+For a wildcard such as `*.acme.dev`, a fixed hostname can distinguish worktrees
+by port:
+
+```yaml
+ports:
+  services: [web]
+  url_template: https://app.acme.dev:{port}
+```
+
+HWT only generates this URL. The service must speak HTTPS with a certificate
+valid for that hostname, or a separately configured proxy must listen on the
+allocated port and terminate TLS.
 
 ## Lifecycle and conflicts
 
@@ -130,9 +181,9 @@ commands can use mise or `hwt env --`. Direct root-pane injection should wait
 for a Herdr worktree-create environment API rather than sending shell-specific
 `export` text into an interactive pane.
 
-## Caddy and dnsmasq
+## Optional Caddy and dnsmasq
 
-Local DNS is opt-in:
+Managed local DNS is opt-in and replaces the default direct localhost URLs:
 
 ```yaml
 ports:
@@ -158,6 +209,9 @@ the same label are rejected. `.env.worktree` exposes the base hostname as
 `HWT_WORKTREE_HOSTNAME` and each service URL as `HWT_URL_<SERVICE>`. The
 `{hostname}` named-URL placeholder exposes the same base hostname, so a project
 can configure `urls.local: http://web.{hostname}` and use `hwt url local`.
+Managed URLs omit ports because Caddy proxies each hostname to its allocated
+service port. This behavior is unchanged and `{hostname}` remains available only
+when `local_dns.enabled` is true.
 
 `hwt dns setup` creates and reports these HWT-owned files under
 `${XDG_STATE_HOME:-~/.local/state}/hwt/local-dns/`:

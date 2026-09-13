@@ -57,6 +57,7 @@ hwt env
 hwt env --json
 hwt env --refresh
 hwt env -- bin/dev
+hwt env -- printenv HWT_URL_WEB
 hwt dns setup --json
 hwt dns status --json
 hwt list
@@ -90,7 +91,7 @@ hwt completion zsh
 
 `hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
 
-`hwt env` creates or refreshes the ignored `.env.worktree` file and reports its path. Pass `--json` to inspect values, `--refresh` to replace allocated ports, or `-- COMMAND...` to run a development command with the variables in its process environment.
+`hwt env` creates or refreshes the ignored `.env.worktree` file and reports its path. Pass `--json` to inspect values, `--refresh` to replace allocated ports, or `-- COMMAND...` to run a development command with the variables in its process environment. Without managed local DNS, every configured service gets a zero-setup RFC 6761 URL such as `http://feature-login.web.localhost:20000`; these `.localhost` names resolve to loopback without sudo, a daemon, or OS configuration. Customize the direct URL with `ports.url_template`, for example `https://app.acme.dev:{port}` for a wildcard loopback domain and a service that terminates TLS on its allocated port.
 
 `hwt dns setup` generates HWT-owned dnsmasq and Caddy snippets under the XDG state directory for user-managed services. When `local_dns.enabled` is set, environment creation registers stable per-service URLs, refresh updates upstream ports, and successful worktree removal unregisters routes. HWT never edits system configuration, invokes `sudo`, or manages listeners.
 
@@ -132,6 +133,7 @@ ports:
   start: 20000
   end: 39999
   services: [web, assets]
+  url_template: http://{worktree}.{service}.localhost:{port}
 
 local_dns:
   enabled: true
@@ -168,7 +170,7 @@ Do not put credentials in tracked `metadata.values`. Use a lazy metadata command
 
 Repository is the primary checkout directory name; worktree is the current checkout directory name. Sanitization lowercases ASCII letters, replaces runs outside `a-z0-9` with `-`, trims separators, and limits the result to 63 characters. Every substitution is UTF-8 percent-encoded except RFC 3986 unreserved characters (`A-Z`, `a-z`, `0-9`, `-._~`). Unknown, malformed, or missing placeholders are rejected before output or browser opening. To migrate, replace the `preview_url` key with a `preview` entry under `urls`.
 
-HWT reserves stable, collision-free ports in `${XDG_STATE_HOME:-~/.local/state}/hwt/ports.json` under a process lock. It writes `HWT_PORT_WEB`, `HWT_PORT_ASSETS`, the worktree path and branch, and configured non-secret variables to a mode-`0600` `.env.worktree`. The generated file is added to Git's repository-local exclude file and is available to `post_create`; see the [environment design](website/src/content/docs/worktree-environment.md) for lifecycle, security, mise, Herdr, and reverse-proxy details.
+HWT reserves stable, collision-free ports in `${XDG_STATE_HOME:-~/.local/state}/hwt/ports.json` under a process lock. It writes `HWT_PORT_WEB`, `HWT_URL_WEB`, `HWT_WORKTREE_HOSTNAME`, the worktree path and branch, and configured non-secret variables to a mode-`0600` `.env.worktree`. The generated file is added to Git's repository-local exclude file and is available to `post_create`; see the [environment design](website/src/content/docs/worktree-environment.md) for lifecycle, security, mise, Herdr, and reverse-proxy details.
 
 Copy entries may be path strings or objects. Strings inherit the `files.parallel` and `files.copy_on_write` defaults; object entries can override either setting. Copies run in parallel by default and all finish before post-create commands run. An entry with `parallel: false` waits for prior parallel copies, runs alone, and blocks later copies until it finishes.
 

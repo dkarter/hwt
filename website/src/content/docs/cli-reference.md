@@ -30,7 +30,7 @@ hwt --herdr-bin /path/to/herdr list
 - [`hwt review`](/docs/cli/review-pull-request/) fetches a pull request or branch into a dedicated review workspace.
 - [`hwt url preview`](/docs/cli/open-preview-environment/) resolves the configured preview environment for a branch.
 - `hwt url NAME [branch] [--json, --open]` resolves any configured named URL. `hwt url --json` resolves every name.
-- `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment.
+- `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment, including zero-setup `HWT_URL_<SERVICE>` localhost URLs.
 
 ## Local DNS
 

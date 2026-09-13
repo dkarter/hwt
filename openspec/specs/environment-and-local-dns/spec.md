@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provide stable per-worktree ports, generated environments, and opt-in local routes.
+Provide stable per-worktree ports, zero-setup localhost URLs, generated environments, and opt-in managed local routes.
 
 ## Requirements
 
@@ -34,6 +34,8 @@ HWT SHALL write `.env.worktree` with generated identity and port variables plus 
 - WHEN the user runs `hwt env`
 - THEN HWT writes a mode-`0600` ignored dotenv file and prints its path
 - AND `--json` returns the path and complete generated variable map
+- AND when managed local DNS is disabled each service receives a stable RFC 6761 localhost-subdomain URL using its allocated port
+- AND the user may customize direct service URLs with worktree, service, hostname, and port placeholders
 
 #### Scenario: Run with environment {#ENV-004}
 
@@ -64,6 +66,7 @@ HWT SHALL generate and report only HWT-owned dnsmasq, Caddy, and route-registry 
 - GIVEN local DNS is enabled for a linked worktree
 - WHEN create, copy, `hwt env`, or `hwt dns refresh` prepares it
 - THEN HWT registers a stable collision-resistant base hostname and per-service HTTP URLs
+- AND managed service URLs remain portless because Caddy proxies them to the allocated ports
 - AND refresh reconciles routes without replacing ports
 
 #### Scenario: Tear down local DNS {#ENV-008}

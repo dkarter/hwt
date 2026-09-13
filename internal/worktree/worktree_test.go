@@ -388,14 +388,14 @@ func TestEnvironmentAllocatesStableDistinctPortsAndWritesIgnoredFile(t *testing.
 ports:
   start: %d
   end: %d
-  services: [web, assets]
+  services: [web, assets, api_]
 environment:
   variables:
     APP_URL: http://localhost:${HWT_PORT_WEB}
 `, start, start+20))
 	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
 	run(t, repo, "git", "commit", "-m", "configure environment")
-	firstPath := filepath.Join(t.TempDir(), "first")
+	firstPath := filepath.Join(t.TempDir(), "Feature API ++")
 	secondPath := filepath.Join(t.TempDir(), "second")
 	run(t, repo, "git", "worktree", "add", "-b", "first-env", firstPath, "main")
 	run(t, repo, "git", "worktree", "add", "-b", "second-env", secondPath, "main")
@@ -417,6 +417,15 @@ environment:
 	}
 	if first.Variables["HWT_PORT_WEB"] == first.Variables["HWT_PORT_ASSETS"] || first.Variables["HWT_PORT_WEB"] == second.Variables["HWT_PORT_WEB"] {
 		t.Fatalf("allocations collided: first=%#v second=%#v", first.Variables, second.Variables)
+	}
+	if first.Variables["HWT_WORKTREE_HOSTNAME"] != "feature-api.localhost" {
+		t.Fatalf("localhost hostname = %q", first.Variables["HWT_WORKTREE_HOSTNAME"])
+	}
+	if first.Variables["HWT_URL_WEB"] != "http://feature-api.web.localhost:"+first.Variables["HWT_PORT_WEB"] || first.Variables["HWT_URL_ASSETS"] != "http://feature-api.assets.localhost:"+first.Variables["HWT_PORT_ASSETS"] {
+		t.Fatalf("localhost URLs = %#v", first.Variables)
+	}
+	if first.Variables["HWT_URL_API_"] != "http://feature-api.api.localhost:"+first.Variables["HWT_PORT_API_"] {
+		t.Fatalf("localhost URL did not normalize trailing separator: %#v", first.Variables)
 	}
 	if first.Variables["APP_URL"] != "http://localhost:"+first.Variables["HWT_PORT_WEB"] {
 		t.Fatalf("variable was not expanded: %#v", first.Variables)
