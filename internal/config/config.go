@@ -69,12 +69,13 @@ type Metadata struct {
 }
 
 type NamedURL struct {
-	Template string `json:"template" yaml:"template"`
+	Template string `json:"template,omitempty" yaml:"template,omitempty"`
+	Service  string `json:"service,omitempty" yaml:"service,omitempty"`
 	Label    string `json:"label,omitempty" yaml:"label,omitempty"`
 }
 
 func (entry NamedURL) MarshalJSON() ([]byte, error) {
-	if entry.Label == "" {
+	if entry.Label == "" && entry.Service == "" {
 		return json.Marshal(entry.Template)
 	}
 	type object NamedURL
@@ -88,11 +89,17 @@ func (entry *NamedURL) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return errors.New("URL entry must be a template string or object")
 	}
-	hasTemplate := false
+	hasTemplate, hasService := false, false
 	for index := 0; index < len(node.Content); index += 2 {
 		switch key := node.Content[index].Value; key {
 		case "template":
 			hasTemplate = true
+		case "service":
+			hasService = true
+			service := node.Content[index+1]
+			if service.Tag != "!!str" || service.Value == "" {
+				return errors.New("URL entry service must be a non-empty string")
+			}
 		case "label":
 			label := node.Content[index+1]
 			if label.Tag != "!!str" || label.Value == "" {
@@ -102,8 +109,8 @@ func (entry *NamedURL) UnmarshalYAML(node *yaml.Node) error {
 			return fmt.Errorf("unknown URL entry field %q", key)
 		}
 	}
-	if !hasTemplate {
-		return errors.New("URL entry object requires template")
+	if hasTemplate == hasService {
+		return errors.New("URL entry object requires exactly one of template or service")
 	}
 	type plain NamedURL
 	return node.Decode((*plain)(entry))
@@ -435,7 +442,12 @@ func Validate(cfg Config) error {
 		if !validServiceName(name) {
 			return fmt.Errorf("URL name %q must start with a letter and contain only letters, numbers, underscores, or hyphens", name)
 		}
-		if err := urltemplate.ValidateTemplate(entry.Template); err != nil {
+		if entry.Service != "" {
+			configured, exists := serviceNames[PortEnvironmentName(entry.Service)]
+			if !exists || configured != entry.Service {
+				return fmt.Errorf("urls.%s references port service %q, which is not configured under ports.services", name, entry.Service)
+			}
+		} else if err := urltemplate.ValidateTemplate(entry.Template); err != nil {
 			return fmt.Errorf("urls.%s: %w", name, err)
 		}
 	}

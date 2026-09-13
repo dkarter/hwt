@@ -186,16 +186,26 @@ Text prepended to the generated checkout name.
 
 ### `urls` and `metadata`
 
-`urls` maps arbitrary names to absolute URL templates. A value can be a template
-string or an object with a required `template` and optional display `label`:
+`urls` maps arbitrary names to URL templates or generated service URLs. A value
+can be a template string, an object with `template`, or an object with `service`.
+Objects may include a display `label`:
 
 ```yaml
 urls:
-  local: http://web.{hostname}
+  local:
+    service: web
+    label: Local app
   preview:
     template: https://{sanitized_branch}.preview.example.com
     label: Branch preview
 ```
+
+`service` must match an entry in `ports.services`. Running `hwt url local` from
+a linked worktree allocates or reuses the service port and returns the complete
+generated `HWT_URL_<SERVICE>` value verbatim. This is the simplest way to expose
+a local URL customized by `ports.url_template`; it does not percent-encode the
+scheme, hostname, or port. Service URLs are worktree-local and cannot be resolved
+for an explicit branch.
 
 HWT includes a `pr` URL for GitHub by default. Global and repository maps merge
 by name, with repository entries winning, so an `urls.pr` entry can target

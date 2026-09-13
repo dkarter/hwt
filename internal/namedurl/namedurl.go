@@ -83,10 +83,11 @@ func (runner *memoRunner) Run(cwd, name string, args ...string) ([]byte, error) 
 }
 
 type dependencies struct {
-	commands   runner
-	loadConfig func(string, ...string) (config.Config, config.Sources, error)
-	readTicket func(string) (map[string]string, error)
-	resolvePR  func(pullrequest.Options) (pullrequest.Reference, error)
+	commands    runner
+	loadConfig  func(string, ...string) (config.Config, config.Sources, error)
+	readTicket  func(string) (map[string]string, error)
+	resolvePR   func(pullrequest.Options) (pullrequest.Reference, error)
+	environment func(string, bool) (worktree.EnvironmentResult, error)
 }
 
 func Resolve(options Options) (Result, error) {
@@ -95,10 +96,11 @@ func Resolve(options Options) (Result, error) {
 
 func defaultDependencies() dependencies {
 	return dependencies{
-		commands:   commandRunner{},
-		loadConfig: config.Load,
-		readTicket: worktree.ReadTicketMetadata,
-		resolvePR:  pullrequest.ResolveReference,
+		commands:    commandRunner{},
+		loadConfig:  config.Load,
+		readTicket:  worktree.ReadTicketMetadata,
+		resolvePR:   pullrequest.ResolveReference,
+		environment: worktree.Environment,
 	}
 }
 
@@ -124,6 +126,20 @@ func resolve(deps dependencies, options Options) (Result, error) {
 	entry, exists := cfg.URLs[options.Name]
 	if !exists {
 		return Result{}, fmt.Errorf("URL %q is not configured under urls", options.Name)
+	}
+	if entry.Service != "" {
+		if options.Branch != "" {
+			return Result{}, errors.New("service URLs are unavailable for an explicit branch; omit the branch argument")
+		}
+		environment, err := deps.environment(topLevel, false)
+		if err != nil {
+			return Result{}, fmt.Errorf("resolve service URL %q: %w", options.Name, err)
+		}
+		serviceURL, exists := environment.Variables[config.URLEnvironmentName(entry.Service)]
+		if !exists {
+			return Result{}, fmt.Errorf("resolve service URL %q: generated URL for service %q is unavailable", options.Name, entry.Service)
+		}
+		return Result{Name: options.Name, URL: serviceURL, Label: entry.Label}, nil
 	}
 	placeholders, err := urltemplate.Placeholders(entry.Template)
 	if err != nil {
@@ -338,6 +354,26 @@ func memoize(deps dependencies) dependencies {
 		reference, err := resolvePR(options)
 		pullRequestCache[options] = pullRequestResponse{reference: reference, err: err}
 		return reference, err
+	}
+
+	type environmentKey struct {
+		root    string
+		refresh bool
+	}
+	type environmentResponse struct {
+		result worktree.EnvironmentResult
+		err    error
+	}
+	environmentCache := map[environmentKey]environmentResponse{}
+	environment := deps.environment
+	deps.environment = func(root string, refresh bool) (worktree.EnvironmentResult, error) {
+		key := environmentKey{root: root, refresh: refresh}
+		if response, ok := environmentCache[key]; ok {
+			return response.result, response.err
+		}
+		result, err := environment(root, refresh)
+		environmentCache[key] = environmentResponse{result: result, err: err}
+		return result, err
 	}
 	return deps
 }

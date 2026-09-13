@@ -10,6 +10,7 @@ import (
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/localdns"
 	"github.com/dkarter/hwt/internal/pullrequest"
+	"github.com/dkarter/hwt/internal/worktree"
 )
 
 type response struct {
@@ -42,6 +43,47 @@ func testDependencies(commands runner, cfg config.Config) dependencies {
 		resolvePR: func(pullrequest.Options) (pullrequest.Reference, error) {
 			return pullrequest.Reference{}, errors.New("unexpected PR lookup")
 		},
+		environment: func(string, bool) (worktree.EnvironmentResult, error) {
+			return worktree.EnvironmentResult{}, errors.New("unexpected environment generation")
+		},
+	}
+}
+
+func TestResolveServiceURLVerbatim(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"local": {Service: "web", Label: "Local app"},
+	}}
+	deps := testDependencies(commands, cfg)
+	deps.environment = func(root string, refresh bool) (worktree.EnvironmentResult, error) {
+		if root != "/worktrees/current" || refresh {
+			t.Fatalf("environment request = %q, %t", root, refresh)
+		}
+		return worktree.EnvironmentResult{Variables: map[string]string{
+			"HWT_URL_WEB": "http://web.feature.localhost:23456",
+		}}, nil
+	}
+
+	result, err := resolve(deps, Options{Name: "local", CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Result{Name: "local", URL: "http://web.feature.localhost:23456", Label: "Local app"}
+	if !reflect.DeepEqual(result, want) {
+		t.Fatalf("result = %#v, want %#v", result, want)
+	}
+	if len(commands.calls) != 1 {
+		t.Fatalf("service URL performed unnecessary lookups: %#v", commands.calls)
+	}
+}
+
+func TestResolveServiceURLRejectsExplicitBranch(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{"local": {Service: "web"}}}
+
+	_, err := resolve(testDependencies(commands, cfg), Options{Name: "local", CWD: "/worktrees/current", Branch: "other"})
+	if err == nil || !strings.Contains(err.Error(), "unavailable for an explicit branch") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
@@ -142,6 +184,31 @@ func TestResolveAllCachesSharedRepositoryAndMetadataLookups(t *testing.T) {
 	}
 	if len(commands.calls) != 3 {
 		t.Fatalf("shared lookups ran more than once: %#v", commands.calls)
+	}
+}
+
+func TestResolveAllCachesServiceEnvironment(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"app":    {Service: "web"},
+		"assets": {Service: "assets"},
+	}}
+	deps := testDependencies(commands, cfg)
+	environmentCalls := 0
+	deps.environment = func(string, bool) (worktree.EnvironmentResult, error) {
+		environmentCalls++
+		return worktree.EnvironmentResult{Variables: map[string]string{
+			"HWT_URL_WEB":    "http://web.localhost:20000",
+			"HWT_URL_ASSETS": "http://assets.localhost:20001",
+		}}, nil
+	}
+
+	results, err := resolveAll(deps, Options{CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || environmentCalls != 1 {
+		t.Fatalf("results = %#v, environment calls = %d", results, environmentCalls)
 	}
 }
 

@@ -40,6 +40,33 @@ metadata:
 	}
 }
 
+func TestURL010_NamedServiceURL(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), `ports:
+  start: 32400
+  end: 32410
+  services: [web]
+  url_template: http://{service}.{hostname}:{port}
+urls:
+  local:
+    service: web
+`, 0o600)
+	s.git(repo, "add", ".herdr-worktree.yaml")
+	s.git(repo, "commit", "-m", "configure service URL")
+	linked := s.linked(repo, "feature/service-url")
+
+	environment := decode(t, s.run(linked, "env", "--json"))
+	variables := environment["variables"].(map[string]any)
+	got := strings.TrimSpace(s.run(linked, "url", "local"))
+	if got != variables["HWT_URL_WEB"] {
+		t.Fatalf("named service URL = %q, generated URL = %#v", got, variables["HWT_URL_WEB"])
+	}
+	if got != "http://web.feature-service-url.localhost:"+variables["HWT_PORT_WEB"].(string) {
+		t.Fatalf("named service URL did not preserve template and port: %q", got)
+	}
+}
+
 func TestURL008_URL009_ListAndCompleteConfiguredURLs(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()

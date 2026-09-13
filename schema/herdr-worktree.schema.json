@@ -89,7 +89,7 @@
     },
     "urls": {
       "type": "object",
-      "description": "Named absolute URL templates exposed through hwt url. Values may be template strings or objects with a template and optional display label. The default pr entry targets GitHub and can be overridden. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
+      "description": "Named URLs exposed through hwt url. Values may be template strings, template objects, or service objects that return a configured port service's generated URL verbatim. Objects may have an optional display label. The default pr entry targets GitHub and can be overridden. Built-in template placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
       "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
       "additionalProperties": {
         "oneOf": [
@@ -106,11 +106,25 @@
               "template": { "type": "string", "minLength": 1, "format": "uri-template" },
               "label": { "type": "string", "minLength": 1 }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["service"],
+            "properties": {
+              "service": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+                "description": "Configured ports.services entry whose generated current-worktree URL is returned verbatim."
+              },
+              "label": { "type": "string", "minLength": 1 }
+            }
           }
         ]
       },
       "examples": [
         {
+          "local": { "service": "web", "label": "Local app" },
           "preview": {
             "template": "https://{sanitized_branch}.preview.example.com",
             "label": "Branch preview"

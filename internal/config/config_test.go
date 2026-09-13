@@ -230,10 +230,26 @@ func TestLoadMergesNamedURLsAndMetadata(t *testing.T) {
 	}
 }
 
+func TestLoadNamedServiceURL(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ports:\n  services: [web]\nurls:\n  local:\n    service: web\n    label: Local app\n")
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URLs["local"] != (NamedURL{Service: "web", Label: "Local app"}) {
+		t.Fatalf("unexpected service URL: %#v", cfg.URLs["local"])
+	}
+}
+
 func TestLoadRejectsInvalidNamedURLObjects(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	for _, contents := range []string{
 		"urls:\n  preview:\n    label: Preview\n",
+		"urls:\n  preview:\n    service: ''\n",
+		"urls:\n  preview:\n    template: https://example.com\n    service: web\n",
 		"urls:\n  preview:\n    template: https://example.com\n    label: null\n",
 		"urls:\n  preview:\n    template: https://example.com\n    label: ''\n",
 		"urls:\n  preview:\n    template: https://example.com\n    unknown: value\n",
@@ -247,16 +263,28 @@ func TestLoadRejectsInvalidNamedURLObjects(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnknownNamedURLService(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ports:\n  services: [api]\nurls:\n  local:\n    service: web\n")
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), `urls.local references port service "web"`) {
+		t.Fatalf("expected unknown service error, got %v", err)
+	}
+}
+
 func TestNamedURLJSONPreservesScalarCompatibility(t *testing.T) {
 	value := map[string]NamedURL{
 		"local":   {Template: "https://local.example"},
 		"preview": {Template: "https://preview.example", Label: "Branch preview"},
+		"service": {Service: "web"},
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"local":"https://local.example","preview":{"template":"https://preview.example","label":"Branch preview"}}`
+	want := `{"local":"https://local.example","preview":{"template":"https://preview.example","label":"Branch preview"},"service":{"service":"web"}}`
 	if string(encoded) != want {
 		t.Fatalf("JSON = %s, want %s", encoded, want)
 	}
