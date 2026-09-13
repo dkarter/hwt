@@ -165,7 +165,6 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "maxLength": 63,
             "pattern": "^(<global>|[A-Za-z][A-Za-z0-9_-]*)$"
           }
         },

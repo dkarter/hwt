@@ -505,7 +505,6 @@ func TestLoadRejectsInvalidPortConfiguration(t *testing.T) {
 	tests := []string{
 		"ports:\n  start: 40000\n  end: 30000\n",
 		"ports:\n  services: [web-api, web_api]\n",
-		"ports:\n  services: [" + strings.Repeat("a", 64) + "]\n",
 		"ports:\n  url_template: http://{unknown}.localhost\n",
 		"ports:\n  url_template: /{worktree}\n",
 		"environment:\n  variables:\n    HWT_PORT_WEB: override\n",
@@ -516,6 +515,20 @@ func TestLoadRejectsInvalidPortConfiguration(t *testing.T) {
 		if _, _, err := Load(repo); err == nil {
 			t.Fatalf("expected invalid configuration for %q", contents)
 		}
+	}
+}
+
+func TestLongPortServiceRemainsValidWithoutManagedDNS(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	service := strings.Repeat("a", 64)
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ports:\n  services: ["+service+"]\n")
+	if _, _, err := Load(repo); err != nil {
+		t.Fatalf("long service with direct URL: %v", err)
+	}
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ports:\n  services: ["+service+"]\nlocal_dns:\n  enabled: true\n")
+	if _, _, err := Load(repo); err == nil || !strings.Contains(err.Error(), "63-byte local DNS label") {
+		t.Fatalf("managed DNS long service error = %v", err)
 	}
 }
 
