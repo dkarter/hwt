@@ -30,6 +30,9 @@ type Reference struct {
 	Number     int
 }
 
+// ErrNotFound indicates that the requested branch has no pull request.
+var ErrNotFound = errors.New("pull request not found")
+
 type Metadata struct {
 	Number            int    `json:"number"`
 	URL               string `json:"url"`
@@ -232,6 +235,9 @@ func lookup(commands runner, options Options, fields string) ([]byte, string, er
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return nil, "", errors.New("GitHub CLI (gh) is required to resolve pull requests; install it and authenticate with gh auth login")
+		}
+		if strings.Contains(err.Error(), "no pull requests found for branch") {
+			return nil, "", fmt.Errorf("%w: %v", ErrNotFound, err)
 		}
 		return nil, "", fmt.Errorf("query GitHub pull requests: %w", err)
 	}

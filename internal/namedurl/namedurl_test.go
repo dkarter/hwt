@@ -145,6 +145,45 @@ func TestResolveAllCachesSharedRepositoryAndMetadataLookups(t *testing.T) {
 	}
 }
 
+func TestResolveAllSkipsURLsWhenBranchHasNoPullRequest(t *testing.T) {
+	commands := &fakeRunner{responses: []response{
+		{output: "/worktrees/current\n"},
+		{output: "main\n"},
+	}}
+	cfg := config.Config{URLs: map[string]string{
+		"branch":  "https://example.com/{branch}",
+		"pr":      "https://example.com/pull/{pr_number}",
+		"preview": "https://preview.example/pr-{pr_number}",
+	}}
+	deps := testDependencies(commands, cfg)
+	deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
+		return pullrequest.Reference{}, pullrequest.ErrNotFound
+	}
+
+	results, err := resolveAll(deps, Options{CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Result{{Name: "branch", URL: "https://example.com/main"}}
+	if !reflect.DeepEqual(results, want) {
+		t.Fatalf("results = %#v, want %#v", results, want)
+	}
+}
+
+func TestResolveAllPreservesOtherPullRequestErrors(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
+	cfg := config.Config{URLs: map[string]string{"pr": "https://example.com/pull/{pr_number}"}}
+	deps := testDependencies(commands, cfg)
+	deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
+		return pullrequest.Reference{}, errors.New("authentication failed")
+	}
+
+	_, err := resolveAll(deps, Options{CWD: "/worktrees/current"})
+	if err == nil || !strings.Contains(err.Error(), "authentication failed") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestResolveBuiltInGitAndWorktreeMetadata(t *testing.T) {
 	commands := &fakeRunner{responses: []response{
 		{output: "/worktrees/app-feature\n"},

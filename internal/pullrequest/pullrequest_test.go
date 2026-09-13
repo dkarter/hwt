@@ -191,3 +191,11 @@ func TestResolveActionableErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveClassifiesMissingPullRequest(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "true"}, {err: errors.New("no pull requests found for branch \"main\"")}}}
+	_, err := resolve(commands, Options{CWD: "/repo", Branch: "main", Repository: "acme/app"})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("error = %v, want ErrNotFound", err)
+	}
+}
