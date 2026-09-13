@@ -128,7 +128,7 @@ func TestConfiguredPreviewURLJSONDoesNotOpenBrowser(t *testing.T) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %s: %v", output, err)
 	}
-	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("urls:\n  preview: https://preview.example/{branch}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-worktree.yaml"), []byte("urls:\n  preview:\n    template: https://preview.example/{branch}\n    label: Branch preview\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +139,7 @@ func TestConfiguredPreviewURLJSONDoesNotOpenBrowser(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if output.String() != "{\n  \"name\": \"preview\",\n  \"url\": \"https://preview.example/feature%2Ftest\"\n}\n" {
+	if output.String() != "{\n  \"name\": \"preview\",\n  \"url\": \"https://preview.example/feature%2Ftest\",\n  \"label\": \"Branch preview\"\n}\n" {
 		t.Fatalf("unexpected output: %q", output.String())
 	}
 }

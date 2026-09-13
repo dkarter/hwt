@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -161,7 +162,7 @@ func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.URLs["pr"] != "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}" {
+	if cfg.URLs["pr"].Template != "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}" {
 		t.Fatalf("unexpected default pull request URL: %q", cfg.URLs["pr"])
 	}
 
@@ -170,7 +171,7 @@ func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.URLs["pr"] != "https://gitlab.example/group/project/-/merge_requests?source_branch={branch}" {
+	if cfg.URLs["pr"].Template != "https://gitlab.example/group/project/-/merge_requests?source_branch={branch}" {
 		t.Fatalf("pull request URL was not overridden: %q", cfg.URLs["pr"])
 	}
 }
@@ -208,21 +209,56 @@ func TestLoadMergesNamedURLsAndMetadata(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 	repo := t.TempDir()
-	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  ticket: https://tickets.example/{ticket.identifier}\n  preview: https://global.example/{branch}\nmetadata:\n  values:\n    region: global\n    shared: global\n  commands:\n    deploy: [global-deploy, --json]\n")
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  ticket:\n    template: https://tickets.example/{ticket.identifier}\n    label: Ticket\n  preview:\n    template: https://global.example/{branch}\n    label: Global preview\nmetadata:\n  values:\n    region: global\n    shared: global\n  commands:\n    deploy: [global-deploy, --json]\n")
 	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview: https://{sanitized_branch}.project.example/{repository}\nmetadata:\n  values:\n    region: project\n  commands:\n    deploy: [project-deploy, --json]\n")
 
 	cfg, _, err := Load(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.URLs["ticket"] != "https://tickets.example/{ticket.identifier}" || cfg.URLs["preview"] != "https://{sanitized_branch}.project.example/{repository}" {
+	if cfg.URLs["ticket"].Template != "https://tickets.example/{ticket.identifier}" || cfg.URLs["preview"].Template != "https://{sanitized_branch}.project.example/{repository}" {
 		t.Fatalf("unexpected URLs: %#v", cfg.URLs)
+	}
+	if cfg.URLs["ticket"].Label != "Ticket" || cfg.URLs["preview"].Label != "" {
+		t.Fatalf("unexpected URL labels: %#v", cfg.URLs)
 	}
 	if !reflect.DeepEqual(cfg.Metadata.Values, map[string]string{"region": "project", "shared": "global"}) {
 		t.Fatalf("unexpected metadata values: %#v", cfg.Metadata.Values)
 	}
 	if !reflect.DeepEqual(cfg.Metadata.Commands["deploy"], []string{"project-deploy", "--json"}) {
 		t.Fatalf("unexpected metadata command: %#v", cfg.Metadata.Commands)
+	}
+}
+
+func TestLoadRejectsInvalidNamedURLObjects(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, contents := range []string{
+		"urls:\n  preview:\n    label: Preview\n",
+		"urls:\n  preview:\n    template: https://example.com\n    label: null\n",
+		"urls:\n  preview:\n    template: https://example.com\n    label: ''\n",
+		"urls:\n  preview:\n    template: https://example.com\n    unknown: value\n",
+		"urls:\n  preview:\n    template: 42\n",
+	} {
+		repo := t.TempDir()
+		writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), contents)
+		if _, _, err := Load(repo); err == nil {
+			t.Fatalf("expected URL object validation error for %q", contents)
+		}
+	}
+}
+
+func TestNamedURLJSONPreservesScalarCompatibility(t *testing.T) {
+	value := map[string]NamedURL{
+		"local":   {Template: "https://local.example"},
+		"preview": {Template: "https://preview.example", Label: "Branch preview"},
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"local":"https://local.example","preview":{"template":"https://preview.example","label":"Branch preview"}}`
+	if string(encoded) != want {
+		t.Fatalf("JSON = %s, want %s", encoded, want)
 	}
 }
 

@@ -89,14 +89,34 @@
     },
     "urls": {
       "type": "object",
-      "description": "Named absolute URL templates exposed through hwt url. The default pr entry targets GitHub and can be overridden. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
+      "description": "Named absolute URL templates exposed through hwt url. Values may be template strings or objects with a template and optional display label. The default pr entry targets GitHub and can be overridden. Built-in placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
       "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
       "additionalProperties": {
-        "type": "string",
-        "minLength": 1,
-        "format": "uri-template"
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "format": "uri-template"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["template"],
+            "properties": {
+              "template": { "type": "string", "minLength": 1, "format": "uri-template" },
+              "label": { "type": "string", "minLength": 1 }
+            }
+          }
+        ]
       },
-      "examples": [{ "preview": "https://{sanitized_branch}.preview.example.com" }]
+      "examples": [
+        {
+          "preview": {
+            "template": "https://{sanitized_branch}.preview.example.com",
+            "label": "Branch preview"
+          }
+        }
+      ]
     },
     "metadata": {
       "type": "object",
