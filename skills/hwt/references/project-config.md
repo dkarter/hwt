@@ -24,7 +24,18 @@ hwt schema
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
-ticket_command: [lnr, quick, --json]
+# Optional example for Linear users:
+ticket_commands:
+  default:
+    command: [lnr, issue, search, --json, '{input}']
+    output:
+      branch: branchName
+      metadata: { identifier: issueId, title: title, url: url }
+  create:
+    command: [lnr, quick, '{input}', --json]
+    output:
+      branch: branchName
+      metadata: { identifier: issueId, title: title, url: url }
 review_command: [tuicr]
 worktree_dir: ../
 worktree_naming: full
@@ -75,8 +86,13 @@ be inserted.
 ## Choosing Settings
 
 - `agent`: Set the command an orchestrator should start in the root pane.
-- `ticket_command`: Set an argv array for ticket-backed creation. HWT appends the
-  task description as one argument and expects JSON with a string `branchName`.
+- `ticket_commands`: Optionally configure named ticket command objects. Plain
+  `--ticket` selects `default`; `--ticket=NAME` selects another. `{input}` places
+  the optional positional value in argv without a shell. An exact placeholder
+  argument is omitted when no input is supplied. Stdout is reserved for final
+  JSON, so interactive UI must use stderr. Output selectors map JSON
+  string fields to the branch and persisted ticket metadata. Global and
+  repository commands merge by name, with repository entries winning.
 - `review_command`: Set the argv launched by `hwt review`; the default is
   `[tuicr]`. Repository configuration replaces the global argv. HWT adds no PR,
   branch, title, or URL arguments and shell-quotes each configured argument

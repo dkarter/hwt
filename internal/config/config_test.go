@@ -79,7 +79,11 @@ func TestLoadMergesGlobalAndProjectConfig(t *testing.T) {
 	repo := t.TempDir()
 	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), `
 agent: global-agent
-ticket_command: [global-tickets, create, --json]
+ticket_commands:
+  default:
+    command: [global-tickets, search, --json, '{input}']
+  create:
+    command: [global-tickets, create, '{input}', --json]
 review_command: [global-review]
 worktree_dir: ~/.herdr/worktrees
 files:
@@ -89,7 +93,11 @@ post_create: [global-command]
 `)
 	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `
 agent: repo-agent
-ticket_command: [project-tickets, quick]
+ticket_commands:
+  create:
+    command: [project-tickets, quick, '{input}', --json]
+    output:
+      branch: data.gitBranch
 review_command: [project-review, --local]
 worktree_prefix: repo-
 files:
@@ -105,8 +113,11 @@ post_create: [<global>, local-command]
 	if cfg.Agent != "repo-agent" || cfg.WorktreeDir != "~/.herdr/worktrees" || cfg.WorktreePrefix != "repo-" {
 		t.Fatalf("unexpected scalar merge: %#v", cfg)
 	}
-	if !reflect.DeepEqual(cfg.TicketCommand, []string{"project-tickets", "quick"}) {
-		t.Fatalf("project ticket command did not replace global command: %#v", cfg.TicketCommand)
+	if !reflect.DeepEqual(cfg.TicketCommands["create"], TicketCommand{Command: []string{"project-tickets", "quick", "{input}", "--json"}, Output: TicketCommandOutput{Branch: "data.gitBranch"}}) {
+		t.Fatalf("project ticket command did not replace global command: %#v", cfg.TicketCommands["create"])
+	}
+	if !reflect.DeepEqual(cfg.TicketCommands["default"].Command, []string{"global-tickets", "search", "--json", "{input}"}) {
+		t.Fatalf("global named ticket command was not retained: %#v", cfg.TicketCommands)
 	}
 	if !reflect.DeepEqual(cfg.ReviewCommand, []string{"project-review", "--local"}) {
 		t.Fatalf("project review command did not replace global command: %#v", cfg.ReviewCommand)
@@ -130,15 +141,15 @@ post_create: [<global>, local-command]
 	}
 }
 
-func TestLoadDefaultsTicketCommandToLNR(t *testing.T) {
+func TestLoadHasNoDefaultTicketCommands(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg, _, err := Load(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(cfg.TicketCommand, []string{"lnr", "quick", "--json"}) {
-		t.Fatalf("unexpected default ticket command: %#v", cfg.TicketCommand)
+	if cfg.TicketCommands != nil {
+		t.Fatalf("unexpected default ticket commands: %#v", cfg.TicketCommands)
 	}
 }
 
@@ -176,17 +187,20 @@ func TestLoadDefaultsReviewCommandToTuicr(t *testing.T) {
 	}
 }
 
-func TestLoadUsesGlobalTicketCommand(t *testing.T) {
+func TestLoadUsesGlobalTicketCommands(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "ticket_command: [tickets, create, --json]\n")
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "ticket_commands:\n  default:\n    command: [tickets, search, --json, '{input}']\n")
 
 	cfg, _, err := Load(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(cfg.TicketCommand, []string{"tickets", "create", "--json"}) {
-		t.Fatalf("unexpected global ticket command: %#v", cfg.TicketCommand)
+	if !reflect.DeepEqual(cfg.TicketCommands["default"].Command, []string{"tickets", "search", "--json", "{input}"}) {
+		t.Fatalf("unexpected global ticket commands: %#v", cfg.TicketCommands)
+	}
+	if cfg.TicketCommands["default"].Output.Branch != "branchName" {
+		t.Fatalf("default branch selector was not resolved: %#v", cfg.TicketCommands["default"])
 	}
 }
 
@@ -261,12 +275,19 @@ func TestLoadRejectsUnsupportedMetadataCommandPlaceholder(t *testing.T) {
 
 func TestLoadRejectsInvalidTicketCommand(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	repo := t.TempDir()
-	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_command: []\n")
-
-	_, _, err := Load(repo)
-	if err == nil || !strings.Contains(err.Error(), "must contain an executable") {
-		t.Fatalf("expected ticket command validation error, got %v", err)
+	for _, contents := range []string{
+		"ticket_commands:\n  default:\n    command: []\n",
+		"ticket_commands:\n  default:\n    command: ['{input}']\n",
+		"ticket_commands:\n  bad.name:\n    command: [tickets]\n",
+		"ticket_commands:\n  default:\n    command: [tickets]\n    output:\n      branch: bad..selector\n",
+		"ticket_commands:\n  default:\n    command: [tickets]\n    output:\n      metadata:\n        bad..key: issue.id\n",
+		"ticket_commands:\n  default:\n    command: [tickets]\n    output:\n      metadata:\n        identifier: issue..id\n",
+	} {
+		repo := t.TempDir()
+		writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), contents)
+		if _, _, err := Load(repo); err == nil {
+			t.Fatalf("expected ticket command validation error for %q", contents)
+		}
 	}
 }
 

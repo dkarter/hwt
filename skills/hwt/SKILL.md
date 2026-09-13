@@ -10,11 +10,15 @@ Use `hwt` for the lifecycle of Herdr-managed worktrees. Do not mix it with
 
 ## Create
 
-To create a ticket and worktree together, pass the task description as one argument:
+When a configured ticket command should choose the branch, select its name and
+optionally pass an input:
 
 ```bash
-hwt create --cwd <repository-path> --base <base-ref> --json '<description>'
+hwt create --cwd <repository-path> --base <base-ref> --ticket=<name> --json '<input>'
 ```
+
+Plain `--ticket` selects `ticket_commands.default` and may omit the input for an
+interactive picker.
 
 For explicit branch creation, choose a valid new branch name and run:
 
@@ -22,7 +26,9 @@ For explicit branch creation, choose a valid new branch name and run:
 hwt create --cwd <repository-path> --branch <branch> --base <base-ref> --json
 ```
 
-A positional argument is always a ticket description. Never combine it with `--branch`.
+A positional value is a literal branch name unless `--ticket` is passed. Ticket
+commands substitute the optional value through `{input}` and map their JSON
+output to a branch and metadata. Never combine `--ticket` with `--branch`.
 
 Creation is unfocused by default. Parse `workspace_id`, `pane_id`, `path`, and
 `agent` from the JSON response; never derive IDs or predict the configured path.

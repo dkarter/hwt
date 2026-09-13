@@ -444,17 +444,20 @@ func (a *app) createCommand() *cobra.Command {
 	options := worktree.CreateOptions{}
 	jsonOutput := false
 	command := &cobra.Command{
-		Use:   "create [DESCRIPTION]",
+		Use:   "create [branch-or-ticket-input]",
 		Short: "Create and configure a Herdr worktree workspace",
-		Long: "Create from a task description using the configured ticket command, or create an explicit branch with --branch.\n\n" +
-			"The default ticket command is 'lnr quick --json'. HWT appends DESCRIPTION as one argument and expects JSON containing branchName. A positional argument is always a task description and cannot be combined with --branch.",
+		Long: "Create a branch from a literal positional value by default. With --ticket, HWT runs ticket_commands.default; use --ticket=NAME to select another configured command.\n\n" +
+			"Ticket input is optional for commands that provide an interactive picker. The --branch flag cannot be combined with --ticket or a positional value.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
-				options.Description = args[0]
+				options.Input = args[0]
 			}
-			if (options.Branch != "" && len(args) != 0) || (options.Branch == "" && strings.TrimSpace(options.Description) == "") {
-				return errors.New("provide exactly one task description or --branch")
+			if options.Ticket != "" && options.Branch != "" {
+				return errors.New("--ticket cannot be combined with --branch")
+			}
+			if options.Ticket == "" && ((options.Branch != "" && len(args) != 0) || (options.Branch == "" && strings.TrimSpace(options.Input) == "")) {
+				return errors.New("provide exactly one branch name or --branch")
 			}
 			if options.CWD == "" {
 				var err error
@@ -481,6 +484,8 @@ func (a *app) createCommand() *cobra.Command {
 	flags.StringVar(&options.Path, "path", "", "override the configured worktree path")
 	flags.StringVar(&options.Label, "label", "", "Herdr workspace label")
 	flags.BoolVar(&options.Focus, "focus", false, "focus the new workspace")
+	flags.StringVar(&options.Ticket, "ticket", "", "derive the branch with a named ticket command")
+	flags.Lookup("ticket").NoOptDefVal = "default"
 	flags.BoolVar(&jsonOutput, "json", false, "print machine-readable output")
 	return command
 }

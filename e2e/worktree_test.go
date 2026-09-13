@@ -42,32 +42,34 @@ func TestWT001_WT004_WT005_WT007_CLI003_CreateExplicitCopiesHooksAndJSON(t *test
 	}
 }
 
-func TestREV001_URL006_TicketCreatePersistsMetadata(t *testing.T) {
+func TestREV001_URL006_TicketCreatePersistsMappedMetadata(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()
 	herdr := s.fakeHerdr(repo)
 	lnrLog := filepath.Join(s.root, "lnr.args")
 	s.env = append(s.env, "LNR_LOG="+lnrLog)
 	s.tool("lnr", `printf '%s\n' "$@" > "$LNR_LOG"
-printf '%s\n' '{"branchName":"abc-123-ticket","metadata":{"identifier":"ABC-123","title":"Fix spaces"},"ignored":"value"}'`)
-	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "worktree_dir: "+filepath.Join(s.root, "worktrees")+"\nurls:\n  ticket: https://tickets.invalid/{ticket.identifier}/{branch}/{region}\nmetadata:\n  values:\n    region: west\n", 0o600)
+printf '%s\n' '{"issueId":"RMS-96","branchName":"rms-96-just-a-test","title":"just a test","url":"https://linear.app/srms/issue/RMS-96/just-a-test"}'`)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  create:\n    command: [lnr, quick, '{input}', --json]\n    output:\n      branch: branchName\n      metadata:\n        identifier: issueId\n        title: title\n        url: url\nworktree_dir: "+filepath.Join(s.root, "worktrees")+"\nurls:\n  ticket: https://tickets.invalid/{ticket.identifier}/{branch}/{region}\nmetadata:\n  values:\n    region: west\n", 0o600)
 	s.git(repo, "add", ".herdr-worktree.yaml")
 	s.git(repo, "commit", "-m", "add hwt config")
 
-	result := decode(t, s.run(repo, "--herdr-bin", herdr, "create", "Fix spaces safely", "--json"))
+	result := decode(t, s.run(repo, "--herdr-bin", herdr, "create", "--ticket=create", "just a test", "--json"))
 	path := result["path"].(string)
-	if result["branch"] != "abc-123-ticket" {
+	if result["branch"] != "rms-96-just-a-test" {
 		t.Fatalf("ticket branch = %#v", result["branch"])
 	}
-	if got := mustRead(t, lnrLog); got != "quick\n--json\nFix spaces safely\n" {
+	if got := mustRead(t, lnrLog); got != "quick\njust a test\n--json\n" {
 		t.Fatalf("ticket argv = %q", got)
 	}
-	if got := strings.TrimSpace(s.run(path, "url", "ticket")); got != "https://tickets.invalid/ABC-123/abc-123-ticket/west" {
+	if got := strings.TrimSpace(s.run(path, "url", "ticket")); got != "https://tickets.invalid/RMS-96/rms-96-just-a-test/west" {
 		t.Fatalf("ticket URL = %q", got)
 	}
 	metadata := mustRead(t, filepath.Join(s.git(path, "rev-parse", "--git-dir"), "hwt-ticket-metadata-v1.json"))
-	if strings.Contains(metadata, "ignored") || strings.Contains(metadata, "tickets.invalid") || !strings.Contains(metadata, "ABC-123") {
-		t.Fatalf("persisted ticket metadata = %q", metadata)
+	for _, value := range []string{"RMS-96", "just a test", "https://linear.app/srms/issue/RMS-96/just-a-test"} {
+		if !strings.Contains(metadata, value) {
+			t.Fatalf("persisted ticket metadata lacks %q: %q", value, metadata)
+		}
 	}
 }
 
@@ -75,14 +77,61 @@ func TestREV002_InvalidTicketResponseStopsBeforeCreate(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()
 	herdr := s.fakeHerdr(repo)
-	s.tool("lnr", `printf '%s\n' '{"metadata":{"identifier":"ABC-123"}}'`)
+	s.tool("lnr", `printf '%s\n' '{"issueId":"ABC-123"}'`)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  default:\n    command: [lnr, quick, '{input}', --json]\n", 0o600)
 
-	_, stderr, err := s.command(repo, "--herdr-bin", herdr, "create", "invalid ticket")
+	_, stderr, err := s.command(repo, "--herdr-bin", herdr, "create", "--ticket", "invalid ticket")
 	if err == nil || !strings.Contains(stderr, "branchName") {
 		t.Fatalf("invalid ticket response = %q, %v", stderr, err)
 	}
 	if strings.Contains(mustRead(t, filepath.Join(s.root, "herdr.log")), "worktree create") {
 		t.Fatal("invalid ticket response invoked Herdr create")
+	}
+}
+
+func TestREV008_REV009_LiteralBranchCreationWithoutTicket(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		config string
+		args   []string
+	}{
+		{name: "no ticket commands", args: []string{"create", "investigation-cache", "--json"}},
+		{name: "configured command remains opt in", config: "ticket_commands:\n  default:\n    command: [tickets, create, '{input}', --json]\n", args: []string{"create", "investigation-cache", "--json"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := newSandbox(t)
+			repo := s.repo()
+			herdr := s.fakeHerdr(repo)
+			s.tool("tickets", "printf 'ticket command must not run\\n' >&2; exit 99")
+			if test.config != "" {
+				mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), test.config, 0o600)
+			}
+
+			args := append([]string{"--herdr-bin", herdr}, test.args...)
+			result := decode(t, s.run(repo, args...))
+			if result["branch"] != "investigation-cache" {
+				t.Fatalf("literal branch = %#v", result)
+			}
+		})
+	}
+}
+
+func TestREV010_TicketCommandCanSelectExistingTicketWithoutQuery(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	herdr := s.fakeHerdr(repo)
+	lnrLog := filepath.Join(s.root, "lnr.args")
+	s.env = append(s.env, "LNR_LOG="+lnrLog)
+	s.tool("lnr", `printf '%s\n' "$@" > "$LNR_LOG"
+printf '%s\n' '{"branchName":"rms-95-existing-ticket"}'`)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "ticket_commands:\n  default:\n    command: [lnr, issue, search, --json, '{input}']\n", 0o600)
+
+	result := decode(t, s.run(repo, "--herdr-bin", herdr, "create", "--ticket", "--json"))
+	if result["branch"] != "rms-95-existing-ticket" {
+		t.Fatalf("selected ticket branch = %#v", result)
+	}
+	if got := mustRead(t, lnrLog); got != "issue\nsearch\n--json\n" {
+		t.Fatalf("ticket search argv = %q", got)
 	}
 }
 
@@ -110,7 +159,7 @@ func TestWT002_WT003_CreateRejectsInvalidSelectionAndDetachedBase(t *testing.T) 
 
 	for _, args := range [][]string{{"create"}, {"create", "description", "--branch", "feature/both"}} {
 		_, stderr, err := s.command(repo, args...)
-		if err == nil || !strings.Contains(stderr, "provide exactly one task description or --branch") {
+		if err == nil || !strings.Contains(stderr, "provide exactly one branch name or --branch") {
 			t.Fatalf("create %v = %q, %v", args, stderr, err)
 		}
 	}

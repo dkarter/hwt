@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +15,6 @@ import (
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/gitutil"
 	"github.com/dkarter/hwt/internal/herdr"
-	"github.com/dkarter/hwt/internal/metadatajson"
 )
 
 var invalidSlug = regexp.MustCompile(`[^A-Za-z0-9._-]`)
@@ -33,13 +31,14 @@ type Client interface {
 }
 
 type CreateOptions struct {
-	CWD         string
-	Branch      string
-	Description string
-	Base        string
-	Path        string
-	Label       string
-	Focus       bool
+	CWD    string
+	Branch string
+	Input  string
+	Base   string
+	Path   string
+	Label  string
+	Focus  bool
+	Ticket string
 }
 
 type CreateResult struct {
@@ -64,10 +63,13 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("resolve repository root: %w", err)
 	}
-	hasDescription := strings.TrimSpace(options.Description) != ""
-	var ticket ticketResult
-	if (options.Branch != "" && options.Description != "") || (options.Branch == "" && !hasDescription) {
-		return CreateResult{}, errors.New("provide exactly one task description or --branch")
+	hasInput := strings.TrimSpace(options.Input) != ""
+	var generated ticketResult
+	if options.Ticket != "" && options.Branch != "" {
+		return CreateResult{}, errors.New("--ticket cannot be combined with --branch")
+	}
+	if options.Ticket == "" && ((options.Branch != "" && options.Input != "") || (options.Branch == "" && !hasInput)) {
+		return CreateResult{}, errors.New("provide exactly one branch name or --branch")
 	}
 	if options.Base == "" {
 		options.Base, err = gitOutput(repoRoot, "branch", "--show-current")
@@ -87,18 +89,28 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, err
 	}
-	if hasDescription {
+	ticketCommand, commandExists := cfg.TicketCommands[options.Ticket]
+	if options.Ticket != "" && !commandExists {
+		if options.Ticket == "default" {
+			return CreateResult{}, errors.New("--ticket requires ticket_commands.default to be configured")
+		}
+		return CreateResult{}, fmt.Errorf("--ticket=%s requires ticket_commands.%s to be configured", options.Ticket, options.Ticket)
+	}
+	generatedBranch := options.Ticket != ""
+	if generatedBranch {
 		if _, err := gitOutput(repoRoot, "rev-parse", "--verify", "--quiet", options.Base+"^{commit}"); err != nil {
 			return CreateResult{}, fmt.Errorf("base ref %q does not resolve to a commit: %w", options.Base, err)
 		}
-		ticket, err = createTicket(sourceCheckout, cfg.TicketCommand, options.Description)
+		generated, err = runTicketCommand(sourceCheckout, ticketCommand, options.Input)
 		if err != nil {
 			return CreateResult{}, err
 		}
-		options.Branch = ticket.BranchName
+		options.Branch = generated.BranchName
+	} else if hasInput {
+		options.Branch = options.Input
 	}
 	if err := gitRun(repoRoot, "check-ref-format", "--branch", options.Branch); err != nil {
-		if hasDescription {
+		if generatedBranch {
 			return CreateResult{}, fmt.Errorf("invalid branch %q returned by ticket command: %w", options.Branch, err)
 		}
 		return CreateResult{}, fmt.Errorf("invalid branch %q: %w", options.Branch, err)
@@ -107,7 +119,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, err
 	}
-	if hasDescription {
+	if generatedBranch {
 		if branchExists, err := gitBranchExists(repoRoot, options.Branch); err != nil {
 			return CreateResult{}, err
 		} else if branchExists {
@@ -156,7 +168,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		allocationErr := releasePorts(allocationPath)
 		return CreateResult{}, errors.Join(cause, localDNSErr, allocationErr)
 	}
-	if err := writeTicketMetadata(created.Path, ticket.Metadata); err != nil {
+	if err := writeTicketMetadata(created.Path, generated.Metadata); err != nil {
 		return rollback(err)
 	}
 
@@ -186,55 +198,6 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		Config:      sources,
 		Environment: environment,
 	}, nil
-}
-
-func createTicket(cwd string, command []string, description string) (ticketResult, error) {
-	if len(command) == 0 {
-		return ticketResult{}, errors.New("ticket_command must contain an executable")
-	}
-	if !strings.ContainsRune(command[0], filepath.Separator) {
-		if _, err := exec.LookPath(command[0]); err != nil {
-			return ticketResult{}, fmt.Errorf("find ticket command %q: %w", command[0], err)
-		}
-	}
-	arguments := append([]string(nil), command[1:]...)
-	cmd := exec.Command(command[0], append(arguments, description)...)
-	cmd.Dir = cwd
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = strings.TrimSpace(stdout.String())
-		}
-		if message != "" {
-			return ticketResult{}, fmt.Errorf("ticket command %q failed: %s: %w", command[0], message, err)
-		}
-		return ticketResult{}, fmt.Errorf("ticket command %q failed: %w", command[0], err)
-	}
-	var rawResponse struct {
-		BranchName string          `json:"branchName"`
-		Metadata   json.RawMessage `json:"metadata"`
-	}
-	if err := json.Unmarshal(stdout.Bytes(), &rawResponse); err != nil {
-		return ticketResult{}, fmt.Errorf("decode ticket command JSON output: %w", err)
-	}
-	if strings.TrimSpace(rawResponse.BranchName) == "" {
-		return ticketResult{}, errors.New("ticket command JSON output is missing a non-empty branchName")
-	}
-	response := ticketResult{BranchName: rawResponse.BranchName}
-	if len(rawResponse.Metadata) > 0 {
-		metadata, metadataErr := metadatajson.DecodeObject(rawResponse.Metadata)
-		if metadataErr != nil {
-			return ticketResult{}, fmt.Errorf("ticket command JSON output metadata: %w", metadataErr)
-		}
-		response.Metadata = metadata
-	}
-	if err := validateTicketMetadata(response.Metadata); err != nil {
-		return ticketResult{}, fmt.Errorf("ticket command JSON output metadata: %w", err)
-	}
-	return response, nil
 }
 
 func gitBranchExists(cwd, branch string) (bool, error) {

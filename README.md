@@ -50,7 +50,8 @@ When developing locally, use `herdr plugin link ./plugins/herdr` instead.
 ## Commands
 
 ```bash
-hwt create 'describe the work to do'
+hwt create feature/name
+hwt create --ticket=create 'describe the work to do'
 hwt create --branch feature/name --base main --json
 hwt copy
 hwt env
@@ -86,7 +87,7 @@ hwt skill config
 hwt completion zsh
 ```
 
-`hwt create DESCRIPTION` runs `lnr quick --json DESCRIPTION`, reads its `branchName`, and creates that branch through the normal Herdr flow. An optional dedicated string-valued `metadata` object is stored for named URL templates; unrelated top-level output fields are ignored. The description is passed as one process argument without a shell. Use `hwt create --branch BRANCH` for explicit branch creation; a description and `--branch` are mutually exclusive. Creation defaults to the current Git branch as its base and does not change focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
+`hwt create VALUE` uses `VALUE` as the literal branch name. `hwt create --ticket [INPUT]` runs `ticket_commands.default`, while `--ticket=NAME` selects another named command. HWT substitutes the optional input for `{input}` in configured argv, reads the branch and metadata through each command's output selectors, and creates that branch through the normal Herdr flow. An exact `{input}` argument is omitted when no input is supplied, allowing interactive selectors such as `lnr issue search --json`. Use `--branch BRANCH` for the explicit flag form. Creation defaults to the current Git branch as its base and does not change focus. Its JSON result includes the workspace ID, root pane ID, checkout path, base branch, copied files, and configured agent command.
 
 `hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
 
@@ -109,7 +110,19 @@ Global defaults live at `${XDG_CONFIG_HOME:-~/.config}/hwt/config.yaml`. A repos
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/dkarter/hwt/main/schema/herdr-worktree.schema.json
 agent: opencode --port
-ticket_command: [lnr, quick, --json]
+# Optional examples for Linear users:
+ticket_commands:
+  default:
+    command: [lnr, issue, search, --json, '{input}']
+    output: &linear-output
+      branch: branchName
+      metadata:
+        identifier: issueId
+        title: title
+        url: url
+  create:
+    command: [lnr, quick, '{input}', --json]
+    output: *linear-output
 review_command: [tuicr]
 worktree_dir: ../
 worktree_naming: full
@@ -158,11 +171,11 @@ post_create:
   - mise install
 ```
 
-Project values override global values. `ticket_command` and `review_command` are argv arrays and are replaced as a whole. HWT appends the task description to `ticket_command`; it never appends pull request or branch metadata to `review_command`. Every review argument is shell-quoted before the command is submitted to the Herdr pane. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
+Project values override global values. Named `ticket_commands` merge by name, with repository entries winning; `review_command` is replaced as a whole. Ticket command arguments substitute `{input}` directly without a shell. Command stdout is reserved for final JSON; an interactive picker must render its UI on stderr. An exact `{input}` argument is omitted when no input is supplied, while an embedded placeholder such as `--query={input}` requires input. HWT never appends pull request or branch metadata to `review_command`. Every review argument is shell-quoted before the command is submitted to the Herdr pane. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
 
 Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{hostname}`, `{pr_host}`, `{pr_owner}`, `{pr_repository}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. Pull request placeholders are resolved through authenticated `gh`; templates based only on `{branch}` work without it. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
 
-Global and repository URL/metadata maps merge by name, with repository entries winning. During resolution static values load first, persisted `ticket.*` values override matching static values, command namespace values override both, and reserved built-ins win last. Ticket metadata comes only from the ticket command's dedicated `metadata` object, is stored mode `0600` in private per-worktree Git state, and is removed with that worktree. Command results and resolved URLs are never persisted.
+Global and repository URL/metadata maps merge by name, with repository entries winning. During resolution static values load first, persisted `ticket.*` values override matching static values, command namespace values override both, and reserved built-ins win last. Ticket metadata comes from the selected ticket command's configured output mappings, or its dedicated `metadata` object when no mappings are configured. It is stored mode `0600` in private per-worktree Git state and removed with that worktree. Command results and resolved URLs are never persisted.
 
 Do not put credentials in tracked `metadata.values`. Use a lazy metadata command for database passwords, tokens, and other secrets.
 
