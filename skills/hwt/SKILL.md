@@ -72,7 +72,7 @@ GitHub URL unless configuration replaces it. If multiple remotes exist, pass
 the GitHub base repository with `--repo OWNER/REPO`. Resolve a configured
 preview with `hwt url preview [branch]`. An explicit branch cannot use a
 template containing `{worktree}`. Use `hwt url --json` to resolve every
-configured URL.
+available URL; PR-dependent URLs are omitted when the branch has no pull request.
 
 ## Remove
 

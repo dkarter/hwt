@@ -19,9 +19,11 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 
 #### Scenario: List all URLs as JSON {#URL-008}
 
-- GIVEN named URLs that can be resolved for the current branch
+- GIVEN named URLs for the current branch
 - WHEN the user runs `hwt url --json`
-- THEN HWT prints every name and computed URL in deterministic order
+- THEN HWT prints every available name and computed URL in deterministic order
+- AND omits URLs that require pull request metadata when the branch has no pull request
+- AND fails on other URL resolution errors
 
 #### Scenario: Complete configured URL names {#URL-009}
 

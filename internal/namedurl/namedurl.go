@@ -278,6 +278,9 @@ func resolveAll(deps dependencies, options Options) ([]Result, error) {
 	for _, name := range names {
 		options.Name = name
 		result, err := resolve(deps, options)
+		if errors.Is(err, pullrequest.ErrNotFound) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}

@@ -213,8 +213,10 @@ invalid percent escapes, and templates without a URL scheme.
 
 `hwt url NAME [branch]` prints one resolved URL. Add `--open` for HTTP(S) URLs.
 `hwt url --json` computes every configured URL and prints a sorted array of
-name and URL objects. It fails if any configured URL cannot be resolved for the
-current branch.
+name and URL objects. If the current branch has no pull request, it omits URLs
+that require pull request metadata. Other resolution errors still fail the
+command. Resolving a PR-dependent URL by name still reports the missing pull
+request.
 
 `metadata.values` provides static strings. A command under
 `metadata.commands.NAME` is an argv array run directly without a shell only when
