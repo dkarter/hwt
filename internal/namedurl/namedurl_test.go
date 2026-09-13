@@ -43,7 +43,7 @@ func testDependencies(commands runner, cfg config.Config) dependencies {
 		resolvePR: func(pullrequest.Options) (pullrequest.Reference, error) {
 			return pullrequest.Reference{}, errors.New("unexpected PR lookup")
 		},
-		environment: func(string, bool) (worktree.EnvironmentResult, error) {
+		environment: func(string, config.Config, bool) (worktree.EnvironmentResult, error) {
 			return worktree.EnvironmentResult{}, errors.New("unexpected environment generation")
 		},
 	}
@@ -55,9 +55,12 @@ func TestResolveServiceURLVerbatim(t *testing.T) {
 		"local": {Service: "web", Label: "Local app"},
 	}}
 	deps := testDependencies(commands, cfg)
-	deps.environment = func(root string, refresh bool) (worktree.EnvironmentResult, error) {
+	deps.environment = func(root string, environmentConfig config.Config, refresh bool) (worktree.EnvironmentResult, error) {
 		if root != "/worktrees/current" || refresh {
 			t.Fatalf("environment request = %q, %t", root, refresh)
+		}
+		if !reflect.DeepEqual(environmentConfig, cfg) {
+			t.Fatalf("environment config = %#v, want %#v", environmentConfig, cfg)
 		}
 		return worktree.EnvironmentResult{Variables: map[string]string{
 			"HWT_URL_WEB": "http://web.feature.localhost:23456",
@@ -195,7 +198,7 @@ func TestResolveAllCachesServiceEnvironment(t *testing.T) {
 	}}
 	deps := testDependencies(commands, cfg)
 	environmentCalls := 0
-	deps.environment = func(string, bool) (worktree.EnvironmentResult, error) {
+	deps.environment = func(string, config.Config, bool) (worktree.EnvironmentResult, error) {
 		environmentCalls++
 		return worktree.EnvironmentResult{Variables: map[string]string{
 			"HWT_URL_WEB":    "http://web.localhost:20000",

@@ -87,7 +87,7 @@ type dependencies struct {
 	loadConfig  func(string, ...string) (config.Config, config.Sources, error)
 	readTicket  func(string) (map[string]string, error)
 	resolvePR   func(pullrequest.Options) (pullrequest.Reference, error)
-	environment func(string, bool) (worktree.EnvironmentResult, error)
+	environment func(string, config.Config, bool) (worktree.EnvironmentResult, error)
 }
 
 func Resolve(options Options) (Result, error) {
@@ -100,7 +100,7 @@ func defaultDependencies() dependencies {
 		loadConfig:  config.Load,
 		readTicket:  worktree.ReadTicketMetadata,
 		resolvePR:   pullrequest.ResolveReference,
-		environment: worktree.Environment,
+		environment: worktree.EnvironmentWithConfig,
 	}
 }
 
@@ -131,7 +131,7 @@ func resolve(deps dependencies, options Options) (Result, error) {
 		if options.Branch != "" {
 			return Result{}, errors.New("service URLs are unavailable for an explicit branch; omit the branch argument")
 		}
-		environment, err := deps.environment(topLevel, false)
+		environment, err := deps.environment(topLevel, cfg, false)
 		if err != nil {
 			return Result{}, fmt.Errorf("resolve service URL %q: %w", options.Name, err)
 		}
@@ -366,12 +366,12 @@ func memoize(deps dependencies) dependencies {
 	}
 	environmentCache := map[environmentKey]environmentResponse{}
 	environment := deps.environment
-	deps.environment = func(root string, refresh bool) (worktree.EnvironmentResult, error) {
+	deps.environment = func(root string, cfg config.Config, refresh bool) (worktree.EnvironmentResult, error) {
 		key := environmentKey{root: root, refresh: refresh}
 		if response, ok := environmentCache[key]; ok {
 			return response.result, response.err
 		}
-		result, err := environment(root, refresh)
+		result, err := environment(root, cfg, refresh)
 		environmentCache[key] = environmentResponse{result: result, err: err}
 		return result, err
 	}
