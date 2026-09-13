@@ -24,6 +24,7 @@ const DefaultLocalDNSDomain = "hwt.test"
 
 var defaultTicketCommand = []string{"lnr", "quick", "--json"}
 var defaultReviewCommand = []string{"tuicr"}
+var defaultURLs = map[string]string{"pr": "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"}
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
@@ -383,7 +384,7 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("urls.%s: %w", name, err)
 		}
 	}
-	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "hostname": true, "pr_number": true}
+	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "hostname": true, "pr_host": true, "pr_owner": true, "pr_repository": true, "pr_number": true}
 	for name := range cfg.Metadata.Values {
 		if !urltemplate.ValidPlaceholder(name) {
 			return fmt.Errorf("metadata value name %q must be a dot-separated identifier", name)
@@ -555,7 +556,7 @@ func resolve(global, project rawConfig) Config {
 	if reload != nil {
 		cfg.LocalDNS.Reload = append([]string(nil), (*reload)...)
 	}
-	cfg.URLs = mergeStringMaps(global.URLs, project.URLs)
+	cfg.URLs = mergeStringMaps(&defaultURLs, global.URLs, project.URLs)
 	cfg.Metadata.Values = mergeStringMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
 	cfg.Metadata.Commands = mergeCommandMaps(metadataCommands(global.Metadata), metadataCommands(project.Metadata))
 	return cfg
@@ -575,15 +576,13 @@ func metadataCommands(metadata *rawMetadata) *map[string][]string {
 	return metadata.Commands
 }
 
-func mergeStringMaps(global, project *map[string]string) map[string]string {
+func mergeStringMaps(maps ...*map[string]string) map[string]string {
 	result := map[string]string{}
-	if global != nil {
-		for key, value := range *global {
-			result[key] = value
+	for _, values := range maps {
+		if values == nil {
+			continue
 		}
-	}
-	if project != nil {
-		for key, value := range *project {
+		for key, value := range *values {
 			result[key] = value
 		}
 	}

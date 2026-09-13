@@ -25,14 +25,14 @@ HWT SHALL run the configured ticket argv directly with the full description as o
 
 ### Requirement: Open a branch pull request
 
-HWT SHALL resolve pull requests through authenticated GitHub CLI and open the resulting URL unless JSON output is requested.
+HWT SHALL provide an overridable `urls.pr` default that resolves pull requests through authenticated GitHub CLI.
 
 #### Scenario: Open or print pull request {#REV-003}
 
 - GIVEN a current or explicit branch with a GitHub pull request
-- WHEN the user runs `hwt pr [branch]`
-- THEN HWT opens the pull request in the platform browser
-- AND `--json` instead prints its URL without opening a browser
+- WHEN the user runs `hwt url pr [branch]`
+- THEN HWT prints the pull request URL
+- AND `--open` opens it in the platform browser
 
 ### Requirement: Resolve review targets without changing the source checkout
 

@@ -63,10 +63,10 @@ hwt list
 hwt url ticket
 hwt url database --json
 hwt url preview --open
-hwt preview
-hwt preview feature/name --json
-hwt pr
-hwt pr feature/name --json
+hwt url preview feature/name --json
+hwt url pr --open
+hwt url pr feature/name --json
+hwt url --json
 hwt review https://github.com/owner/repository/pull/123 --json
 hwt review origin/feature/name --focus
 hwt remove --workspace w1A --json
@@ -96,11 +96,9 @@ hwt completion zsh
 
 `hwt remove` refuses dirty or locked worktrees unless `--force` is provided. It quickly renames the checkout out of the way, closes the Herdr workspace, removes Git's worktree metadata, and deletes the checkout in the background.
 
-`hwt pr [branch]` resolves the branch's pull request through the authenticated GitHub CLI and opens it in the default browser. It uses the current branch when omitted; `--json` prints `{"url":"..."}` without opening a browser. Repositories with multiple remotes require `--repo [HOST/]OWNER/REPO`, which also supports pull requests from forks.
-
 `hwt review SELECTOR` creates a dedicated review workspace for a full HTTPS GitHub pull request URL or a branch reference. Pull requests are fetched through the base repository's `refs/pull/NUMBER/head`, so same-repository and fork heads work without changing the primary checkout. Local branches are used as already fetched; `REMOTE/BRANCH`, `--remote`, or a single configured remote selects remote branches. HWT creates a deterministic `hwt/review/...` branch, verifies its exact commit before reuse, opens the linked worktree in Herdr without focusing it by default, and launches `review_command`. An exact workspace whose recorded review pane is still busy is returned without launching a duplicate tool; an idle session is relaunched. Use `--focus` to switch workspaces and `--json` for identity, commit, path, workspace/pane IDs, reuse state, and launch status.
 
-`hwt url NAME [branch]` resolves a configured named URL and prints it without opening anything. `--json` returns its name and URL; `--open` explicitly opens only HTTP(S) URLs. `hwt preview [branch]` is the convenient opening workflow for `urls.preview`; its `--json` mode does not open a browser. Explicit branches need not exist locally, but cannot use `{worktree}` or worktree-local `ticket.*` metadata.
+`hwt url NAME [branch]` resolves a configured named URL and prints it without opening anything. `--json` returns its name and URL; without a name it returns all configured names and their computed URLs in sorted order. `--open` explicitly opens only HTTP(S) URLs. HWT provides a GitHub `pr` URL by default, and `urls.pr` can replace it for GitLab, Forgejo, or another forge. URL names from the current repository are available to shell completion. Explicit branches need not exist locally, but cannot use `{worktree}` or worktree-local `ticket.*` metadata.
 
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 
@@ -117,6 +115,8 @@ worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
 urls:
+  # Override the default GitHub pull request URL for another forge:
+  # pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}
   preview: https://{sanitized_branch}.preview.example.com
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
@@ -160,7 +160,7 @@ post_create:
 
 Project values override global values. `ticket_command` and `review_command` are argv arrays and are replaced as a whole. HWT appends the task description to `ticket_command`; it never appends pull request or branch metadata to `review_command`. Every review argument is shell-quoted before the command is submitted to the Herdr pane. Other project lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. This includes `ports.services`; `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name. Missing copy sources are ignored. Copy paths must remain within the repository.
 
-Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{hostname}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
+Named `urls` support `{repository}`, `{branch}`, `{sanitized_branch}`, `{worktree}`, `{hostname}`, `{pr_host}`, `{pr_owner}`, `{pr_repository}`, `{pr_number}`, static metadata, `ticket.*` metadata, and command-backed metadata. Pull request placeholders are resolved through authenticated `gh`; templates based only on `{branch}` work without it. A command named `database` returns a JSON object of string values exposed as `{database.key}`. Commands run directly as configured argv, only when their namespace is requested; built-ins in arguments are substituted without a shell. HWT does not expand ambient environment variables.
 
 Global and repository URL/metadata maps merge by name, with repository entries winning. During resolution static values load first, persisted `ticket.*` values override matching static values, command namespace values override both, and reserved built-ins win last. Ticket metadata comes only from the ticket command's dedicated `metadata` object, is stored mode `0600` in private per-worktree Git state, and is removed with that worktree. Command results and resolved URLs are never persisted.
 

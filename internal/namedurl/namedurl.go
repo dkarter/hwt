@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -38,6 +39,16 @@ type runner interface {
 
 type commandRunner struct{}
 
+type commandResponse struct {
+	output []byte
+	err    error
+}
+
+type memoRunner struct {
+	runner runner
+	cache  map[string]commandResponse
+}
+
 func (commandRunner) Run(cwd, name string, args ...string) ([]byte, error) {
 	command := exec.Command(name, args...)
 	command.Dir = cwd
@@ -60,20 +71,34 @@ func (commandRunner) Run(cwd, name string, args ...string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
+func (runner *memoRunner) Run(cwd, name string, args ...string) ([]byte, error) {
+	key := strings.Join(append([]string{cwd, name}, args...), "\x00")
+	if response, ok := runner.cache[key]; ok {
+		return response.output, response.err
+	}
+	output, err := runner.runner.Run(cwd, name, args...)
+	runner.cache[key] = commandResponse{output: output, err: err}
+	return output, err
+}
+
 type dependencies struct {
 	commands   runner
 	loadConfig func(string, ...string) (config.Config, config.Sources, error)
 	readTicket func(string) (map[string]string, error)
-	resolvePR  func(pullrequest.Options) (int, error)
+	resolvePR  func(pullrequest.Options) (pullrequest.Reference, error)
 }
 
 func Resolve(options Options) (Result, error) {
-	return resolve(dependencies{
+	return resolve(defaultDependencies(), options)
+}
+
+func defaultDependencies() dependencies {
+	return dependencies{
 		commands:   commandRunner{},
 		loadConfig: config.Load,
 		readTicket: worktree.ReadTicketMetadata,
-		resolvePR:  pullrequest.ResolveNumber,
-	}, options)
+		resolvePR:  pullrequest.ResolveReference,
+	}
 }
 
 func resolve(deps dependencies, options Options) (Result, error) {
@@ -193,12 +218,15 @@ func resolve(deps dependencies, options Options) (Result, error) {
 			values[name+"."+key] = value
 		}
 	}
-	if contains(placeholders, "pr_number") {
-		number, err := deps.resolvePR(pullrequest.Options{CWD: topLevel, Branch: options.Branch, Repository: options.Repository})
+	if containsAny(placeholders, "pr_host", "pr_owner", "pr_repository", "pr_number") {
+		reference, err := deps.resolvePR(pullrequest.Options{CWD: topLevel, Branch: options.Branch, Repository: options.Repository})
 		if err != nil {
-			return Result{}, fmt.Errorf("resolve {pr_number} for branch %q: %w", options.Branch, err)
+			return Result{}, fmt.Errorf("resolve pull request values for branch %q: %w", options.Branch, err)
 		}
-		values["pr_number"] = strconv.Itoa(number)
+		values["pr_host"] = reference.Host
+		values["pr_owner"] = reference.Owner
+		values["pr_repository"] = reference.Repository
+		values["pr_number"] = strconv.Itoa(reference.Number)
 	}
 
 	resolved, err := urltemplate.Expand(template, values)
@@ -206,6 +234,108 @@ func resolve(deps dependencies, options Options) (Result, error) {
 		return Result{}, fmt.Errorf("resolve URL %q: %w", options.Name, err)
 	}
 	return Result{Name: options.Name, URL: resolved}, nil
+}
+
+func Names(cwd string) ([]string, error) {
+	return names(defaultDependencies(), cwd)
+}
+
+func names(deps dependencies, cwd string) ([]string, error) {
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+	}
+	topLevel, err := git(deps.commands, cwd, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil, fmt.Errorf("resolve Git worktree: %w", err)
+	}
+	cfg, _, err := deps.loadConfig(topLevel)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(cfg.URLs))
+	for name := range cfg.URLs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func ResolveAll(options Options) ([]Result, error) {
+	return resolveAll(defaultDependencies(), options)
+}
+
+func resolveAll(deps dependencies, options Options) ([]Result, error) {
+	deps = memoize(deps)
+	names, err := names(deps, options.CWD)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]Result, 0, len(names))
+	for _, name := range names {
+		options.Name = name
+		result, err := resolve(deps, options)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+func memoize(deps dependencies) dependencies {
+	deps.commands = &memoRunner{runner: deps.commands, cache: map[string]commandResponse{}}
+
+	type configResponse struct {
+		config  config.Config
+		sources config.Sources
+		err     error
+	}
+	configCache := map[string]configResponse{}
+	loadConfig := deps.loadConfig
+	deps.loadConfig = func(root string, commonDirs ...string) (config.Config, config.Sources, error) {
+		key := strings.Join(append([]string{root}, commonDirs...), "\x00")
+		if response, ok := configCache[key]; ok {
+			return response.config, response.sources, response.err
+		}
+		cfg, sources, err := loadConfig(root, commonDirs...)
+		configCache[key] = configResponse{config: cfg, sources: sources, err: err}
+		return cfg, sources, err
+	}
+
+	type ticketResponse struct {
+		values map[string]string
+		err    error
+	}
+	ticketCache := map[string]ticketResponse{}
+	readTicket := deps.readTicket
+	deps.readTicket = func(root string) (map[string]string, error) {
+		if response, ok := ticketCache[root]; ok {
+			return response.values, response.err
+		}
+		values, err := readTicket(root)
+		ticketCache[root] = ticketResponse{values: values, err: err}
+		return values, err
+	}
+
+	type pullRequestResponse struct {
+		reference pullrequest.Reference
+		err       error
+	}
+	pullRequestCache := map[pullrequest.Options]pullRequestResponse{}
+	resolvePR := deps.resolvePR
+	deps.resolvePR = func(options pullrequest.Options) (pullrequest.Reference, error) {
+		if response, ok := pullRequestCache[options]; ok {
+			return response.reference, response.err
+		}
+		reference, err := resolvePR(options)
+		pullRequestCache[options] = pullRequestResponse{reference: reference, err: err}
+		return reference, err
+	}
+	return deps
 }
 
 func BrowserURL(value string) error {
@@ -277,6 +407,15 @@ func runMetadataCommand(commands runner, cwd string, command []string, builtins 
 func contains(values []string, wanted string) bool {
 	for _, value := range values {
 		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAny(values []string, wanted ...string) bool {
+	for _, candidate := range wanted {
+		if contains(values, candidate) {
 			return true
 		}
 	}

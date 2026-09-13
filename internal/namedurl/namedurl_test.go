@@ -39,7 +39,9 @@ func testDependencies(commands runner, cfg config.Config) dependencies {
 			return cfg, config.Sources{}, nil
 		},
 		readTicket: func(string) (map[string]string, error) { return nil, nil },
-		resolvePR:  func(pullrequest.Options) (int, error) { return 0, errors.New("unexpected PR lookup") },
+		resolvePR: func(pullrequest.Options) (pullrequest.Reference, error) {
+			return pullrequest.Reference{}, errors.New("unexpected PR lookup")
+		},
 	}
 }
 
@@ -101,6 +103,48 @@ func TestResolveLoadsCurrentConfigAndTicketMetadataOnlyWhenRequested(t *testing.
 	}
 }
 
+func TestResolveDoesNotTreatCustomPRMetadataAsBuiltIn(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
+	cfg := config.Config{
+		URLs:     map[string]string{"status": "https://example.com/{pr_label}"},
+		Metadata: config.Metadata{Values: map[string]string{"pr_label": "ready"}},
+	}
+
+	result, err := resolve(testDependencies(commands, cfg), Options{Name: "status", CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.URL != "https://example.com/ready" {
+		t.Fatalf("URL = %q", result.URL)
+	}
+}
+
+func TestResolveAllCachesSharedRepositoryAndMetadataLookups(t *testing.T) {
+	commands := &fakeRunner{responses: []response{
+		{output: "/worktrees/current\n"},
+		{output: "main\n"},
+		{output: `{"host":"deploy.example"}`},
+	}}
+	cfg := config.Config{
+		URLs: map[string]string{
+			"alpha": "https://{deploy.host}/alpha/{branch}",
+			"bravo": "https://{deploy.host}/bravo/{branch}",
+		},
+		Metadata: config.Metadata{Commands: map[string][]string{"deploy": {"metadata-helper"}}},
+	}
+
+	results, err := resolveAll(testDependencies(commands, cfg), Options{CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || results[0].Name != "alpha" || results[1].Name != "bravo" {
+		t.Fatalf("results = %#v", results)
+	}
+	if len(commands.calls) != 3 {
+		t.Fatalf("shared lookups ran more than once: %#v", commands.calls)
+	}
+}
+
 func TestResolveBuiltInGitAndWorktreeMetadata(t *testing.T) {
 	commands := &fakeRunner{responses: []response{
 		{output: "/worktrees/app-feature\n"},
@@ -118,21 +162,21 @@ func TestResolveBuiltInGitAndWorktreeMetadata(t *testing.T) {
 	}
 }
 
-func TestResolveExplicitBranchAndPRNumber(t *testing.T) {
+func TestResolveExplicitBranchAndPullRequestValues(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}}}
-	cfg := config.Config{URLs: map[string]string{"preview": "https://example.com/pr-{pr_number}/{branch}"}}
+	cfg := config.Config{URLs: map[string]string{"pr": "https://{pr_host}/{pr_owner}/{pr_repository}/merge_requests/{pr_number}?branch={branch}"}}
 	deps := testDependencies(commands, cfg)
 	var received pullrequest.Options
-	deps.resolvePR = func(options pullrequest.Options) (int, error) {
+	deps.resolvePR = func(options pullrequest.Options) (pullrequest.Reference, error) {
 		received = options
-		return 42, nil
+		return pullrequest.Reference{Host: "github.com", Owner: "acme", Repository: "app", Number: 42}, nil
 	}
 
-	result, err := resolve(deps, Options{Name: "preview", CWD: "/worktrees/current", Branch: "feature/new", Repository: "acme/app"})
+	result, err := resolve(deps, Options{Name: "pr", CWD: "/worktrees/current", Branch: "feature/new", Repository: "acme/app"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.URL != "https://example.com/pr-42/feature%2Fnew" {
+	if result.URL != "https://github.com/acme/app/merge_requests/42?branch=feature%2Fnew" {
 		t.Fatalf("unexpected URL: %q", result.URL)
 	}
 	if received.Branch != "feature/new" || received.Repository != "acme/app" {
@@ -195,11 +239,11 @@ func TestResolveRejectsUnavailableHostname(t *testing.T) {
 func TestResolveCurrentBranchPRNumber(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "feature/current\n"}}}
 	deps := testDependencies(commands, config.Config{URLs: map[string]string{"preview": "https://example.com/pr-{pr_number}"}})
-	deps.resolvePR = func(options pullrequest.Options) (int, error) {
+	deps.resolvePR = func(options pullrequest.Options) (pullrequest.Reference, error) {
 		if options.Branch != "feature/current" {
 			t.Fatalf("PR branch = %q", options.Branch)
 		}
-		return 9, nil
+		return pullrequest.Reference{Number: 9}, nil
 	}
 
 	result, err := resolve(deps, Options{Name: "preview", CWD: "/worktrees/current"})
@@ -266,7 +310,7 @@ func TestResolveErrors(t *testing.T) {
 			}
 			deps := testDependencies(&fakeRunner{responses: responses}, cfg)
 			if test.prError != nil {
-				deps.resolvePR = func(pullrequest.Options) (int, error) { return 0, test.prError }
+				deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) { return pullrequest.Reference{}, test.prError }
 			}
 			_, err := resolve(deps, Options{Name: "preview", CWD: "/worktrees/current", Branch: test.branch})
 			if err == nil || !strings.Contains(err.Error(), test.want) {

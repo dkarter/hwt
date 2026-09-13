@@ -142,6 +142,28 @@ func TestLoadDefaultsTicketCommandToLNR(t *testing.T) {
 	}
 }
 
+func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	cfg, _, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URLs["pr"] != "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}" {
+		t.Fatalf("unexpected default pull request URL: %q", cfg.URLs["pr"])
+	}
+
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}\n")
+	cfg, _, err = Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URLs["pr"] != "https://gitlab.example/group/project/-/merge_requests?source_branch={branch}" {
+		t.Fatalf("pull request URL was not overridden: %q", cfg.URLs["pr"])
+	}
+}
+
 func TestLoadDefaultsReviewCommandToTuicr(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 

@@ -17,6 +17,18 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 - THEN HWT prints the resolved URL
 - AND `--json` prints its name and URL as JSON
 
+#### Scenario: List all URLs as JSON {#URL-008}
+
+- GIVEN named URLs that can be resolved for the current branch
+- WHEN the user runs `hwt url --json`
+- THEN HWT prints every name and computed URL in deterministic order
+
+#### Scenario: Complete configured URL names {#URL-009}
+
+- GIVEN URL names from defaults and merged user configuration
+- WHEN the shell requests completion after `hwt url`
+- THEN HWT offers the URL names for the current Git repository
+
 #### Scenario: Explicit browser opening {#URL-002}
 
 - GIVEN a resolved HTTP or HTTPS named URL
@@ -24,20 +36,20 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 - THEN HWT opens it in the platform browser
 - AND non-browser schemes are rejected for opening but remain printable
 
-### Requirement: Open preview URLs conveniently
+### Requirement: Define URL commands through configuration
 
-HWT SHALL treat `hwt preview [branch]` as the browser-opening workflow for `urls.preview`.
+HWT SHALL expose configured URL names only through `hwt url`, with an overridable GitHub pull request URL named `pr` by default.
 
 #### Scenario: Preview output modes {#URL-003}
 
 - GIVEN `urls.preview` can be resolved
-- WHEN the user runs `hwt preview`
-- THEN HWT opens it without waiting for deployment readiness
-- AND `--json` prints the name and URL without opening a browser
+- WHEN the user runs `hwt url preview [branch]`
+- THEN HWT prints its computed URL without waiting for deployment readiness
+- AND `--open` opens it in the platform browser
 
 ### Requirement: Expand built-in placeholders safely
 
-HWT SHALL provide `repository`, `branch`, `sanitized_branch`, `worktree`, `hostname`, and lazily resolved `pr_number` values where available.
+HWT SHALL provide `repository`, `branch`, `sanitized_branch`, `worktree`, `hostname`, and lazily resolved pull request host, owner, repository, and number values where available.
 
 #### Scenario: Sanitize and encode substitutions {#URL-004}
 

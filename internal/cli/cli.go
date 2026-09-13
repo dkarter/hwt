@@ -14,7 +14,6 @@ import (
 	"github.com/dkarter/hwt/internal/herdr"
 	"github.com/dkarter/hwt/internal/localdns"
 	"github.com/dkarter/hwt/internal/namedurl"
-	"github.com/dkarter/hwt/internal/pullrequest"
 	"github.com/dkarter/hwt/internal/review"
 	"github.com/dkarter/hwt/internal/urlopen"
 	"github.com/dkarter/hwt/internal/worktree"
@@ -48,7 +47,7 @@ func newCommand(version string, resolveURL func(namedurl.Options) (namedurl.Resu
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), a.reviewCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), pullRequestCommand(), a.previewCommand(), a.urlCommand(), dnsCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), a.reviewCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), a.urlCommand(), dnsCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
 }
 
@@ -86,49 +85,30 @@ func (a *app) reviewCommand() *cobra.Command {
 	return command
 }
 
-func (a *app) previewCommand() *cobra.Command {
-	options := namedurl.Options{Name: "preview"}
-	jsonOutput := false
-	command := &cobra.Command{
-		Use:   "preview [branch]",
-		Short: "Open the preview environment for a branch",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				options.Branch = args[0]
-			}
-			result, err := a.resolveURL(options)
-			if err != nil {
-				return err
-			}
-			if jsonOutput {
-				return worktree.EncodeResult(cmd.OutOrStdout(), result)
-			}
-			if err := namedurl.BrowserURL(result.URL); err != nil {
-				return err
-			}
-			if err := a.openURL(result.URL); err != nil {
-				return err
-			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Opened %s\n", result.URL)
-			return err
-		},
-	}
-	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
-	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format for {pr_number}")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the resolved URL without opening a browser")
-	return command
-}
-
 func (a *app) urlCommand() *cobra.Command {
 	options := namedurl.Options{}
 	jsonOutput := false
 	open := false
 	command := &cobra.Command{
-		Use:   "url NAME [branch]",
+		Use:   "url [name] [branch]",
 		Short: "Resolve a configured named URL",
-		Args:  cobra.RangeArgs(1, 2),
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) > 2 {
+				return fmt.Errorf("accepts at most 2 args, received %d", len(args))
+			}
+			if len(args) == 0 && !jsonOutput {
+				return errors.New("URL name is required unless --json lists all URLs")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				results, err := namedurl.ResolveAll(options)
+				if err != nil {
+					return err
+				}
+				return worktree.EncodeResult(cmd.OutOrStdout(), results)
+			}
 			options.Name = args[0]
 			if len(args) == 2 {
 				options.Branch = args[1]
@@ -153,43 +133,22 @@ func (a *app) urlCommand() *cobra.Command {
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), result.URL)
 			return err
 		},
-	}
-	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
-	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format for {pr_number}")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
-	command.Flags().BoolVar(&open, "open", false, "open an http or https URL in the default browser")
-	command.MarkFlagsMutuallyExclusive("json", "open")
-	return command
-}
-
-func pullRequestCommand() *cobra.Command {
-	options := pullrequest.Options{}
-	jsonOutput := false
-	command := &cobra.Command{
-		Use:   "pr [branch]",
-		Short: "Open the pull request for a branch",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				options.Branch = args[0]
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			result, err := pullrequest.Resolve(options)
+			names, err := namedurl.Names(options.CWD)
 			if err != nil {
-				return err
+				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			if jsonOutput {
-				return worktree.EncodeResult(cmd.OutOrStdout(), result)
-			}
-			if err := urlopen.Open(result.URL); err != nil {
-				return err
-			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Opened %s\n", result.URL)
-			return err
+			return names, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
 	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
-	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the resolved URL without opening a browser")
+	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format for pull request placeholders")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
+	command.Flags().BoolVar(&open, "open", false, "open an http or https URL in the default browser")
+	command.MarkFlagsMutuallyExclusive("json", "open")
 	return command
 }
 

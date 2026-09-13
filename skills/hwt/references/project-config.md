@@ -86,10 +86,11 @@ be inserted.
   name, or `basename` to use only the final branch component.
 - `worktree_prefix`: Add a stable project prefix when checkout names could
   collide.
-- `urls`: Map names to absolute templates for `hwt url NAME`; `urls.preview`
-  powers `hwt preview`. Built-ins are `{repository}`, `{branch}`,
-  `{sanitized_branch}`, `{worktree}`, `{hostname}`, and `{pr_number}`. Explicit
-  branches cannot use worktree-local values.
+- `urls`: Map names to absolute templates for `hwt url NAME`. HWT provides a
+  GitHub `pr` URL by default; configure `urls.pr` to replace it for another
+  forge. Built-ins are `{repository}`, `{branch}`, `{sanitized_branch}`,
+  `{worktree}`, `{hostname}`, `{pr_host}`, `{pr_owner}`, `{pr_repository}`, and
+  `{pr_number}`. Explicit branches cannot use worktree-local values.
 - `metadata.values`: Add static strings. Repository values override global ones.
 - `metadata.commands`: Map a namespace to direct argv. A command runs lazily for
   `{namespace.key}`, receives repository/branch/worktree substitutions as safe

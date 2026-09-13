@@ -59,17 +59,14 @@ hwt list --cwd <repository-path>
 Use this response to discover worktree paths and workspace IDs. Do not infer
 ownership from directory names.
 
-Open the pull request for the current or a named branch with `hwt pr [branch]`.
-Use `--json` when only the resolved URL is needed. If multiple remotes exist,
-pass the GitHub base repository with `--repo OWNER/REPO`.
-
-Open the configured preview environment with `hwt preview [branch]`. Use
-`--json` to resolve the URL without opening a browser. An explicit branch cannot
-use a preview template containing `{worktree}`.
-
 Resolve any configured URL with `hwt url <name> [branch]`. Plain and `--json`
 output never open a browser; use `--open` only when explicitly requested. Never
-open database or other non-HTTP(S) URLs.
+open database or other non-HTTP(S) URLs. `hwt url pr [branch]` uses the default
+GitHub URL unless configuration replaces it. If multiple remotes exist, pass
+the GitHub base repository with `--repo OWNER/REPO`. Resolve a configured
+preview with `hwt url preview [branch]`. An explicit branch cannot use a
+template containing `{worktree}`. Use `hwt url --json` to resolve every
+configured URL.
 
 ## Remove
 

@@ -23,6 +23,13 @@ type Result struct {
 	URL string `json:"url"`
 }
 
+type Reference struct {
+	Host       string
+	Owner      string
+	Repository string
+	Number     int
+}
+
 type Metadata struct {
 	Number            int    `json:"number"`
 	URL               string `json:"url"`
@@ -69,8 +76,20 @@ func resolve(commands runner, options Options) (Result, error) {
 	return result, nil
 }
 
-func ResolveNumber(options Options) (int, error) {
-	return resolveNumber(commandRunner{}, options)
+func ResolveReference(options Options) (Reference, error) {
+	result, err := Resolve(options)
+	if err != nil {
+		return Reference{}, err
+	}
+	return referenceFromURL(result.URL)
+}
+
+func referenceFromURL(value string) (Reference, error) {
+	parsed, owner, repository, number, err := parsePullRequestURL(value)
+	if err != nil {
+		return Reference{}, fmt.Errorf("parse GitHub pull request URL: %w", err)
+	}
+	return Reference{Host: parsed.Hostname(), Owner: owner, Repository: repository, Number: number}, nil
 }
 
 func ResolveMetadata(options Options) (Metadata, error) {
@@ -166,23 +185,6 @@ func repositoryMatchesURL(value, host, owner, repository string) bool {
 		return strings.EqualFold(parts[0], owner) && strings.EqualFold(parts[1], repository)
 	}
 	return len(parts) == 3 && strings.EqualFold(parts[0], host) && strings.EqualFold(parts[1], owner) && strings.EqualFold(parts[2], repository)
-}
-
-func resolveNumber(commands runner, options Options) (int, error) {
-	output, branch, err := lookup(commands, options, "number")
-	if err != nil {
-		return 0, err
-	}
-	var result struct {
-		Number int `json:"number"`
-	}
-	if err := json.Unmarshal(output, &result); err != nil {
-		return 0, fmt.Errorf("decode GitHub pull request: %w", err)
-	}
-	if result.Number <= 0 {
-		return 0, fmt.Errorf("GitHub returned no number for the pull request associated with branch %q", branch)
-	}
-	return result.Number, nil
 }
 
 func lookup(commands runner, options Options, fields string) ([]byte, string, error) {
