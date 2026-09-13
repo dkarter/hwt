@@ -161,13 +161,18 @@
         },
         "services": {
           "type": "array",
-          "description": "Service names exposed as HWT_PORT_<NAME> and HWT_URL_<NAME> variables. Direct URLs use RFC 6761 localhost subdomains unless managed local DNS is enabled.",
+          "description": "Service names exposed as HWT_PORT_<NAME> and HWT_URL_<NAME> variables. Direct URLs default to RFC 6761 localhost subdomains unless managed local DNS is enabled.",
           "uniqueItems": true,
           "items": {
             "type": "string",
             "maxLength": 63,
             "pattern": "^(<global>|[A-Za-z][A-Za-z0-9_-]*)$"
           }
+        },
+        "url_template": {
+          "type": "string",
+          "default": "http://{worktree}.{service}.localhost:{port}",
+          "description": "Direct service URL template used when managed local DNS is disabled. Supports {worktree}, {service}, {hostname}, and {port}."
         }
       }
     },

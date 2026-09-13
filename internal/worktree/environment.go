@@ -129,9 +129,18 @@ func prepareEnvironment(root string, cfg config.Config, refresh bool) (Environme
 		} else {
 			hostname := localhostHostname(root)
 			variables["HWT_WORKTREE_HOSTNAME"] = hostname
+			urlValues := map[string]string{
+				"worktree": strings.TrimSuffix(hostname, ".localhost"),
+				"hostname": hostname,
+			}
 			for service, port := range ports {
-				serviceLabel := urltemplate.SanitizeBranch(service)
-				variables[config.URLEnvironmentName(service)] = fmt.Sprintf("http://%s.%s:%d", serviceLabel, hostname, port)
+				urlValues["service"] = urltemplate.SanitizeBranch(service)
+				urlValues["port"] = strconv.Itoa(port)
+				localURL, err := urltemplate.Expand(cfg.Ports.URLTemplate, urlValues)
+				if err != nil {
+					return fmt.Errorf("generate URL for service %q: %w", service, err)
+				}
+				variables[config.URLEnvironmentName(service)] = localURL
 			}
 			if err := releaseLocalDNS(root, cfg); err != nil {
 				return err

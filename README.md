@@ -91,7 +91,7 @@ hwt completion zsh
 
 `hwt copy` copies configured files from the primary checkout into the current linked worktree once. It reads Herdr plugin event context automatically, and concurrent or repeated calls are safe no-ops.
 
-`hwt env` creates or refreshes the ignored `.env.worktree` file and reports its path. Pass `--json` to inspect values, `--refresh` to replace allocated ports, or `-- COMMAND...` to run a development command with the variables in its process environment. Without managed local DNS, every configured service gets a zero-setup RFC 6761 URL such as `http://web.feature-login.localhost:20000`; these `.localhost` names resolve to loopback without sudo, a daemon, or OS configuration.
+`hwt env` creates or refreshes the ignored `.env.worktree` file and reports its path. Pass `--json` to inspect values, `--refresh` to replace allocated ports, or `-- COMMAND...` to run a development command with the variables in its process environment. Without managed local DNS, every configured service gets a zero-setup RFC 6761 URL such as `http://feature-login.web.localhost:20000`; these `.localhost` names resolve to loopback without sudo, a daemon, or OS configuration. Customize the direct URL with `ports.url_template`, for example `https://app.acme.dev:{port}` for a wildcard loopback domain and a service that terminates TLS on its allocated port.
 
 `hwt dns setup` generates HWT-owned dnsmasq and Caddy snippets under the XDG state directory for user-managed services. When `local_dns.enabled` is set, environment creation registers stable per-service URLs, refresh updates upstream ports, and successful worktree removal unregisters routes. HWT never edits system configuration, invokes `sudo`, or manages listeners.
 
@@ -133,6 +133,7 @@ ports:
   start: 20000
   end: 39999
   services: [web, assets]
+  url_template: http://{worktree}.{service}.localhost:{port}
 
 local_dns:
   enabled: true

@@ -35,6 +35,7 @@ HWT SHALL write `.env.worktree` with generated identity and port variables plus 
 - THEN HWT writes a mode-`0600` ignored dotenv file and prints its path
 - AND `--json` returns the path and complete generated variable map
 - AND when managed local DNS is disabled each service receives a stable RFC 6761 localhost-subdomain URL using its allocated port
+- AND the user may customize direct service URLs with worktree, service, hostname, and port placeholders
 
 #### Scenario: Run with environment {#ENV-004}
 

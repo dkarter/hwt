@@ -43,6 +43,7 @@ metadata:
 
 ports:
   services: [web, assets]
+  url_template: http://{worktree}.{service}.localhost:{port}
 
 local_dns:
   enabled: true
@@ -110,7 +111,8 @@ be inserted.
 - `ports`: List local services that need stable, distinct ports. HWT exposes
   them as `HWT_PORT_<SERVICE>` and `HWT_URL_<SERVICE>` in `.env.worktree` and
   `post_create`. With local DNS disabled, URLs use RFC 6761 localhost subdomains
-  and allocated ports without system setup.
+  and allocated ports without system setup. Set `url_template` to customize the
+  direct URL with `{worktree}`, `{service}`, `{hostname}`, and `{port}`.
 - `local_dns`: Opt in to HWT-owned dnsmasq and Caddy snippets. Run
   `hwt dns setup` once, include the reported files from user-managed services,
   and use `hwt dns status` to inspect registrations. Leave it disabled for

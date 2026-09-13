@@ -421,10 +421,10 @@ environment:
 	if first.Variables["HWT_WORKTREE_HOSTNAME"] != "feature-api.localhost" {
 		t.Fatalf("localhost hostname = %q", first.Variables["HWT_WORKTREE_HOSTNAME"])
 	}
-	if first.Variables["HWT_URL_WEB"] != "http://web.feature-api.localhost:"+first.Variables["HWT_PORT_WEB"] || first.Variables["HWT_URL_ASSETS"] != "http://assets.feature-api.localhost:"+first.Variables["HWT_PORT_ASSETS"] {
+	if first.Variables["HWT_URL_WEB"] != "http://feature-api.web.localhost:"+first.Variables["HWT_PORT_WEB"] || first.Variables["HWT_URL_ASSETS"] != "http://feature-api.assets.localhost:"+first.Variables["HWT_PORT_ASSETS"] {
 		t.Fatalf("localhost URLs = %#v", first.Variables)
 	}
-	if first.Variables["HWT_URL_API_"] != "http://api.feature-api.localhost:"+first.Variables["HWT_PORT_API_"] {
+	if first.Variables["HWT_URL_API_"] != "http://feature-api.api.localhost:"+first.Variables["HWT_PORT_API_"] {
 		t.Fatalf("localhost URL did not normalize trailing separator: %#v", first.Variables)
 	}
 	if first.Variables["APP_URL"] != "http://localhost:"+first.Variables["HWT_PORT_WEB"] {

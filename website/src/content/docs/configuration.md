@@ -45,6 +45,7 @@ ports:
   start: 20000
   end: 39999
   services: [web, assets]
+  url_template: http://{worktree}.{service}.localhost:{port}
 
 local_dns:
   enabled: true
@@ -198,6 +199,21 @@ becomes `HWT_PORT_WEB` and `HWT_URL_WEB`; hyphens become underscores. Without
 managed local DNS, the URL uses an RFC 6761 localhost subdomain and the allocated
 port with no system setup. The defaults are `20000` through `39999`. See
 [worktree ports and environment](/docs/worktree-environment/).
+
+`ports.url_template` controls direct URLs when `local_dns.enabled` is false. It
+supports `{worktree}`, `{service}`, `{hostname}`, and `{port}`. The first two
+values are normalized DNS labels, while `{hostname}` is the generic
+`<worktree>.localhost` hostname. For a company wildcard loopback domain where
+ports distinguish worktrees, use:
+
+```yaml
+ports:
+  services: [web]
+  url_template: https://app.acme.dev:{port}
+```
+
+This publishes the URL only. The process on the allocated port must terminate
+TLS itself, or a separately configured proxy must listen on that port.
 
 ### `environment`
 

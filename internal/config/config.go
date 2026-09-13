@@ -21,6 +21,7 @@ const DefaultWorktreeNaming = "full"
 const DefaultCopyParallel = true
 const DefaultCopyOnWrite = false
 const DefaultLocalDNSDomain = "hwt.test"
+const DefaultPortURLTemplate = "http://{worktree}.{service}.localhost:{port}"
 
 var defaultTicketCommand = []string{"lnr", "quick", "--json"}
 var defaultReviewCommand = []string{"tuicr"}
@@ -46,9 +47,10 @@ type Config struct {
 }
 
 type Ports struct {
-	Start    int      `json:"start" yaml:"start"`
-	End      int      `json:"end" yaml:"end"`
-	Services []string `json:"services,omitempty" yaml:"services,omitempty"`
+	Start       int      `json:"start" yaml:"start"`
+	End         int      `json:"end" yaml:"end"`
+	Services    []string `json:"services,omitempty" yaml:"services,omitempty"`
+	URLTemplate string   `json:"url_template" yaml:"url_template"`
 }
 
 type Environment struct {
@@ -107,9 +109,10 @@ type rawMetadata struct {
 }
 
 type rawPorts struct {
-	Start    *int      `yaml:"start"`
-	End      *int      `yaml:"end"`
-	Services *[]string `yaml:"services"`
+	Start       *int      `yaml:"start"`
+	End         *int      `yaml:"end"`
+	Services    *[]string `yaml:"services"`
+	URLTemplate *string   `yaml:"url_template"`
 }
 
 type rawEnvironment struct {
@@ -337,6 +340,18 @@ func Validate(cfg Config) error {
 		}
 		serviceNames[environmentName] = service
 	}
+	placeholders, err := urltemplate.PlaceholdersRaw(cfg.Ports.URLTemplate)
+	if err != nil {
+		return fmt.Errorf("ports.url_template: %w", err)
+	}
+	for _, placeholder := range placeholders {
+		if placeholder != "worktree" && placeholder != "service" && placeholder != "port" && placeholder != "hostname" {
+			return fmt.Errorf("ports.url_template uses unsupported placeholder {%s}; only worktree, service, port, and hostname are available", placeholder)
+		}
+	}
+	if _, err := urltemplate.Expand(cfg.Ports.URLTemplate, map[string]string{"worktree": "worktree", "service": "service", "port": "20000", "hostname": "worktree.localhost"}); err != nil {
+		return fmt.Errorf("ports.url_template: %w", err)
+	}
 	for name := range cfg.Environment.Variables {
 		if !validEnvironmentName(name) {
 			return fmt.Errorf("environment variable name %q is invalid", name)
@@ -545,6 +560,7 @@ func resolve(global, project rawConfig) Config {
 	cfg.Ports.Start = scalar(portStart(global.Ports), portStart(project.Ports), 20000)
 	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
 	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
+	cfg.Ports.URLTemplate = scalar(portURLTemplate(global.Ports), portURLTemplate(project.Ports), DefaultPortURLTemplate)
 	cfg.Environment.Variables = stringMap(environmentVariables(global.Environment), environmentVariables(project.Environment))
 	cfg.LocalDNS.Enabled = scalar(localDNSEnabled(global.LocalDNS), localDNSEnabled(project.LocalDNS), false)
 	cfg.LocalDNS.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(scalar(localDNSDomain(global.LocalDNS), localDNSDomain(project.LocalDNS), DefaultLocalDNSDomain)), "."))
@@ -623,6 +639,12 @@ func portServices(ports *rawPorts) *[]string {
 		return nil
 	}
 	return ports.Services
+}
+func portURLTemplate(ports *rawPorts) *string {
+	if ports == nil {
+		return nil
+	}
+	return ports.URLTemplate
 }
 func environmentVariables(environment *rawEnvironment) *map[string]string {
 	if environment == nil {

@@ -50,8 +50,8 @@ Service names become uppercase variables with hyphens changed to underscores:
 ```dotenv
 HWT_PORT_ASSETS="20001"
 HWT_PORT_WEB="20000"
-HWT_URL_ASSETS="http://assets.example.localhost:20001"
-HWT_URL_WEB="http://web.example.localhost:20000"
+HWT_URL_ASSETS="http://example.assets.localhost:20001"
+HWT_URL_WEB="http://example.web.localhost:20000"
 HWT_WORKTREE_BRANCH="feature/example"
 HWT_WORKTREE_HOSTNAME="example.localhost"
 HWT_WORKTREE_PATH="/path/to/example"
@@ -70,8 +70,8 @@ uses it under `.localhost`:
 
 ```text
 HWT_WORKTREE_HOSTNAME=feature-login.localhost
-HWT_URL_WEB=http://web.feature-login.localhost:20000
-HWT_URL_ASSETS=http://assets.feature-login.localhost:20001
+HWT_URL_WEB=http://feature-login.web.localhost:20000
+HWT_URL_ASSETS=http://feature-login.assets.localhost:20001
 ```
 
 RFC 6761 reserves `localhost` names for loopback resolution. These URLs need no
@@ -83,9 +83,32 @@ directly in application configuration or inspect it with:
 hwt env -- printenv HWT_URL_WEB
 ```
 
-`HWT_WORKTREE_HOSTNAME` is the shared base hostname and does not include a
+`HWT_WORKTREE_HOSTNAME` is the generic worktree hostname and does not include a
 service or port. `HWT_URL_<SERVICE>` is the complete browser URL for that
 service. Hyphens in service names become underscores in variable names.
+
+Change `ports.url_template` to use another order or a loopback domain already
+available on your machine. The template supports normalized `{worktree}` and
+`{service}` labels, the generic `{hostname}`, and the allocated `{port}`:
+
+```yaml
+ports:
+  services: [web]
+  url_template: http://{service}.{hostname}:{port}
+```
+
+For a wildcard such as `*.acme.dev`, a fixed hostname can distinguish worktrees
+by port:
+
+```yaml
+ports:
+  services: [web]
+  url_template: https://app.acme.dev:{port}
+```
+
+HWT only generates this URL. The service must speak HTTPS with a certificate
+valid for that hostname, or a separately configured proxy must listen on the
+allocated port and terminate TLS.
 
 ## Lifecycle and conflicts
 
