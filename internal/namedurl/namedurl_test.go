@@ -150,10 +150,10 @@ func TestResolveAllSkipsURLsWhenBranchHasNoPullRequest(t *testing.T) {
 		{output: "/worktrees/current\n"},
 		{output: "main\n"},
 	}}
-	cfg := config.Config{URLs: map[string]string{
-		"branch":  "https://example.com/{branch}",
-		"pr":      "https://example.com/pull/{pr_number}",
-		"preview": "https://preview.example/pr-{pr_number}",
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"branch":  {Template: "https://example.com/{branch}"},
+		"pr":      {Template: "https://example.com/pull/{pr_number}"},
+		"preview": {Template: "https://preview.example/pr-{pr_number}"},
 	}}
 	deps := testDependencies(commands, cfg)
 	deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
@@ -172,7 +172,7 @@ func TestResolveAllSkipsURLsWhenBranchHasNoPullRequest(t *testing.T) {
 
 func TestResolveAllPreservesOtherPullRequestErrors(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
-	cfg := config.Config{URLs: map[string]string{"pr": "https://example.com/pull/{pr_number}"}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{"pr": {Template: "https://example.com/pull/{pr_number}"}}}
 	deps := testDependencies(commands, cfg)
 	deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
 		return pullrequest.Reference{}, errors.New("authentication failed")
