@@ -45,10 +45,10 @@ func TestURL008_URL009_ListAndCompleteConfiguredURLs(t *testing.T) {
 	repo := s.repo()
 	s.git(repo, "remote", "add", "origin", filepath.Join(s.root, "offline-origin.git"))
 	s.tool("gh", `printf '%s\n' '{"url":"https://github.com/acme/app/pull/12"}'`)
-	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview: https://preview.invalid/{branch}\n  ticket: https://tickets.invalid/{branch}\n", 0o600)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview:\n    template: https://preview.invalid/{branch}\n    label: Branch preview\n  ticket: https://tickets.invalid/{branch}\n", 0o600)
 
 	listed := s.run(repo, "url", "--json")
-	for _, expected := range []string{`"name": "pr"`, `"url": "https://github.com/acme/app/pull/12"`, `"name": "preview"`, `"name": "ticket"`} {
+	for _, expected := range []string{`"name": "pr"`, `"url": "https://github.com/acme/app/pull/12"`, `"name": "preview"`, `"label": "Branch preview"`, `"name": "ticket"`} {
 		requireContains(t, listed, expected)
 	}
 	completion := s.run(repo, "__complete", "url", "")

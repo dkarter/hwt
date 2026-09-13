@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ const DefaultLocalDNSDomain = "hwt.test"
 const DefaultPortURLTemplate = "http://{worktree}.{service}.localhost:{port}"
 
 var defaultReviewCommand = []string{"tuicr"}
-var defaultURLs = map[string]string{"pr": "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"}
+var defaultURLs = map[string]NamedURL{"pr": {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"}}
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
@@ -41,7 +42,7 @@ type Config struct {
 	Ports          Ports                    `json:"ports" yaml:"ports"`
 	Environment    Environment              `json:"environment" yaml:"environment"`
 	LocalDNS       LocalDNS                 `json:"local_dns" yaml:"local_dns"`
-	URLs           map[string]string        `json:"urls,omitempty" yaml:"urls,omitempty"`
+	URLs           map[string]NamedURL      `json:"urls,omitempty" yaml:"urls,omitempty"`
 	Metadata       Metadata                 `json:"metadata" yaml:"metadata"`
 }
 
@@ -65,6 +66,47 @@ type LocalDNS struct {
 type Metadata struct {
 	Values   map[string]string   `json:"values,omitempty" yaml:"values,omitempty"`
 	Commands map[string][]string `json:"commands,omitempty" yaml:"commands,omitempty"`
+}
+
+type NamedURL struct {
+	Template string `json:"template" yaml:"template"`
+	Label    string `json:"label,omitempty" yaml:"label,omitempty"`
+}
+
+func (entry NamedURL) MarshalJSON() ([]byte, error) {
+	if entry.Label == "" {
+		return json.Marshal(entry.Template)
+	}
+	type object NamedURL
+	return json.Marshal(object(entry))
+}
+
+func (entry *NamedURL) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		return node.Decode(&entry.Template)
+	}
+	if node.Kind != yaml.MappingNode {
+		return errors.New("URL entry must be a template string or object")
+	}
+	hasTemplate := false
+	for index := 0; index < len(node.Content); index += 2 {
+		switch key := node.Content[index].Value; key {
+		case "template":
+			hasTemplate = true
+		case "label":
+			label := node.Content[index+1]
+			if label.Tag != "!!str" || label.Value == "" {
+				return errors.New("URL entry label must be a non-empty string")
+			}
+		default:
+			return fmt.Errorf("unknown URL entry field %q", key)
+		}
+	}
+	if !hasTemplate {
+		return errors.New("URL entry object requires template")
+	}
+	type plain NamedURL
+	return node.Decode((*plain)(entry))
 }
 
 type Files struct {
@@ -98,7 +140,7 @@ type rawConfig struct {
 	Ports          *rawPorts                 `yaml:"ports"`
 	Environment    *rawEnvironment           `yaml:"environment"`
 	LocalDNS       *rawLocalDNS              `yaml:"local_dns"`
-	URLs           *map[string]string        `yaml:"urls"`
+	URLs           *map[string]NamedURL      `yaml:"urls"`
 	Metadata       *rawMetadata              `yaml:"metadata"`
 }
 
@@ -389,11 +431,11 @@ func Validate(cfg Config) error {
 			}
 		}
 	}
-	for name, template := range cfg.URLs {
+	for name, entry := range cfg.URLs {
 		if !validServiceName(name) {
 			return fmt.Errorf("URL name %q must start with a letter and contain only letters, numbers, underscores, or hyphens", name)
 		}
-		if err := urltemplate.ValidateTemplate(template); err != nil {
+		if err := urltemplate.ValidateTemplate(entry.Template); err != nil {
 			return fmt.Errorf("urls.%s: %w", name, err)
 		}
 	}
@@ -554,8 +596,8 @@ func resolve(global, project rawConfig) Config {
 	if reload != nil {
 		cfg.LocalDNS.Reload = append([]string(nil), (*reload)...)
 	}
-	cfg.URLs = mergeStringMaps(&defaultURLs, global.URLs, project.URLs)
-	cfg.Metadata.Values = mergeStringMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
+	cfg.URLs = mergeMaps(&defaultURLs, global.URLs, project.URLs)
+	cfg.Metadata.Values = mergeMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
 	cfg.Metadata.Commands = mergeCommandMaps(metadataCommands(global.Metadata), metadataCommands(project.Metadata))
 	return cfg
 }
@@ -585,8 +627,8 @@ func metadataCommands(metadata *rawMetadata) *map[string][]string {
 	return metadata.Commands
 }
 
-func mergeStringMaps(maps ...*map[string]string) map[string]string {
-	result := map[string]string{}
+func mergeMaps[T any](maps ...*map[string]T) map[string]T {
+	result := map[string]T{}
 	for _, values := range maps {
 		if values == nil {
 			continue

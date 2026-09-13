@@ -12,16 +12,18 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 
 #### Scenario: Plain and JSON URL output {#URL-001}
 
-- GIVEN a configured named absolute URL
+- GIVEN a configured named absolute URL with an optional display label
 - WHEN the user runs `hwt url NAME [branch]`
 - THEN HWT prints the resolved URL
 - AND `--json` prints its name and URL as JSON
+- AND includes the label only when configured
 
 #### Scenario: List all URLs as JSON {#URL-008}
 
 - GIVEN named URLs for the current branch
 - WHEN the user runs `hwt url --json`
 - THEN HWT prints every available name and computed URL in deterministic order
+- AND includes each configured display label
 - AND omits URLs that require pull request metadata when the branch has no pull request
 - AND fails on other URL resolution errors
 
@@ -40,7 +42,7 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 
 ### Requirement: Define URL commands through configuration
 
-HWT SHALL expose configured URL names only through `hwt url`, with an overridable GitHub pull request URL named `pr` by default.
+HWT SHALL accept each configured URL as a template string or an object with a required `template` and optional display `label`, expose configured URL names only through `hwt url`, and provide an overridable GitHub pull request URL named `pr` by default.
 
 #### Scenario: Preview output modes {#URL-003}
 

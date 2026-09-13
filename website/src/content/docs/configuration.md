@@ -47,7 +47,9 @@ worktree_prefix: project-
 
 urls:
   pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}
-  preview: https://{sanitized_branch}.preview.example.com
+  preview:
+    template: https://{sanitized_branch}.preview.example.com
+    label: Branch preview
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
   database: postgres://{database.user}:{database.password}@{database.host}/app
@@ -91,7 +93,7 @@ post_create:
 
 ## Resolution rules
 
-Project or Git-local scalar values override global values. Named `ticket_commands` merge by name with repository entries winning. Repository `review_command` replaces the global array as a whole. Other lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning.
+Project or Git-local scalar values override global values. Named `ticket_commands` merge by name with repository entries winning. Repository `review_command` replaces the global array as a whole. Other lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning. A repository URL replaces the complete global entry, including its label.
 
 The `<global>` marker is valid in repository `files.copy`, `ports.services`, and `post_create` lists. It cannot appear in the global configuration.
 
@@ -184,10 +186,22 @@ Text prepended to the generated checkout name.
 
 ### `urls` and `metadata`
 
-`urls` maps arbitrary names to absolute URL templates. HWT includes a `pr` URL
-for GitHub by default. Global and repository maps merge by name, with repository
-entries winning, so an `urls.pr` entry can target GitLab, Forgejo, or another
-forge. Shell completion reads the merged names for the current repository.
+`urls` maps arbitrary names to absolute URL templates. A value can be a template
+string or an object with a required `template` and optional display `label`:
+
+```yaml
+urls:
+  local: http://web.{hostname}
+  preview:
+    template: https://{sanitized_branch}.preview.example.com
+    label: Branch preview
+```
+
+HWT includes a `pr` URL for GitHub by default. Global and repository maps merge
+by name, with repository entries winning, so an `urls.pr` entry can target
+GitLab, Forgejo, or another forge. An override replaces the complete entry
+rather than inheriting its label. Shell completion reads the merged names for
+the current repository.
 Built-in placeholders are:
 
 | Placeholder          | Value                                                                   |
@@ -212,11 +226,12 @@ braces are not supported. Configuration validation rejects malformed templates,
 invalid percent escapes, and templates without a URL scheme.
 
 `hwt url NAME [branch]` prints one resolved URL. Add `--open` for HTTP(S) URLs.
-`hwt url --json` computes every configured URL and prints a sorted array of
-name and URL objects. If the current branch has no pull request, it omits URLs
-that require pull request metadata. Other resolution errors still fail the
-command. Resolving a PR-dependent URL by name still reports the missing pull
-request.
+JSON output includes `label` when the URL entry configures one and omits the
+field otherwise. `hwt url --json` computes every configured URL and prints a
+sorted array of name, URL, and optional label objects. If the current branch has
+no pull request, it omits URLs that require pull request metadata. Other
+resolution errors still fail the command. Resolving a PR-dependent URL by name
+still reports the missing pull request.
 
 `metadata.values` provides static strings. A command under
 `metadata.commands.NAME` is an argv array run directly without a shell only when

@@ -29,8 +29,9 @@ type Options struct {
 }
 
 type Result struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name  string `json:"name"`
+	URL   string `json:"url"`
+	Label string `json:"label,omitempty"`
 }
 
 type runner interface {
@@ -120,11 +121,11 @@ func resolve(deps dependencies, options Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	template, exists := cfg.URLs[options.Name]
+	entry, exists := cfg.URLs[options.Name]
 	if !exists {
 		return Result{}, fmt.Errorf("URL %q is not configured under urls", options.Name)
 	}
-	placeholders, err := urltemplate.Placeholders(template)
+	placeholders, err := urltemplate.Placeholders(entry.Template)
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve URL %q: %w", options.Name, err)
 	}
@@ -229,11 +230,11 @@ func resolve(deps dependencies, options Options) (Result, error) {
 		values["pr_number"] = strconv.Itoa(reference.Number)
 	}
 
-	resolved, err := urltemplate.Expand(template, values)
+	resolved, err := urltemplate.Expand(entry.Template, values)
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve URL %q: %w", options.Name, err)
 	}
-	return Result{Name: options.Name, URL: resolved}, nil
+	return Result{Name: options.Name, URL: resolved, Label: entry.Label}, nil
 }
 
 func Names(cwd string) ([]string, error) {

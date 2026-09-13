@@ -52,8 +52,8 @@ func TestResolveMergesMetadataAndRunsOnlyRequiredCommands(t *testing.T) {
 		{output: `{"host":"deploy.example","token":"secret"}`},
 	}}
 	cfg := config.Config{
-		URLs: map[string]string{
-			"preview": "https://{deployment.host}/{region}/{ticket.identifier}/{branch}",
+		URLs: map[string]config.NamedURL{
+			"preview": {Template: "https://{deployment.host}/{region}/{ticket.identifier}/{branch}", Label: "Branch preview"},
 		},
 		Metadata: config.Metadata{
 			Values: map[string]string{"region": "global", "ticket.identifier": "fallback", "deployment.host": "static.example"},
@@ -73,7 +73,7 @@ func TestResolveMergesMetadataAndRunsOnlyRequiredCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantURL := "https://deploy.example/global/RMS-85/Feature%2FAPI%20v2"
-	if result.Name != "preview" || result.URL != wantURL {
+	if result.Name != "preview" || result.URL != wantURL || result.Label != "Branch preview" {
 		t.Fatalf("result = %#v, want URL %q", result, wantURL)
 	}
 	wantCommand := []string{"metadata-helper", "--branch", "Feature/API v2", "literal; $(not-a-shell)"}
@@ -84,7 +84,7 @@ func TestResolveMergesMetadataAndRunsOnlyRequiredCommands(t *testing.T) {
 
 func TestResolveLoadsCurrentConfigAndTicketMetadataOnlyWhenRequested(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
-	cfg := config.Config{URLs: map[string]string{"preview": "https://example.com/{branch}"}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{"preview": {Template: "https://example.com/{branch}"}}}
 	deps := testDependencies(commands, cfg)
 	var loadedFrom string
 	deps.loadConfig = func(root string, _ ...string) (config.Config, config.Sources, error) {
@@ -106,7 +106,7 @@ func TestResolveLoadsCurrentConfigAndTicketMetadataOnlyWhenRequested(t *testing.
 func TestResolveDoesNotTreatCustomPRMetadataAsBuiltIn(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
 	cfg := config.Config{
-		URLs:     map[string]string{"status": "https://example.com/{pr_label}"},
+		URLs:     map[string]config.NamedURL{"status": {Template: "https://example.com/{pr_label}"}},
 		Metadata: config.Metadata{Values: map[string]string{"pr_label": "ready"}},
 	}
 
@@ -126,9 +126,9 @@ func TestResolveAllCachesSharedRepositoryAndMetadataLookups(t *testing.T) {
 		{output: `{"host":"deploy.example"}`},
 	}}
 	cfg := config.Config{
-		URLs: map[string]string{
-			"alpha": "https://{deploy.host}/alpha/{branch}",
-			"bravo": "https://{deploy.host}/bravo/{branch}",
+		URLs: map[string]config.NamedURL{
+			"alpha": {Template: "https://{deploy.host}/alpha/{branch}"},
+			"bravo": {Template: "https://{deploy.host}/bravo/{branch}"},
 		},
 		Metadata: config.Metadata{Commands: map[string][]string{"deploy": {"metadata-helper"}}},
 	}
@@ -191,7 +191,7 @@ func TestResolveBuiltInGitAndWorktreeMetadata(t *testing.T) {
 		{output: "worktree /projects/app\x00"},
 	}}
 	template := "https://example.com/{repository}/{branch}/{sanitized_branch}/{worktree}"
-	result, err := resolve(testDependencies(commands, config.Config{URLs: map[string]string{"details": template}}), Options{Name: "details", CWD: "/worktrees/app-feature"})
+	result, err := resolve(testDependencies(commands, config.Config{URLs: map[string]config.NamedURL{"details": {Template: template}}}), Options{Name: "details", CWD: "/worktrees/app-feature"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestResolveBuiltInGitAndWorktreeMetadata(t *testing.T) {
 
 func TestResolveExplicitBranchAndPullRequestValues(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}}}
-	cfg := config.Config{URLs: map[string]string{"pr": "https://{pr_host}/{pr_owner}/{pr_repository}/merge_requests/{pr_number}?branch={branch}"}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{"pr": {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/merge_requests/{pr_number}?branch={branch}"}}}
 	deps := testDependencies(commands, cfg)
 	var received pullrequest.Options
 	deps.resolvePR = func(options pullrequest.Options) (pullrequest.Reference, error) {
@@ -230,7 +230,7 @@ func TestResolveLocalHostnameWithoutSideEffects(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: worktree + "\n"}, {output: "feature/local\n"}, {output: "worktree " + repository + "\x00"}}}
 	cfg := config.Config{
 		LocalDNS: config.LocalDNS{Enabled: true, Domain: "hwt.test"},
-		URLs:     map[string]string{"local": "http://web.{hostname}"},
+		URLs:     map[string]config.NamedURL{"local": {Template: "http://web.{hostname}"}},
 	}
 	result, err := resolve(testDependencies(commands, cfg), Options{Name: "local", CWD: worktree})
 	if err != nil {
@@ -266,7 +266,7 @@ func TestResolveRejectsUnavailableHostname(t *testing.T) {
 			if test.branch == "" {
 				responses = append(responses, response{output: "feature/local\n"}, response{output: "worktree " + repository + "\x00"})
 			}
-			cfg := config.Config{LocalDNS: config.LocalDNS{Enabled: test.enabled, Domain: "hwt.test"}, URLs: map[string]string{"local": "http://web.{hostname}"}}
+			cfg := config.Config{LocalDNS: config.LocalDNS{Enabled: test.enabled, Domain: "hwt.test"}, URLs: map[string]config.NamedURL{"local": {Template: "http://web.{hostname}"}}}
 			_, err := resolve(testDependencies(&fakeRunner{responses: responses}, cfg), Options{Name: "local", CWD: worktree, Branch: test.branch})
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want %q", err, test.want)
@@ -277,7 +277,7 @@ func TestResolveRejectsUnavailableHostname(t *testing.T) {
 
 func TestResolveCurrentBranchPRNumber(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "feature/current\n"}}}
-	deps := testDependencies(commands, config.Config{URLs: map[string]string{"preview": "https://example.com/pr-{pr_number}"}})
+	deps := testDependencies(commands, config.Config{URLs: map[string]config.NamedURL{"preview": {Template: "https://example.com/pr-{pr_number}"}}})
 	deps.resolvePR = func(options pullrequest.Options) (pullrequest.Reference, error) {
 		if options.Branch != "feature/current" {
 			t.Fatalf("PR branch = %q", options.Branch)
@@ -301,7 +301,7 @@ func TestResolveDoesNotPersistCommandSecretsOrURL(t *testing.T) {
 		{output: `{"password":"secret@example"}`},
 	}}
 	cfg := config.Config{
-		URLs:     map[string]string{"database": "postgres://user:{database.password}@db.example/app"},
+		URLs:     map[string]config.NamedURL{"database": {Template: "postgres://user:{database.password}@db.example/app"}},
 		Metadata: config.Metadata{Commands: map[string][]string{"database": {"credentials", "--json"}}},
 	}
 	result, err := resolve(testDependencies(commands, cfg), Options{Name: "database", CWD: root, Branch: "main"})
@@ -339,9 +339,9 @@ func TestResolveErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			responses := []response{{output: "/worktrees/current\n"}}
-			cfg := config.Config{URLs: map[string]string{}}
+			cfg := config.Config{URLs: map[string]config.NamedURL{}}
 			if test.template != "" {
-				cfg.URLs["preview"] = test.template
+				cfg.URLs["preview"] = config.NamedURL{Template: test.template}
 			}
 			if test.command != nil {
 				cfg.Metadata.Commands = map[string][]string{"deploy": test.command}

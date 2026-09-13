@@ -100,7 +100,7 @@ hwt completion zsh
 
 `hwt review SELECTOR` creates a dedicated review workspace for a full HTTPS GitHub pull request URL or a branch reference. Pull requests are fetched through the base repository's `refs/pull/NUMBER/head`, so same-repository and fork heads work without changing the primary checkout. Local branches are used as already fetched; `REMOTE/BRANCH`, `--remote`, or a single configured remote selects remote branches. HWT creates a deterministic `hwt/review/...` branch, verifies its exact commit before reuse, opens the linked worktree in Herdr without focusing it by default, and launches `review_command`. An exact workspace whose recorded review pane is still busy is returned without launching a duplicate tool; an idle session is relaunched. Use `--focus` to switch workspaces and `--json` for identity, commit, path, workspace/pane IDs, reuse state, and launch status.
 
-`hwt url NAME [branch]` resolves a configured named URL and prints it without opening anything. `--json` returns its name and URL; without a name it returns available URLs in sorted order and omits PR-dependent URLs when the branch has no pull request. `--open` explicitly opens only HTTP(S) URLs. HWT provides a GitHub `pr` URL by default, and `urls.pr` can replace it for GitLab, Forgejo, or another forge. URL names from the current repository are available to shell completion. Explicit branches need not exist locally, but cannot use `{worktree}` or worktree-local `ticket.*` metadata.
+`hwt url NAME [branch]` resolves a configured named URL and prints it without opening anything. `--json` returns its name and URL plus an optional display label; without a name it returns available URLs in sorted order and omits PR-dependent URLs when the branch has no pull request. `--open` explicitly opens only HTTP(S) URLs. HWT provides a GitHub `pr` URL by default, and `urls.pr` can replace it for GitLab, Forgejo, or another forge. URL names from the current repository are available to shell completion. Explicit branches need not exist locally, but cannot use `{worktree}` or worktree-local `ticket.*` metadata.
 
 `hwt skill` prints the canonical usage skill for AI agents. Its concise core points agents to `hwt skill config`, which prints the project-configuration reference only when needed.
 
@@ -131,7 +131,9 @@ worktree_prefix: project-
 urls:
   # Override the default GitHub pull request URL for another forge:
   # pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}
-  preview: https://{sanitized_branch}.preview.example.com
+  preview:
+    template: https://{sanitized_branch}.preview.example.com
+    label: Branch preview
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
   database: postgres://{database.user}:{database.password}@{database.host}/app
