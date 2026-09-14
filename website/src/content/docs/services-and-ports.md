@@ -111,12 +111,12 @@ HWT does not install packages, edit `/etc`, invoke `sudo`, start listeners, or
 manage host services. Include the reported snippets from separately installed
 dnsmasq and Caddy services. Managed DNS is supported on macOS and Linux.
 
-| Command                          | Purpose                                                                 |
-| -------------------------------- | ----------------------------------------------------------------------- |
-| `hwt dns setup [--json]`         | Generate snippets and report their include paths.                       |
-| `hwt dns status [--json]`        | Inspect generated paths and active registrations.                       |
-| `hwt dns refresh [--cwd, --json]`| Reconcile the current worktree route without replacing its ports.       |
-| `hwt dns teardown [--force, --json]` | Remove HWT-owned state; refuse active routes unless forced.          |
+| Command                              | Purpose                                                           |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `hwt dns setup [--json]`             | Generate snippets and report their include paths.                 |
+| `hwt dns status [--json]`            | Inspect generated paths and active registrations.                 |
+| `hwt dns refresh [--cwd, --json]`    | Reconcile the current worktree route without replacing its ports. |
+| `hwt dns teardown [--force, --json]` | Remove HWT-owned state; refuse active routes unless forced.       |
 
 An optional `local_dns.reload` argv command can reload user-managed services
 after generated files change. HWT runs it directly without a shell. Arguments
