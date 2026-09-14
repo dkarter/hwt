@@ -160,10 +160,11 @@ winning.
 
 Argument array launched by `hwt review` from the review checkout. The default is
 `[tuicr]`, and repository configuration replaces the global array as a whole.
-HWT does not append the pull request URL, number, branch, title, or other remote
-metadata. It shell-quotes each configured argument before submitting the command
-to the Herdr pane, so arguments remain literal and no metadata is interpreted by
-the shell.
+An argument that is exactly `{pr_url}` expands to the canonical pull request URL.
+For example, `[tuicr, pr, '{pr_url}']` opens tuicr in pull request mode without a
+commit picker. The placeholder is rejected for branch reviews, which have no pull
+request URL. Other arguments remain literal. HWT shell-quotes each argument before
+submitting the command to the Herdr pane, so no metadata is interpreted by the shell.
 
 HWT verifies that the executable is available before launch. A successful
 `launched` result means Herdr accepted the command; the tool then owns the pane.

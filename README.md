@@ -66,7 +66,8 @@ ticket_commands:
     output: *ticket-output
 
 # Optional: choose the command launched by `hwt review` (defaults to tuicr).
-review_command: [tuicr]
+# An exact {pr_url} argument expands to the canonical pull request URL for PR reviews.
+review_command: [tuicr, pr, '{pr_url}']
 
 # Optional: control where worktrees live and how their directory names are generated.
 worktree_dir: ../

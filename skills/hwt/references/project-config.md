@@ -97,9 +97,11 @@ be inserted.
   string fields to the branch and persisted ticket metadata. Global and
   repository commands merge by name, with repository entries winning.
 - `review_command`: Set the argv launched by `hwt review`; the default is
-  `[tuicr]`. Repository configuration replaces the global argv. HWT adds no PR,
-  branch, title, or URL arguments and shell-quotes each configured argument
-  before asking Herdr to run it in the review checkout.
+  `[tuicr]`. Repository configuration replaces the global argv. An exact
+  `{pr_url}` argument expands to the canonical pull request URL, so
+  `[tuicr, pr, '{pr_url}']` opens tuicr without a commit picker. The placeholder
+  is rejected for branch reviews. HWT shell-quotes each argument before asking
+  Herdr to run it in the review checkout.
 - `worktree_dir`: Resolve relative values from the repository root.
 - `worktree_naming`: Use `full` to preserve branch hierarchy in the checkout
   name, or `basename` to use only the final branch component.

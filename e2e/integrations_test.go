@@ -3,6 +3,7 @@ package e2e
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -248,7 +249,27 @@ func TestREV005_REV007_ReviewLocalBranchCreatesWorkspaceAndLaunchesTool(t *testi
 	}
 }
 
-func TestREV004_ReviewForkPullRequestByExactCommit(t *testing.T) {
+func TestREV011_ReviewBranchRejectsPRURLPlaceholderBeforeFetch(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	s.git(repo, "branch", "feature/rejected")
+	remote := filepath.Join(s.root, "origin.git")
+	s.git(repo, "clone", "--bare", repo, remote)
+	s.git(repo, "branch", "-D", "feature/rejected")
+	s.git(repo, "remote", "add", "origin", remote)
+	herdr := s.fakeHerdr(repo)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [tuicr, pr, '{pr_url}']\n", 0o600)
+
+	_, stderr, err := s.command(repo, "--herdr-bin", herdr, "review", "origin/feature/rejected")
+	if err == nil || !strings.Contains(stderr, "not a pull request URL or number") {
+		t.Fatalf("review error = %v, stderr = %q", err, stderr)
+	}
+	if refs := s.git(repo, "for-each-ref", "--format=%(refname)", "refs/hwt/reviews/branches"); refs != "" {
+		t.Fatalf("branch fetched before placeholder rejection: %q", refs)
+	}
+}
+
+func TestREV004_REV007_ReviewForkPullRequestByExactCommit(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()
 	remote := filepath.Join(s.root, "origin.git")
@@ -259,9 +280,9 @@ func TestREV004_ReviewForkPullRequestByExactCommit(t *testing.T) {
 	herdr := s.fakeHerdr(repo)
 	s.tool("review-tool", "exit 0")
 	s.tool("gh", `printf '%s\n' '{"number":7,"url":"https://github.com/acme/app/pull/7","title":"Fork change","headRefName":"feature/fork","headRefOid":"`+head+`","baseRefName":"main","isCrossRepository":true}'`)
-	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [review-tool]\nworktree_dir: "+filepath.Join(s.root, "reviews")+"\n", 0o600)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [review-tool, pr, '{pr_url}', 'literal; $(unsafe)']\nworktree_dir: "+filepath.Join(s.root, "reviews")+"\n", 0o600)
 
-	result := decode(t, s.run(repo, "--herdr-bin", herdr, "review", "https://github.com/acme/app/pull/7", "--repo", "acme/app", "--remote", "origin", "--json"))
+	result := decode(t, s.run(repo, "--herdr-bin", herdr, "review", "7", "--repo", "acme/app", "--remote", "origin", "--json"))
 	identity := result["identity"].(map[string]any)
 	if result["commit"] != head || identity["fork"] != true || identity["remote"] != "origin" {
 		t.Fatalf("pull request review result = %#v", result)
@@ -269,6 +290,13 @@ func TestREV004_ReviewForkPullRequestByExactCommit(t *testing.T) {
 	if got := s.git(repo, "branch", "--show-current"); got != "main" {
 		t.Fatalf("source checkout moved to %q", got)
 	}
+	launch := result["review_command"].(map[string]any)
+	wantCommand := []any{"review-tool", "pr", "https://github.com/acme/app/pull/7", "literal; $(unsafe)"}
+	if !reflect.DeepEqual(launch["command"], wantCommand) {
+		t.Fatalf("review command = %#v, want %#v", launch["command"], wantCommand)
+	}
+	log := mustRead(t, filepath.Join(s.root, "herdr.log"))
+	requireContains(t, log, "pane run pane1 'review-tool' 'pr' 'https://github.com/acme/app/pull/7' 'literal; $(unsafe)'")
 }
 
 func TestREV006_ExactReviewWorkspaceIsReused(t *testing.T) {
