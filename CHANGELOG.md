@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.7.0](https://github.com/dkarter/hwt/compare/v0.6.1...v0.7.0) (2026-09-14)
+
+
+### Features
+
+* add configurable preview URLs ([248dd6c](https://github.com/dkarter/hwt/commit/248dd6cbee116a59bf8889da567b8d76165bab78))
+* add configurable ticket commands ([#22](https://github.com/dkarter/hwt/issues/22)) ([2ec9d38](https://github.com/dkarter/hwt/commit/2ec9d387a651fc37c11ab4a0b6f2b61e4c86b645))
+* add local DNS for worktrees ([1e866bd](https://github.com/dkarter/hwt/commit/1e866bd67bc3589bc3ac5b1422b35c8977b02db1))
+* add named dynamic URLs ([ef88207](https://github.com/dkarter/hwt/commit/ef88207054480031e5446e6a85a3fda3311a8a60))
+* add per-worktree environments ([c9dc9af](https://github.com/dkarter/hwt/commit/c9dc9afd05494bb171c37cb4207b818b2a4fe2e8))
+* add PR review workspaces ([c3cb44e](https://github.com/dkarter/hwt/commit/c3cb44ed2dd892109360e93f41fc2e02c4d91d67))
+* add URL display labels ([#25](https://github.com/dkarter/hwt/issues/25)) ([1c0215d](https://github.com/dkarter/hwt/commit/1c0215d7f48c422cf41ccc186ed772e1af31ef6f))
+* add zero-setup localhost URLs ([#23](https://github.com/dkarter/hwt/issues/23)) ([359384b](https://github.com/dkarter/hwt/commit/359384bc972445ec2338a4af4061a67fb3a4fadb))
+* create worktrees from descriptions ([dee16d3](https://github.com/dkarter/hwt/commit/dee16d367d2b074da0b4911e6625fc4e798cc668))
+* expose named service URLs ([#27](https://github.com/dkarter/hwt/issues/27)) ([44562a4](https://github.com/dkarter/hwt/commit/44562a46a7d800d1ad08152c2069537c51f63087))
+* make URL commands configurable ([#21](https://github.com/dkarter/hwt/issues/21)) ([3391ab6](https://github.com/dkarter/hwt/commit/3391ab6f4e15e299a2c6f673cfa3972ff6be7ffd))
+* open pull request URLs ([3824d3f](https://github.com/dkarter/hwt/commit/3824d3f92851db461d5b88741183e292f9f644e7))
+* publish immutable development builds ([d8bf251](https://github.com/dkarter/hwt/commit/d8bf25150b8ffc71b79eef4718702eb9ab293052))
+* publish main development builds ([e2172a6](https://github.com/dkarter/hwt/commit/e2172a6681cc3bf723f9b9906acfb1cb04473ddf))
+* support pull request review commands ([#29](https://github.com/dkarter/hwt/issues/29)) ([afddf71](https://github.com/dkarter/hwt/commit/afddf71cbce6a5028adb93c689c593662da54983))
+
+
+### Bug Fixes
+
+* detect occupied loopback ports ([a6e2a1d](https://github.com/dkarter/hwt/commit/a6e2a1dd93f9b7832386d0b8dd25b08bcebf85fa))
+* isolate git test environments ([3ab15bc](https://github.com/dkarter/hwt/commit/3ab15bc1c56b5b756f494070236884091a4f954a))
+* make release commands repository explicit ([b654214](https://github.com/dkarter/hwt/commit/b654214f4f2978f247b4bb04741b5d630d3c75b3))
+* remove publish job git dependency ([3bb4dc5](https://github.com/dkarter/hwt/commit/3bb4dc5ed3dec4a8c95cfdc4dd43ee3872801222))
+* skip development changelog auth ([49eb818](https://github.com/dkarter/hwt/commit/49eb818d6d4ba7595048040bd9de71b845afd1d5))
+* skip missing PR URLs in URL list ([#24](https://github.com/dkarter/hwt/issues/24)) ([ecc7da0](https://github.com/dkarter/hwt/commit/ecc7da0afde5c4da02d4d43bf4128fb0522fced3))
+
 ## [0.6.1](https://github.com/dkarter/hwt/compare/v0.6.0...v0.6.1) (2026-08-29)
 
 
