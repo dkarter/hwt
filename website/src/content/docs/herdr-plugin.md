@@ -3,11 +3,6 @@ title: Herdr plugin
 description: Create and remove configured HWT worktrees through native Herdr actions.
 ---
 
-:::caution[Experimental]
-The Herdr plugin is experimental. Its installation, actions, and interaction
-design may change between releases.
-:::
-
 The official HWT plugin adds interactive worktree actions to Herdr and prepares
 configured files in worktrees created through Herdr's built-in UI or CLI. It
 does not require a separate fuzzy finder or command palette.
