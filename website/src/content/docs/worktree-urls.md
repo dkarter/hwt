@@ -141,14 +141,3 @@ Resolving one such URL by name still reports the missing pull request.
 
 Without a branch argument, detached HEAD cannot identify a branch-dependent URL;
 pass the branch explicitly.
-
-## Migrate from `preview_url`
-
-```yaml
-# Before
-preview_url: https://{sanitized_branch}.preview.example.com
-
-# After
-urls:
-  preview: https://{sanitized_branch}.preview.example.com
-```
