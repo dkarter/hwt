@@ -8,19 +8,32 @@ const releaseManifest = JSON.parse(
 const docsVersion = process.env.HWT_DOCS_VERSION || "dev";
 const stableVersion = process.env.HWT_STABLE_VERSION || releaseManifest["."];
 const base = process.env.HWT_SITE_BASE || (docsVersion === "dev" ? "/dev" : "/");
+const docsBase = base === "/" ? "" : base;
 
 process.env.PUBLIC_HWT_STABLE_VERSION = stableVersion;
 process.env.PUBLIC_HWT_DOCS_VERSION = docsVersion;
 process.env.PUBLIC_HWT_STABLE_ROUTES = process.env.HWT_STABLE_ROUTES || "";
 
 const docsRoot = new URL("./src/content/docs/", import.meta.url);
+const hasDoc = (file) => existsSync(new URL(file, docsRoot));
+const hasWorktreeURLs = hasDoc("worktree-urls.md");
 const doc = (label, slug, file = `${slug.replace(/^docs\//, "")}.md`) =>
-  existsSync(new URL(file, docsRoot)) ? { label, slug } : null;
+  hasDoc(file) ? { label, slug } : null;
 const available = (items) => items.filter(Boolean);
 
 export default defineConfig({
   site: "https://hwt.doriankarter.com",
   base,
+  redirects: {
+    ...(hasWorktreeURLs &&
+      !hasDoc("cli/open-pull-request.md") && {
+      "/docs/cli/open-pull-request": `${docsBase}/docs/worktree-urls/`,
+    }),
+    ...(hasWorktreeURLs &&
+      !hasDoc("cli/open-preview-environment.md") && {
+      "/docs/cli/open-preview-environment": `${docsBase}/docs/worktree-urls/`,
+    }),
+  },
   prefetch: false,
   integrations: [
     starlight({
