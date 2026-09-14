@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/dkarter/hwt/compare/v0.7.0...v0.8.0) (2026-09-14)
+
+
+### Features
+
+* add default repository URL ([#30](https://github.com/dkarter/hwt/issues/30)) ([6decf07](https://github.com/dkarter/hwt/commit/6decf076a533c601d571b254d13cf36a3c445e94))
+
 ## [0.7.0](https://github.com/dkarter/hwt/compare/v0.6.1...v0.7.0) (2026-09-14)
 
 
