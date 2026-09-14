@@ -65,11 +65,11 @@
     },
     "review_command": {
       "type": "array",
-      "description": "Argument vector launched in a review workspace. hwt shell-quotes every configured argument before asking Herdr to run it and never appends pull request metadata.",
+      "description": "Argument vector launched in a review workspace. For pull request reviews, an exact {pr_url} argument expands to the canonical pull request URL; branch reviews reject the placeholder. hwt shell-quotes every argument before asking Herdr to run it.",
       "default": ["tuicr"],
       "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
-      "examples": [["tuicr"], ["custom-review", "--local"]]
+      "examples": [["tuicr"], ["tuicr", "pr", "{pr_url}"], ["custom-review", "--local"]]
     },
     "worktree_dir": {
       "type": "string",

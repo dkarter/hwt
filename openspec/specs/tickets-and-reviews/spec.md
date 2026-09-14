@@ -54,12 +54,12 @@ HWT SHALL provide an overridable `urls.pr` default that resolves pull requests t
 
 ### Requirement: Resolve review targets without changing the source checkout
 
-HWT SHALL accept one full HTTPS GitHub pull request URL or local, remote-qualified, or unambiguous remote branch.
+HWT SHALL accept one full HTTPS GitHub pull request URL, positive decimal pull request number, or local, remote-qualified, or unambiguous remote branch.
 
 #### Scenario: Review a pull request including a fork {#REV-004}
 
-- GIVEN a valid pull request URL and an identifiable base-repository remote
-- WHEN the user runs `hwt review URL`
+- GIVEN a valid pull request URL or number and an identifiable base-repository remote
+- WHEN the user runs `hwt review URL_OR_NUMBER`
 - THEN HWT fetches and verifies the exact pull request head and base commits without changing the primary checkout
 - AND fork heads are supported through the base repository pull-request ref
 
@@ -88,7 +88,13 @@ HWT SHALL launch the configured review argv in the review checkout and SHALL pre
 
 #### Scenario: Review launch result {#REV-007}
 
-- GIVEN a created or reused review workspace
+- GIVEN a pull request review target and a created or reused review workspace
 - WHEN HWT launches `review_command`
-- THEN each configured argument remains literal and no remote metadata is appended
+- THEN an exact `{pr_url}` argument expands to the canonical pull request URL and other configured arguments remain literal
 - AND JSON reports identity, commit, branch, path, workspace and pane IDs, reuse, command, status, and any recoverable launch error
+
+#### Scenario: Reject pull request URL placeholder for a branch {#REV-011}
+
+- GIVEN a branch review target and a `review_command` containing an exact `{pr_url}` argument
+- WHEN HWT validates the review target
+- THEN HWT fails before fetching the branch or creating a review branch or workspace

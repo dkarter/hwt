@@ -3,10 +3,12 @@ title: Review a pull request
 description: Fetch a pull request or branch into an exact, reusable Herdr review workspace.
 ---
 
-`hwt review` accepts one full GitHub pull request URL or branch reference:
+`hwt review` accepts one full GitHub pull request URL, pull request number, or
+branch reference:
 
 ```sh
 hwt review https://github.com/owner/repository/pull/123
+hwt review 123
 hwt review origin/feature/name
 ```
 
@@ -17,7 +19,8 @@ the configured review command. Pass `--focus` to switch to the review workspace.
 
 ## Pull requests and forks
 
-Pull request URLs must use HTTPS and exactly
+Positive decimal selectors are always pull request numbers and are resolved in
+the current repository by `gh`. Pull request URLs must use HTTPS and exactly
 `https://HOST/OWNER/REPO/pull/NUMBER`, without a query, fragment, port, or
 userinfo. `github.com` is supported directly. A GitHub Enterprise host must
 match a configured Git remote. HWT queries metadata with authenticated `gh`,
@@ -55,9 +58,12 @@ environment/port allocation, local DNS registration, and `post_create` hooks.
 
 ## Review command and recovery
 
-`review_command` is an argv array and defaults to `[tuicr]`. HWT adds no remote
-metadata to it and shell-quotes each configured argument before Herdr runs it in
-the checkout. Missing executables and Herdr launch failures return an error after
+`review_command` is an argv array and defaults to `[tuicr]`. To open the fetched
+pull request directly in tuicr, configure `[tuicr, pr, '{pr_url}']`. HWT replaces
+an exact `{pr_url}` argument with the canonical pull request URL and shell-quotes
+every argument before Herdr runs it in the checkout. The placeholder is rejected
+when reviewing a branch rather than a pull request URL or number. Missing
+executables and Herdr launch failures return an error after
 reporting the successful workspace in JSON. The workspace remains intact so the
 tool can be installed or started manually. `launched` means Herdr accepted the
 command; later early exits or non-zero statuses do not remove the workspace.
@@ -75,10 +81,10 @@ result before returning a non-zero status.
 
 ## Flags
 
-| Flag                    | Description                                                         |
-| ----------------------- | ------------------------------------------------------------------- |
-| `--cwd PATH`            | Repository path. Defaults to the current directory.                 |
-| `--remote NAME`         | Remote to fetch when selection is ambiguous.                        |
-| `-R, --repo REPOSITORY` | GitHub repository for a PR URL in `[HOST/]OWNER/REPO` form.         |
-| `--focus`               | Focus the created or reused workspace.                              |
-| `--json`                | Print identity, checkout, workspace, reuse, and launch information. |
+| Flag                    | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `--cwd PATH`            | Repository path. Defaults to the current directory.                   |
+| `--remote NAME`         | Remote to fetch when selection is ambiguous.                          |
+| `-R, --repo REPOSITORY` | GitHub repository for a PR URL or number in `[HOST/]OWNER/REPO` form. |
+| `--focus`               | Focus the created or reused workspace.                                |
+| `--json`                | Print identity, checkout, workspace, reuse, and launch information.   |

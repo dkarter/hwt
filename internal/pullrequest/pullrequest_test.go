@@ -107,6 +107,37 @@ func TestResolveMetadataWithoutRepository(t *testing.T) {
 	}
 }
 
+func TestResolveMetadataByNumberUsesCanonicalPullRequestURL(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: `{"number":42,"url":"https://github.com/acme/app/pull/42","title":"Title","headRefName":"feature","headRefOid":"abc123","baseRefName":"main","isCrossRepository":false}`}}}
+
+	metadata, err := resolveMetadata(commands, Options{CWD: "/repo", Branch: "42"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.URL != "https://github.com/acme/app/pull/42" {
+		t.Fatalf("canonical URL = %q", metadata.URL)
+	}
+	want := []string{"gh", "pr", "view", "42", "--json", "number,url,title,headRefName,headRefOid,baseRefName,isCrossRepository"}
+	if !reflect.DeepEqual(commands.calls, [][]string{want}) {
+		t.Fatalf("calls = %#v, want %#v", commands.calls, [][]string{want})
+	}
+}
+
+func TestIsSelectorAcceptsURLsAndCanonicalPositiveNumbers(t *testing.T) {
+	tests := map[string]bool{
+		"https://github.com/acme/app/pull/42": true,
+		"42":                                  true,
+		"0":                                   false,
+		"042":                                 false,
+		"feature/42":                          false,
+	}
+	for value, want := range tests {
+		if got := IsSelector(value); got != want {
+			t.Errorf("IsSelector(%q) = %t, want %t", value, got, want)
+		}
+	}
+}
+
 func TestResolveMetadataRejectsMalformedURLBeforeRunningCommands(t *testing.T) {
 	values := []string{
 		"", "http://github.com/acme/app/pull/1", "https://user@github.com/acme/app/pull/1",

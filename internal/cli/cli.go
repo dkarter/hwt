@@ -55,10 +55,10 @@ func (a *app) reviewCommand() *cobra.Command {
 	options := review.Options{}
 	jsonOutput := false
 	command := &cobra.Command{
-		Use:   "review <pull-request-url|branch>",
+		Use:   "review <pull-request-url|number|branch>",
 		Short: "Open a pull request or branch in a dedicated review workspace",
-		Long: "Fetch a GitHub pull request URL or branch without changing the primary checkout, create or reuse an exact-commit Herdr worktree, and launch the configured review command.\n\n" +
-			"Pull request URLs must use HTTPS and the /OWNER/REPO/pull/NUMBER form. Branches may be local names, REMOTE/BRANCH references, or unfetched names when the repository has one remote.",
+		Long: "Fetch a GitHub pull request URL, pull request number, or branch without changing the primary checkout, create or reuse an exact-commit Herdr worktree, and launch the configured review command.\n\n" +
+			"Pull request URLs must use HTTPS and the /OWNER/REPO/pull/NUMBER form. A positive decimal selector is a pull request number. Branches may be local names, REMOTE/BRANCH references, or unfetched names when the repository has one remote.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options.Selector = args[0]
@@ -78,7 +78,7 @@ func (a *app) reviewCommand() *cobra.Command {
 	}
 	flags := command.Flags()
 	flags.StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
-	flags.StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format (pull request URLs only)")
+	flags.StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format (pull requests only)")
 	flags.StringVar(&options.Remote, "remote", "", "Git remote to fetch when it cannot be selected unambiguously")
 	flags.BoolVar(&options.Focus, "focus", false, "focus the review workspace")
 	flags.BoolVar(&jsonOutput, "json", false, "print machine-readable workspace and launch details")

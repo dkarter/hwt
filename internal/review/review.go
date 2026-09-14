@@ -80,7 +80,7 @@ func Run(client Client, options Options) (Result, error) {
 
 func run(client Client, options Options, deps dependencies) (Result, error) {
 	if strings.TrimSpace(options.Selector) == "" {
-		return Result{}, errors.New("a pull request URL or branch reference is required")
+		return Result{}, errors.New("a pull request URL, number, or branch reference is required")
 	}
 	if options.CWD == "" {
 		var err error
@@ -101,12 +101,19 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if reviewCommandUsesPRURL(cfg.ReviewCommand) && !pullrequest.IsSelector(options.Selector) {
+		return Result{}, errors.New("review_command uses {pr_url}, but the review target is not a pull request URL or number")
+	}
 
 	identity, commit, base, reviewBranch, err := resolveTarget(options, source, deps)
 	if err != nil {
 		return Result{}, err
 	}
-	result := Result{Identity: identity, Commit: commit, Branch: reviewBranch, Launch: Launch{Status: "not_started", Command: append([]string(nil), cfg.ReviewCommand...)}}
+	reviewCommand, err := expandReviewCommand(cfg.ReviewCommand, identity)
+	if err != nil {
+		return Result{}, err
+	}
+	result := Result{Identity: identity, Commit: commit, Branch: reviewBranch, Launch: Launch{Status: "not_started", Command: reviewCommand}}
 
 	ref := "refs/heads/" + reviewBranch
 	if current, resolveErr := deps.runGit(source, "rev-parse", "--verify", "--quiet", ref+"^{commit}"); resolveErr == nil {
@@ -200,7 +207,7 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 					return result, fmt.Errorf("focus reused Herdr workspace %s: %w", item.OpenWorkspaceID, focusErr)
 				}
 			}
-			return launch(client, result, cfg.ReviewCommand, deps.findTool, deps.runGit)
+			return launch(client, result, reviewCommand, deps.findTool, deps.runGit)
 		}
 
 		opened, openErr := client.Open("--cwd", source, "--path", item.Path, focusFlag(options.Focus), "--json")
@@ -208,7 +215,7 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 			return result, fmt.Errorf("open existing review worktree in Herdr: %w", openErr)
 		}
 		result.WorkspaceID, result.PaneID, result.Path = opened.WorkspaceID, opened.PaneID, opened.Path
-		return launch(client, result, cfg.ReviewCommand, deps.findTool, deps.runGit)
+		return launch(client, result, reviewCommand, deps.findTool, deps.runGit)
 	}
 
 	created, err := worktree.Create(client, worktree.CreateOptions{CWD: source, Branch: reviewBranch, Base: base, Label: reviewLabel(identity), Focus: options.Focus})
@@ -216,7 +223,30 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 		return result, fmt.Errorf("create review worktree: %w", err)
 	}
 	result.WorkspaceID, result.PaneID, result.Path = created.WorkspaceID, created.PaneID, created.Path
-	return launch(client, result, cfg.ReviewCommand, deps.findTool, deps.runGit)
+	return launch(client, result, reviewCommand, deps.findTool, deps.runGit)
+}
+
+func expandReviewCommand(command []string, identity Identity) ([]string, error) {
+	expanded := append([]string(nil), command...)
+	for index, argument := range expanded {
+		if argument != "{pr_url}" {
+			continue
+		}
+		if identity.URL == "" {
+			return nil, errors.New("review_command uses {pr_url}, but the review target is not a pull request URL or number")
+		}
+		expanded[index] = identity.URL
+	}
+	return expanded, nil
+}
+
+func reviewCommandUsesPRURL(command []string) bool {
+	for _, argument := range command {
+		if argument == "{pr_url}" {
+			return true
+		}
+	}
+	return false
 }
 
 func launch(client Client, result Result, command []string, locate func(string, string) error, git func(string, ...string) (string, error)) (Result, error) {
@@ -244,7 +274,7 @@ func launch(client Client, result Result, command []string, locate func(string, 
 }
 
 func resolveTarget(options Options, source string, deps dependencies) (Identity, string, string, string, error) {
-	if strings.Contains(options.Selector, "://") {
+	if pullrequest.IsSelector(options.Selector) {
 		metadata, err := deps.resolvePR(pullrequest.Options{CWD: source, Branch: options.Selector, Repository: options.Repository})
 		if err != nil {
 			return Identity{}, "", "", "", err
@@ -275,7 +305,7 @@ func resolveTarget(options Options, source string, deps dependencies) (Identity,
 		return identity, commit, baseCommit, fmt.Sprintf("hwt/review/pr-%d", metadata.Number), nil
 	}
 	if options.Repository != "" {
-		return Identity{}, "", "", "", errors.New("--repo is only valid with a pull request URL")
+		return Identity{}, "", "", "", errors.New("--repo is only valid with a pull request URL or number")
 	}
 	return resolveBranch(options, source, deps.runGit)
 }

@@ -41,10 +41,10 @@ new workspace.
 ## Review
 
 Create or reuse an exact-commit review workspace from a full GitHub pull request
-URL or branch reference:
+URL, pull request number, or branch reference:
 
 ```bash
-hwt review --cwd <repository-path> --json <pull-request-url-or-branch>
+hwt review --cwd <repository-path> --json <pull-request-url-number-or-branch>
 ```
 
 The command does not focus the workspace unless `--focus` is passed. Parse

@@ -15,7 +15,7 @@ func TestMETA001_RepositoryAndInvalidFixtureValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repository validation failed: %s: %v", output, err)
 	}
-	requireContains(t, string(output), "validated 66 scenarios")
+	requireContains(t, string(output), "validated 67 scenarios")
 
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "specs", "sample", "spec.md"), `

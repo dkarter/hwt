@@ -99,19 +99,34 @@ func ResolveMetadata(options Options) (Metadata, error) {
 	return resolveMetadata(commandRunner{}, options)
 }
 
-func resolveMetadata(commands runner, options Options) (Metadata, error) {
-	requested, owner, repository, number, err := parsePullRequestURL(options.Branch)
-	if err != nil {
-		return Metadata{}, fmt.Errorf("resolve pull request metadata: %w", err)
+func IsSelector(value string) bool {
+	if strings.Contains(value, "://") {
+		return true
 	}
-	if options.Repository != "" && !repositoryMatchesURL(options.Repository, requested.Hostname(), owner, repository) {
-		return Metadata{}, fmt.Errorf("repository %q does not match pull request URL repository %s/%s", options.Repository, owner, repository)
+	_, ok := parsePullRequestNumber(value)
+	return ok
+}
+
+func resolveMetadata(commands runner, options Options) (Metadata, error) {
+	number, numberOnly := parsePullRequestNumber(options.Branch)
+	var requested *url.URL
+	var owner, repository string
+	if !numberOnly {
+		var err error
+		requested, owner, repository, number, err = parsePullRequestURL(options.Branch)
+		if err != nil {
+			return Metadata{}, fmt.Errorf("resolve pull request metadata: %w", err)
+		}
+		if options.Repository != "" && !repositoryMatchesURL(options.Repository, requested.Hostname(), owner, repository) {
+			return Metadata{}, fmt.Errorf("repository %q does not match pull request URL repository %s/%s", options.Repository, owner, repository)
+		}
 	}
 	if options.CWD == "" {
-		options.CWD, err = os.Getwd()
+		cwd, err := os.Getwd()
 		if err != nil {
 			return Metadata{}, err
 		}
+		options.CWD = cwd
 	}
 
 	arguments := []string{"pr", "view", options.Branch, "--json", "number,url,title,headRefName,headRefOid,baseRefName,isCrossRepository"}
@@ -145,7 +160,10 @@ func resolveMetadata(commands runner, options Options) (Metadata, error) {
 	if err != nil {
 		return Metadata{}, fmt.Errorf("GitHub returned an invalid canonical pull request URL: %w", err)
 	}
-	if !strings.EqualFold(requested.Hostname(), canonical.Hostname()) || !strings.EqualFold(owner, canonicalOwner) || !strings.EqualFold(repository, canonicalRepository) || number != canonicalNumber || number != *response.Number {
+	if numberOnly && options.Repository != "" && !repositoryMatchesURL(options.Repository, canonical.Hostname(), canonicalOwner, canonicalRepository) {
+		return Metadata{}, fmt.Errorf("repository %q does not match canonical pull request URL repository %s/%s", options.Repository, canonicalOwner, canonicalRepository)
+	}
+	if (!numberOnly && (!strings.EqualFold(requested.Hostname(), canonical.Hostname()) || !strings.EqualFold(owner, canonicalOwner) || !strings.EqualFold(repository, canonicalRepository))) || number != canonicalNumber || number != *response.Number {
 		return Metadata{}, errors.New("GitHub returned pull request metadata for a different host, repository, or number")
 	}
 
@@ -158,6 +176,11 @@ func resolveMetadata(commands runner, options Options) (Metadata, error) {
 		BaseRefName:       *response.BaseRefName,
 		IsCrossRepository: *response.IsCrossRepository,
 	}, nil
+}
+
+func parsePullRequestNumber(value string) (int, bool) {
+	number, err := strconv.Atoi(value)
+	return number, err == nil && number > 0 && strconv.Itoa(number) == value
 }
 
 func parsePullRequestURL(value string) (*url.URL, string, string, int, error) {
