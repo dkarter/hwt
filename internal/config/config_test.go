@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dkarter/hwt/internal/gitutil"
 )
@@ -168,6 +169,11 @@ func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
 	if cfg.URLs["repo"].Template != "https://{repo_host}/{repo_owner}/{repo_repository}" {
 		t.Fatalf("unexpected default repository URL: %v", cfg.URLs["repo"])
 	}
+	for _, name := range []string{"pr", "repo"} {
+		if cfg.URLs[name].Cache.TTL != DefaultURLCacheTTL || cfg.URLs[name].Cache.NegativeTTL != DefaultURLNegativeCacheTTL {
+			t.Fatalf("unexpected default %s cache: %#v", name, cfg.URLs[name].Cache)
+		}
+	}
 
 	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}\n")
 	cfg, _, err = Load(t.TempDir())
@@ -176,6 +182,56 @@ func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
 	}
 	if cfg.URLs["pr"].Template != "https://gitlab.example/group/project/-/merge_requests?source_branch={branch}" {
 		t.Fatalf("pull request URL was not overridden: %v", cfg.URLs["pr"])
+	}
+}
+
+func TestLoadNamedURLCacheConfiguration(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `urls:
+  cached:
+    template: https://example.com/{branch}
+    cache:
+      ttl: 1h
+      negative_ttl: 30s
+  defaults:
+    template: https://example.com/defaults
+    cache: true
+  uncached:
+    template: https://example.com/uncached
+    cache: false
+`)
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URLs["cached"].Cache != (URLCache{TTL: Duration(time.Hour), NegativeTTL: Duration(30 * time.Second)}) {
+		t.Fatalf("custom cache = %#v", cfg.URLs["cached"].Cache)
+	}
+	if cfg.URLs["defaults"].Cache != (URLCache{TTL: DefaultURLCacheTTL, NegativeTTL: DefaultURLNegativeCacheTTL}) {
+		t.Fatalf("default cache = %#v", cfg.URLs["defaults"].Cache)
+	}
+	if cfg.URLs["uncached"].Cache != (URLCache{}) {
+		t.Fatalf("disabled cache = %#v", cfg.URLs["uncached"].Cache)
+	}
+}
+
+func TestLoadDisablesDefaultURLCacheOnOverride(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `urls:
+  pr:
+    template: https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}
+    cache: false
+`)
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URLs["pr"].Cache != (URLCache{}) {
+		t.Fatalf("cache = %#v", cfg.URLs["pr"].Cache)
 	}
 }
 
@@ -277,6 +333,9 @@ func TestLoadRejectsInvalidNamedURLObjects(t *testing.T) {
 		"urls:\n  preview:\n    template: https://example.com\n    label: ''\n",
 		"urls:\n  preview:\n    template: https://example.com\n    unknown: value\n",
 		"urls:\n  preview:\n    template: 42\n",
+		"urls:\n  preview:\n    template: https://example.com\n    cache: invalid\n",
+		"urls:\n  preview:\n    template: https://example.com\n    cache:\n      unknown: 1m\n",
+		"urls:\n  preview:\n    template: https://example.com\n    cache:\n      ttl: -1m\n",
 	} {
 		repo := t.TempDir()
 		writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), contents)

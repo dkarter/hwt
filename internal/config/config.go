@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/dkarter/hwt/internal/gitutil"
 	"github.com/dkarter/hwt/internal/urltemplate"
@@ -23,11 +24,13 @@ const DefaultCopyParallel = true
 const DefaultCopyOnWrite = false
 const DefaultLocalDNSDomain = "hwt.test"
 const DefaultPortURLTemplate = "http://{worktree}.{service}.localhost:{port}"
+const DefaultURLCacheTTL = Duration(5 * time.Minute)
+const DefaultURLNegativeCacheTTL = Duration(15 * time.Second)
 
 var defaultReviewCommand = []string{"tuicr"}
 var defaultURLs = map[string]NamedURL{
-	"pr":   {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"},
-	"repo": {Template: "https://{repo_host}/{repo_owner}/{repo_repository}"},
+	"pr":   {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}", Cache: URLCache{TTL: DefaultURLCacheTTL, NegativeTTL: DefaultURLNegativeCacheTTL}},
+	"repo": {Template: "https://{repo_host}/{repo_owner}/{repo_repository}", Cache: URLCache{TTL: DefaultURLCacheTTL, NegativeTTL: DefaultURLNegativeCacheTTL}},
 }
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -66,27 +69,86 @@ type LocalDNS struct {
 	Reload  []string `json:"reload,omitempty" yaml:"reload,omitempty"`
 }
 
+type Duration time.Duration
+
+func (duration Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(duration).String())
+}
+
+func (duration *Duration) UnmarshalYAML(node *yaml.Node) error {
+	if node.Tag != "!!str" {
+		return errors.New("duration must be a string")
+	}
+	value, err := time.ParseDuration(node.Value)
+	if err != nil {
+		return err
+	}
+	*duration = Duration(value)
+	return nil
+}
+
 type Metadata struct {
 	Values   map[string]string   `json:"values,omitempty" yaml:"values,omitempty"`
 	Commands map[string][]string `json:"commands,omitempty" yaml:"commands,omitempty"`
 }
 
 type NamedURL struct {
-	Template string `json:"template,omitempty" yaml:"template,omitempty"`
-	Service  string `json:"service,omitempty" yaml:"service,omitempty"`
-	Label    string `json:"label,omitempty" yaml:"label,omitempty"`
-	Disabled bool   `json:"-" yaml:"-"`
+	Template string   `json:"template,omitempty" yaml:"template,omitempty"`
+	Service  string   `json:"service,omitempty" yaml:"service,omitempty"`
+	Label    string   `json:"label,omitempty" yaml:"label,omitempty"`
+	Cache    URLCache `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Disabled bool     `json:"-" yaml:"-"`
+}
+
+type URLCache struct {
+	TTL         Duration `json:"ttl,omitempty" yaml:"ttl,omitempty"`
+	NegativeTTL Duration `json:"negative_ttl,omitempty" yaml:"negative_ttl,omitempty"`
+}
+
+func (cache *URLCache) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!bool" {
+		var enabled bool
+		if err := node.Decode(&enabled); err != nil {
+			return err
+		}
+		if enabled {
+			cache.TTL = DefaultURLCacheTTL
+			cache.NegativeTTL = DefaultURLNegativeCacheTTL
+		}
+		return nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return errors.New("URL cache must be a boolean or object")
+	}
+	for index := 0; index < len(node.Content); index += 2 {
+		if key := node.Content[index].Value; key != "ttl" && key != "negative_ttl" {
+			return fmt.Errorf("unknown URL cache field %q", key)
+		}
+	}
+	cache.TTL = DefaultURLCacheTTL
+	cache.NegativeTTL = DefaultURLNegativeCacheTTL
+	type plain URLCache
+	return node.Decode((*plain)(cache))
 }
 
 func (entry NamedURL) MarshalJSON() ([]byte, error) {
 	if entry.Disabled {
 		return []byte("false"), nil
 	}
-	if entry.Label == "" && entry.Service == "" {
+	if entry.Label == "" && entry.Service == "" && entry.Cache == (URLCache{}) {
 		return json.Marshal(entry.Template)
 	}
-	type object NamedURL
-	return json.Marshal(object(entry))
+	type object struct {
+		Template string    `json:"template,omitempty"`
+		Service  string    `json:"service,omitempty"`
+		Label    string    `json:"label,omitempty"`
+		Cache    *URLCache `json:"cache,omitempty"`
+	}
+	result := object{Template: entry.Template, Service: entry.Service, Label: entry.Label}
+	if entry.Cache != (URLCache{}) {
+		result.Cache = &entry.Cache
+	}
+	return json.Marshal(result)
 }
 
 func (entry *NamedURL) UnmarshalYAML(node *yaml.Node) error {
@@ -123,6 +185,7 @@ func (entry *NamedURL) UnmarshalYAML(node *yaml.Node) error {
 			if label.Tag != "!!str" || label.Value == "" {
 				return errors.New("URL entry label must be a non-empty string")
 			}
+		case "cache":
 		default:
 			return fmt.Errorf("unknown URL entry field %q", key)
 		}
@@ -465,8 +528,14 @@ func Validate(cfg Config) error {
 			if !exists || configured != entry.Service {
 				return fmt.Errorf("urls.%s references port service %q, which is not configured under ports.services", name, entry.Service)
 			}
+			if entry.Cache != (URLCache{}) {
+				return fmt.Errorf("urls.%s.cache is unavailable for service URLs", name)
+			}
 		} else if err := urltemplate.ValidateTemplate(entry.Template); err != nil {
 			return fmt.Errorf("urls.%s: %w", name, err)
+		}
+		if entry.Cache.TTL < 0 || entry.Cache.NegativeTTL < 0 {
+			return fmt.Errorf("urls.%s.cache durations cannot be negative", name)
 		}
 	}
 	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "hostname": true, "repo_host": true, "repo_owner": true, "repo_repository": true, "pr_host": true, "pr_owner": true, "pr_repository": true, "pr_number": true}

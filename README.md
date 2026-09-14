@@ -79,6 +79,7 @@ urls:
   preview:
     template: https://{sanitized_branch}.preview.example.com
     label: Branch preview
+    cache: true
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
   database: postgres://{database.user}:{database.password}@{database.host}/app

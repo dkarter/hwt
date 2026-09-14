@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/localdns"
@@ -294,6 +295,134 @@ func TestResolveAllReusesPullRequestRepository(t *testing.T) {
 	}
 	if !reflect.DeepEqual(results, want) {
 		t.Fatalf("results = %#v, want %#v", results, want)
+	}
+}
+
+func TestResolveCachesCommandBackedURL(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cfg := config.Config{
+		URLs: map[string]config.NamedURL{
+			"preview": {Template: "https://{deploy.host}/{branch}", Cache: config.URLCache{TTL: config.Duration(time.Hour)}},
+		},
+		Metadata: config.Metadata{Commands: map[string][]string{"deploy": {"deployment", "--json"}}},
+	}
+	first := &fakeRunner{responses: []response{
+		{output: "/worktrees/current\n"},
+		{output: "feature/cache\n"},
+		{output: `{"host":"preview.example"}`},
+	}}
+	result, err := resolve(testDependencies(first, cfg), Options{Name: "preview", CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.URL != "https://preview.example/feature%2Fcache" {
+		t.Fatalf("URL = %q", result.URL)
+	}
+
+	second := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "feature/cache\n"}}}
+	cached, err := resolve(testDependencies(second, cfg), Options{Name: "preview", CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cached != result || len(second.calls) != 2 {
+		t.Fatalf("cached result = %#v, calls = %#v", cached, second.calls)
+	}
+}
+
+func TestResolveRefreshesCachedURL(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cfg := config.Config{
+		URLs: map[string]config.NamedURL{
+			"preview": {Template: "https://{deploy.host}", Cache: config.URLCache{TTL: config.Duration(time.Hour)}},
+		},
+		Metadata: config.Metadata{Commands: map[string][]string{"deploy": {"deployment", "--json"}}},
+	}
+	first := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}, {output: `{"host":"old.example"}`}}}
+	if _, err := resolve(testDependencies(first, cfg), Options{Name: "preview", CWD: "/worktrees/current"}); err != nil {
+		t.Fatal(err)
+	}
+	second := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}, {output: `{"host":"new.example"}`}}}
+	result, err := resolve(testDependencies(second, cfg), Options{Name: "preview", CWD: "/worktrees/current", Refresh: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.URL != "https://new.example" || len(second.calls) != 3 {
+		t.Fatalf("result = %#v, calls = %#v", result, second.calls)
+	}
+}
+
+func TestResolveCachesMissingPullRequestBriefly(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"pr": {Template: "https://example.com/pull/{pr_number}", Cache: config.URLCache{TTL: config.Duration(time.Hour), NegativeTTL: config.Duration(time.Minute)}},
+	}}
+	lookups := 0
+	dependencies := func(commands runner) dependencies {
+		deps := testDependencies(commands, cfg)
+		deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
+			lookups++
+			return pullrequest.Reference{}, pullrequest.ErrNotFound
+		}
+		return deps
+	}
+	for index := 0; index < 2; index++ {
+		commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "feature/new\n"}}}
+		_, err := resolve(dependencies(commands), Options{Name: "pr", CWD: "/worktrees/current"})
+		if !errors.Is(err, pullrequest.ErrNotFound) {
+			t.Fatalf("error = %v", err)
+		}
+	}
+	if lookups != 1 {
+		t.Fatalf("PR lookups = %d", lookups)
+	}
+}
+
+func TestResolveCachedURLStillValidatesExplicitBranch(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cfg := config.Config{
+		URLs: map[string]config.NamedURL{
+			"preview": {Template: "https://{deploy.host}", Cache: config.URLCache{TTL: config.Duration(time.Hour)}},
+		},
+		Metadata: config.Metadata{Commands: map[string][]string{"deploy": {"deployment", "--worktree", "{worktree}", "--json"}}},
+	}
+	first := &fakeRunner{responses: []response{
+		{output: "/worktrees/current\n"},
+		{output: "feature/cache\n"},
+		{output: `{"host":"preview.example"}`},
+	}}
+	if _, err := resolve(testDependencies(first, cfg), Options{Name: "preview", CWD: "/worktrees/current"}); err != nil {
+		t.Fatal(err)
+	}
+
+	second := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}}}
+	_, err := resolve(testDependencies(second, cfg), Options{Name: "preview", CWD: "/worktrees/current", Branch: "feature/cache"})
+	if err == nil || !strings.Contains(err.Error(), "requires {worktree}") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestResolveRefreshRemovesNegativeEntryWhenPositiveCachingIsDisabled(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"pr": {Template: "https://example.com/pull/{pr_number}", Cache: config.URLCache{NegativeTTL: config.Duration(time.Hour)}},
+	}}
+	resolvePR := func(reference pullrequest.Reference, lookupErr error, refresh bool) (Result, error) {
+		commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "feature/new\n"}}}
+		deps := testDependencies(commands, cfg)
+		deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) { return reference, lookupErr }
+		return resolve(deps, Options{Name: "pr", CWD: "/worktrees/current", Refresh: refresh})
+	}
+
+	if _, err := resolvePR(pullrequest.Reference{}, pullrequest.ErrNotFound, false); !errors.Is(err, pullrequest.ErrNotFound) {
+		t.Fatalf("initial error = %v", err)
+	}
+	refreshed, err := resolvePR(pullrequest.Reference{Number: 42}, nil, true)
+	if err != nil || refreshed.URL != "https://example.com/pull/42" {
+		t.Fatalf("refreshed result = %#v, error = %v", refreshed, err)
+	}
+	result, err := resolvePR(pullrequest.Reference{Number: 43}, nil, false)
+	if err != nil || result.URL != "https://example.com/pull/43" {
+		t.Fatalf("post-refresh result = %#v, error = %v", result, err)
 	}
 }
 

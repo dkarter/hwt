@@ -75,7 +75,9 @@ template containing `{worktree}`. Use `hwt url --json` to resolve every
 available URL; PR-dependent URLs are omitted when the branch has no pull request,
 while `repo` remains available when GitHub can identify the repository. The
 default `repo` and `pr` entries can be overridden or disabled with `false` in
-global or project configuration.
+global or project configuration. They cache resolved URLs by default; use
+`--refresh` when current GitHub state is required immediately. Custom template
+URLs can opt into persistent caching through their `cache` setting.
 
 ## Remove
 
