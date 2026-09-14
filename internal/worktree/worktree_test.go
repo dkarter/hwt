@@ -232,6 +232,12 @@ func TestWorktreePathUsesConfiguredNaming(t *testing.T) {
 	}
 }
 
+func TestNormalizeBranchName(t *testing.T) {
+	if got := NormalizeBranchName("  feature/my new\tthing  "); got != "feature/my-new-thing" {
+		t.Fatalf("NormalizeBranchName() = %q", got)
+	}
+}
+
 func TestCreateFromDescriptionUsesTicketCommandAndConfiguredPath(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := initRepo(t)

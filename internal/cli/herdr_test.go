@@ -6,12 +6,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func TestNormalizeBranchInput(t *testing.T) {
-	if got := normalizeBranchInput("  feature/my new\tthing  "); got != "feature/my-new-thing" {
-		t.Fatalf("normalizeBranchInput() = %q", got)
-	}
-}
-
 func TestVimInputChangesModeAndCursorShape(t *testing.T) {
 	input := newVimInput("")
 	if input.mode != modeInsert || input.cursor(0).Shape != tea.CursorBar {

@@ -8,7 +8,7 @@ Create, prepare, list, and safely remove Herdr-managed linked worktrees.
 
 ### Requirement: Create an explicit branch worktree
 
-HWT SHALL create a Herdr workspace from exactly one explicit branch or ticket description.
+HWT SHALL create a Herdr workspace from exactly one free-form title, explicit branch, or ticket input.
 
 #### Scenario: Explicit branch creation {#WT-001}
 
@@ -19,7 +19,7 @@ HWT SHALL create a Herdr workspace from exactly one explicit branch or ticket de
 
 #### Scenario: Creation arguments are exclusive {#WT-002}
 
-- GIVEN neither a description nor `--branch`, or both forms together
+- GIVEN neither a title nor `--branch`, or both forms together
 - WHEN the user runs `hwt create`
 - THEN HWT rejects the invocation before creating a worktree
 

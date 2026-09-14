@@ -50,7 +50,7 @@ func (a *app) herdrCreateCommand() *cobra.Command {
 			if err != nil || !ok {
 				return err
 			}
-			branch = normalizeBranchInput(branch)
+			branch = worktree.NormalizeBranchName(branch)
 			if branch == "" {
 				return nil
 			}
@@ -159,10 +159,6 @@ func currentPluginContext() (pluginContext, error) {
 		return pluginContext{}, fmt.Errorf("decode Herdr plugin context: %w", err)
 	}
 	return context, nil
-}
-
-func normalizeBranchInput(value string) string {
-	return strings.Join(strings.Fields(value), "-")
 }
 
 func baseBranchCandidates(root string) ([]string, error) {

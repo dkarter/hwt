@@ -8,7 +8,7 @@ Create ticket-backed worktrees, open pull requests, and establish exact review w
 
 ### Requirement: Derive or accept a branch name
 
-HWT SHALL use a positional value as the literal branch name unless `--ticket` requests an optional named ticket command.
+HWT SHALL normalize whitespace in a positional title to hyphens unless `--ticket` requests an optional named ticket command.
 
 #### Scenario: Ticket creates a branch {#REV-001}
 
@@ -23,17 +23,17 @@ HWT SHALL use a positional value as the literal branch name unless `--ticket` re
 - WHEN command-backed branch creation runs
 - THEN HWT reports the problem and does not ask Herdr to create that worktree
 
-#### Scenario: Literal positional branch by default {#REV-008}
+#### Scenario: Positional title becomes a branch by default {#REV-008}
 
 - GIVEN no selected ticket command
-- WHEN the user runs `hwt create BRANCH`
-- THEN HWT creates that literal branch without running an external ticket command
+- WHEN the user runs `hwt create 'investigation cache'`
+- THEN HWT creates `investigation-cache` without running an external ticket command
 
 #### Scenario: Ticket integration remains opt-in {#REV-009}
 
 - GIVEN configured ticket commands
-- WHEN the user runs `hwt create BRANCH` without `--ticket`
-- THEN HWT creates that literal branch without running a ticket command
+- WHEN the user runs `hwt create TITLE` without `--ticket`
+- THEN HWT creates a branch from the normalized title without running a ticket command
 
 #### Scenario: Select an existing ticket {#REV-010}
 

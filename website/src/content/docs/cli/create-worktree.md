@@ -3,27 +3,28 @@ title: Create worktree
 description: Create and configure a Herdr worktree workspace with hwt.
 ---
 
-`hwt create` creates a ready Herdr workspace from a literal branch or from a
-configured ticket command.
+`hwt create` creates a ready Herdr workspace from a free-form title, an explicit
+branch, or a configured ticket command.
 
 ```sh
-hwt create BRANCH [flags]
+hwt create TITLE [flags]
 hwt create --ticket [INPUT] [flags]
 hwt create --ticket=NAME [INPUT] [flags]
 hwt create --branch BRANCH [flags]
 ```
 
-A positional value is a literal branch name unless `--ticket` is present.
-`--ticket` selects `ticket_commands.default`; `--ticket=NAME` selects another
-named command. Ticket input is optional so commands may provide an interactive
-picker.
+A positional value is a free-form title whose whitespace is normalized to
+hyphens unless `--ticket` is present. Use `--branch` when the branch name must
+be passed unchanged. `--ticket` selects `ticket_commands.default`;
+`--ticket=NAME` selects another named command. Ticket input is optional so
+commands may provide an interactive picker.
 
 ## What happens
 
 1. hwt resolves the repository, base ref, and merged global and project configuration.
 2. With `--ticket`, hwt substitutes the optional input into the selected command's argv and runs it.
 3. hwt reads the branch and ticket metadata through the command's output selectors.
-4. Herdr creates the linked Git worktree, workspace, and root pane using that branch unchanged.
+4. Herdr creates the linked Git worktree, workspace, and root pane using the resulting branch.
 5. hwt copies, clones, or links configured files into the checkout.
 6. hwt reserves configured ports and writes the ignored `.env.worktree` file.
 7. Post-create commands run in order with the generated environment.
@@ -46,10 +47,10 @@ If file setup or a post-create command fails, hwt asks Herdr to remove the parti
 
 ## Examples
 
-Create a literal branch without touching an issue tracker:
+Create a normalized branch without touching an issue tracker:
 
 ```sh
-hwt create investigation-cache
+hwt create 'investigation cache'
 ```
 
 Select an existing Linear issue with the configured default picker:

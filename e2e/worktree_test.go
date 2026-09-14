@@ -89,14 +89,14 @@ func TestREV002_InvalidTicketResponseStopsBeforeCreate(t *testing.T) {
 	}
 }
 
-func TestREV008_REV009_LiteralBranchCreationWithoutTicket(t *testing.T) {
+func TestREV008_REV009_TitleBranchCreationWithoutTicket(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		config string
 		args   []string
 	}{
-		{name: "no ticket commands", args: []string{"create", "investigation-cache", "--json"}},
-		{name: "configured command remains opt in", config: "ticket_commands:\n  default:\n    command: [tickets, create, '{input}', --json]\n", args: []string{"create", "investigation-cache", "--json"}},
+		{name: "no ticket commands", args: []string{"create", "investigation cache", "--json"}},
+		{name: "configured command remains opt in", config: "ticket_commands:\n  default:\n    command: [tickets, create, '{input}', --json]\n", args: []string{"create", "investigation cache", "--json"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s := newSandbox(t)
@@ -110,7 +110,7 @@ func TestREV008_REV009_LiteralBranchCreationWithoutTicket(t *testing.T) {
 			args := append([]string{"--herdr-bin", herdr}, test.args...)
 			result := decode(t, s.run(repo, args...))
 			if result["branch"] != "investigation-cache" {
-				t.Fatalf("literal branch = %#v", result)
+				t.Fatalf("normalized title branch = %#v", result)
 			}
 		})
 	}

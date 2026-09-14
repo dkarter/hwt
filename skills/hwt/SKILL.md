@@ -26,9 +26,10 @@ For explicit branch creation, choose a valid new branch name and run:
 hwt create --cwd <repository-path> --branch <branch> --base <base-ref> --json
 ```
 
-A positional value is a literal branch name unless `--ticket` is passed. Ticket
-commands substitute the optional value through `{input}` and map their JSON
-output to a branch and metadata. Never combine `--ticket` with `--branch`.
+A positional value is a free-form title whose whitespace is normalized to
+hyphens unless `--ticket` is passed. Ticket commands substitute the optional
+value through `{input}` and map their JSON output to a branch and metadata.
+Never combine `--ticket` with `--branch`.
 
 Creation is unfocused by default. Parse `workspace_id`, `pane_id`, `path`, and
 `agent` from the JSON response; never derive IDs or predict the configured path.

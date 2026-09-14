@@ -107,7 +107,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		}
 		options.Branch = generated.BranchName
 	} else if hasInput {
-		options.Branch = options.Input
+		options.Branch = NormalizeBranchName(options.Input)
 	}
 	if err := gitRun(repoRoot, "check-ref-format", "--branch", options.Branch); err != nil {
 		if generatedBranch {
@@ -198,6 +198,10 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 		Config:      sources,
 		Environment: environment,
 	}, nil
+}
+
+func NormalizeBranchName(value string) string {
+	return strings.Join(strings.Fields(value), "-")
 }
 
 func gitBranchExists(cwd, branch string) (bool, error) {

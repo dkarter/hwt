@@ -445,9 +445,9 @@ func (a *app) createCommand() *cobra.Command {
 	options := worktree.CreateOptions{}
 	jsonOutput := false
 	command := &cobra.Command{
-		Use:   "create [branch-or-ticket-input]",
+		Use:   "create [title-or-ticket-input]",
 		Short: "Create and configure a Herdr worktree workspace",
-		Long: "Create a branch from a literal positional value by default. With --ticket, HWT runs ticket_commands.default; use --ticket=NAME to select another configured command.\n\n" +
+		Long: "Create a branch from a positional title, normalizing whitespace to hyphens. With --ticket, HWT runs ticket_commands.default; use --ticket=NAME to select another configured command.\n\n" +
 			"Ticket input is optional for commands that provide an interactive picker. The --branch flag cannot be combined with --ticket or a positional value.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
