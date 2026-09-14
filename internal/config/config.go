@@ -25,7 +25,10 @@ const DefaultLocalDNSDomain = "hwt.test"
 const DefaultPortURLTemplate = "http://{worktree}.{service}.localhost:{port}"
 
 var defaultReviewCommand = []string{"tuicr"}
-var defaultURLs = map[string]NamedURL{"pr": {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"}}
+var defaultURLs = map[string]NamedURL{
+	"pr":   {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"},
+	"repo": {Template: "https://{repo_host}/{repo_owner}/{repo_repository}"},
+}
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var dnsLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
@@ -72,9 +75,13 @@ type NamedURL struct {
 	Template string `json:"template,omitempty" yaml:"template,omitempty"`
 	Service  string `json:"service,omitempty" yaml:"service,omitempty"`
 	Label    string `json:"label,omitempty" yaml:"label,omitempty"`
+	Disabled bool   `json:"-" yaml:"-"`
 }
 
 func (entry NamedURL) MarshalJSON() ([]byte, error) {
+	if entry.Disabled {
+		return []byte("false"), nil
+	}
 	if entry.Label == "" && entry.Service == "" {
 		return json.Marshal(entry.Template)
 	}
@@ -84,6 +91,17 @@ func (entry NamedURL) MarshalJSON() ([]byte, error) {
 
 func (entry *NamedURL) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
+		if node.Tag == "!!bool" {
+			var enabled bool
+			if err := node.Decode(&enabled); err != nil {
+				return err
+			}
+			if enabled {
+				return errors.New("URL entry boolean must be false")
+			}
+			entry.Disabled = true
+			return nil
+		}
 		return node.Decode(&entry.Template)
 	}
 	if node.Kind != yaml.MappingNode {
@@ -451,7 +469,7 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("urls.%s: %w", name, err)
 		}
 	}
-	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "hostname": true, "pr_host": true, "pr_owner": true, "pr_repository": true, "pr_number": true}
+	reserved := map[string]bool{"repository": true, "branch": true, "sanitized_branch": true, "worktree": true, "hostname": true, "repo_host": true, "repo_owner": true, "repo_repository": true, "pr_host": true, "pr_owner": true, "pr_repository": true, "pr_number": true}
 	for name := range cfg.Metadata.Values {
 		if !urltemplate.ValidPlaceholder(name) {
 			return fmt.Errorf("metadata value name %q must be a dot-separated identifier", name)
@@ -608,7 +626,7 @@ func resolve(global, project rawConfig) Config {
 	if reload != nil {
 		cfg.LocalDNS.Reload = append([]string(nil), (*reload)...)
 	}
-	cfg.URLs = mergeMaps(&defaultURLs, global.URLs, project.URLs)
+	cfg.URLs = mergeURLs(&defaultURLs, global.URLs, project.URLs)
 	cfg.Metadata.Values = mergeMaps(metadataValues(global.Metadata), metadataValues(project.Metadata))
 	cfg.Metadata.Commands = mergeCommandMaps(metadataCommands(global.Metadata), metadataCommands(project.Metadata))
 	return cfg
@@ -647,6 +665,26 @@ func mergeMaps[T any](maps ...*map[string]T) map[string]T {
 		}
 		for key, value := range *values {
 			result[key] = value
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func mergeURLs(maps ...*map[string]NamedURL) map[string]NamedURL {
+	result := map[string]NamedURL{}
+	for _, values := range maps {
+		if values == nil {
+			continue
+		}
+		for key, value := range *values {
+			if value.Disabled {
+				delete(result, key)
+			} else {
+				result[key] = value
+			}
 		}
 	}
 	if len(result) == 0 {

@@ -70,15 +70,19 @@ func TestURL008_URL009_ListAndCompleteConfiguredURLs(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()
 	s.git(repo, "remote", "add", "origin", filepath.Join(s.root, "offline-origin.git"))
-	s.tool("gh", `printf '%s\n' '{"url":"https://github.com/acme/app/pull/12"}'`)
+	s.tool("gh", `if [ "$1" = repo ]; then
+  printf '%s\n' '{"url":"https://github.com/acme/app"}'
+else
+  printf '%s\n' '{"url":"https://github.com/acme/app/pull/12"}'
+fi`)
 	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  preview:\n    template: https://preview.invalid/{branch}\n    label: Branch preview\n  ticket: https://tickets.invalid/{branch}\n", 0o600)
 
 	listed := s.run(repo, "url", "--json")
-	for _, expected := range []string{`"name": "pr"`, `"url": "https://github.com/acme/app/pull/12"`, `"name": "preview"`, `"label": "Branch preview"`, `"name": "ticket"`} {
+	for _, expected := range []string{`"name": "pr"`, `"url": "https://github.com/acme/app/pull/12"`, `"name": "repo"`, `"url": "https://github.com/acme/app"`, `"name": "preview"`, `"label": "Branch preview"`, `"name": "ticket"`} {
 		requireContains(t, listed, expected)
 	}
 	completion := s.run(repo, "__complete", "url", "")
-	for _, name := range []string{"pr", "preview", "ticket"} {
+	for _, name := range []string{"pr", "preview", "repo", "ticket"} {
 		requireContains(t, completion, name+"\n")
 	}
 	help := s.run(repo, "--help")

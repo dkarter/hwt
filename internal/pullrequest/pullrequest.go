@@ -30,8 +30,15 @@ type Reference struct {
 	Number     int
 }
 
+type RepositoryReference struct {
+	Host       string
+	Owner      string
+	Repository string
+}
+
 // ErrNotFound indicates that the requested branch has no pull request.
 var ErrNotFound = errors.New("pull request not found")
+var ErrRepositoryNotFound = errors.New("GitHub repository not found")
 
 type Metadata struct {
 	Number            int    `json:"number"`
@@ -85,6 +92,57 @@ func ResolveReference(options Options) (Reference, error) {
 		return Reference{}, err
 	}
 	return referenceFromURL(result.URL)
+}
+
+func ResolveRepository(options Options) (RepositoryReference, error) {
+	return resolveRepository(commandRunner{}, options)
+}
+
+func resolveRepository(commands runner, options Options) (RepositoryReference, error) {
+	if options.CWD == "" {
+		var err error
+		options.CWD, err = os.Getwd()
+		if err != nil {
+			return RepositoryReference{}, err
+		}
+	}
+	if options.Repository == "" {
+		output, err := commands.Run(options.CWD, "git", "remote")
+		if err != nil {
+			return RepositoryReference{}, fmt.Errorf("list Git remotes: %w", err)
+		}
+		remotes := strings.Fields(string(output))
+		if len(remotes) == 0 {
+			return RepositoryReference{}, ErrRepositoryNotFound
+		}
+		if len(remotes) > 1 {
+			return RepositoryReference{}, fmt.Errorf("multiple Git remotes make the GitHub repository ambiguous (%s); specify --repo OWNER/REPO", strings.Join(remotes, ", "))
+		}
+	}
+	arguments := []string{"repo", "view"}
+	if options.Repository != "" {
+		arguments = append(arguments, options.Repository)
+	}
+	arguments = append(arguments, "--json", "url")
+	output, err := commands.Run(options.CWD, "gh", arguments...)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return RepositoryReference{}, errors.New("GitHub CLI (gh) is required to resolve repository URLs; install it and authenticate with gh auth login")
+		}
+		if strings.Contains(err.Error(), "none of the git remotes") || strings.Contains(err.Error(), "unable to determine base repository") {
+			return RepositoryReference{}, fmt.Errorf("%w: %v", ErrRepositoryNotFound, err)
+		}
+		return RepositoryReference{}, fmt.Errorf("query GitHub repository: %w", err)
+	}
+	var response Result
+	if err := json.Unmarshal(output, &response); err != nil {
+		return RepositoryReference{}, fmt.Errorf("decode GitHub repository: %w", err)
+	}
+	parsed, owner, repository, err := parseRepositoryURL(response.URL)
+	if err != nil {
+		return RepositoryReference{}, err
+	}
+	return RepositoryReference{Host: parsed.Hostname(), Owner: owner, Repository: repository}, nil
 }
 
 func referenceFromURL(value string) (Reference, error) {
@@ -203,6 +261,21 @@ func parsePullRequestURL(value string) (*url.URL, string, string, int, error) {
 		return nil, "", "", 0, fmt.Errorf("pull request URL has an invalid pull request number: %q", value)
 	}
 	return parsed, parts[1], parts[2], number, nil
+}
+
+func parseRepositoryURL(value string) (*url.URL, string, string, error) {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("invalid GitHub repository URL %q: %w", value, err)
+	}
+	if parsed.Scheme != "https" || parsed.Hostname() == "" || strings.Contains(parsed.Host, ":") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.RawPath != "" {
+		return nil, "", "", fmt.Errorf("GitHub repository URL must be a full HTTPS URL without userinfo, port, query, or fragment: %q", value)
+	}
+	parts := strings.Split(parsed.Path, "/")
+	if len(parts) != 3 || parts[0] != "" || parts[1] == "" || parts[2] == "" {
+		return nil, "", "", fmt.Errorf("GitHub repository URL path must be exactly /OWNER/REPO: %q", value)
+	}
+	return parsed, parts[1], parts[2], nil
 }
 
 func repositoryMatchesURL(value, host, owner, repository string) bool {

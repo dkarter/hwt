@@ -89,10 +89,14 @@
     },
     "urls": {
       "type": "object",
-      "description": "Named URLs exposed through hwt url. Values may be template strings, template objects, or service objects that return a configured port service's generated URL verbatim. Objects may have an optional display label. The default pr entry targets GitHub and can be overridden. Built-in template placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
+      "description": "Named URLs exposed through hwt url. Values may be template strings, template objects, or service objects that return a configured port service's generated URL verbatim. Set a name to false to disable an inherited or default URL. Objects may have an optional display label. The default repo and pr entries target GitHub and can be overridden. Built-in template placeholders are {repository}, {branch}, {sanitized_branch}, {worktree}, {hostname}, {repo_host}, {repo_owner}, {repo_repository}, {pr_host}, {pr_owner}, {pr_repository}, and {pr_number}; custom metadata placeholders may be dot-separated.",
       "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
       "additionalProperties": {
         "oneOf": [
+          {
+            "const": false,
+            "description": "Disable this inherited or default named URL."
+          },
           {
             "type": "string",
             "minLength": 1,

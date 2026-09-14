@@ -48,6 +48,10 @@ urls:
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
 
+# The built-in GitHub repo and PR links can be overridden or disabled.
+# repo: false
+# pr: false
+
 metadata:
   values:
     region: us-east-1
@@ -109,12 +113,14 @@ be inserted.
   collide.
 - `urls`: Map names to absolute template strings or objects with exactly one of
   `template` or `service` and an optional display `label` for `hwt url NAME`.
+  Set a name to `false` to disable a default or inherited URL.
   A `service` entry returns the configured port service's generated current-worktree URL
-  verbatim. HWT provides a GitHub `pr` URL
-  by default; configure `urls.pr` to replace it for another forge. Built-ins are
+  verbatim. HWT provides GitHub `repo` and `pr` URLs by default; configure them
+  to replace the defaults for another forge. Built-ins are
   `{repository}`, `{branch}`, `{sanitized_branch}`,
-  `{worktree}`, `{hostname}`, `{pr_host}`, `{pr_owner}`, `{pr_repository}`, and
-  `{pr_number}`. Explicit branches cannot use worktree-local values.
+  `{worktree}`, `{hostname}`, `{repo_host}`, `{repo_owner}`, `{repo_repository}`,
+  `{pr_host}`, `{pr_owner}`, `{pr_repository}`, and `{pr_number}`. Explicit
+  branches cannot use worktree-local values.
 - `metadata.values`: Add static strings. Repository values override global ones.
 - `metadata.commands`: Map a namespace to direct argv. A command runs lazily for
   `{namespace.key}`, receives repository/branch/worktree substitutions as safe

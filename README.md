@@ -74,7 +74,7 @@ worktree_dir: ../
 worktree_naming: full
 worktree_prefix: project-
 
-# Optional: define links available through `hwt url` (GitHub pull requests work by default).
+# Optional: define links available through `hwt url` (GitHub repository and pull request links work by default).
 urls:
   preview:
     template: https://{sanitized_branch}.preview.example.com

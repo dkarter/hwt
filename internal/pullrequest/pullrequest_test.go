@@ -47,6 +47,49 @@ func TestResolveUsesCurrentBranchAndGitHubAPI(t *testing.T) {
 	}
 }
 
+func TestResolveRepositoryThroughGitHub(t *testing.T) {
+	commands := &fakeRunner{responses: []response{
+		{output: "origin\n"},
+		{output: `{"url":"https://github.com/acme/app"}`},
+	}}
+	reference, err := resolveRepository(commands, Options{CWD: "/repo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := RepositoryReference{Host: "github.com", Owner: "acme", Repository: "app"}
+	if reference != want {
+		t.Fatalf("reference = %#v, want %#v", reference, want)
+	}
+	wantCalls := [][]string{{"git", "remote"}, {"gh", "repo", "view", "--json", "url"}}
+	if !reflect.DeepEqual(commands.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", commands.calls, wantCalls)
+	}
+}
+
+func TestResolveRepositoryUsesExplicitRepository(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: `{"url":"https://github.example/acme/app"}`}}}
+	reference, err := resolveRepository(commands, Options{CWD: "/repo", Repository: "github.example/acme/app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := RepositoryReference{Host: "github.example", Owner: "acme", Repository: "app"}
+	if reference != want {
+		t.Fatalf("reference = %#v, want %#v", reference, want)
+	}
+	wantCall := []string{"gh", "repo", "view", "github.example/acme/app", "--json", "url"}
+	if !reflect.DeepEqual(commands.calls[0], wantCall) {
+		t.Fatalf("GitHub call = %#v, want %#v", commands.calls[0], wantCall)
+	}
+}
+
+func TestResolveRepositoryWithoutRemotesIsUnavailable(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: ""}}}
+	_, err := resolveRepository(commands, Options{CWD: "/repo"})
+	if !errors.Is(err, ErrRepositoryNotFound) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestResolveExplicitBranchAndRepositorySupportsForkPR(t *testing.T) {
 	commands := &fakeRunner{responses: []response{
 		{output: "true\n"},
