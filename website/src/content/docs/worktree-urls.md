@@ -22,6 +22,30 @@ A repository entry replaces the complete global entry, including its label.
 Set an entry to `false` to disable a default or inherited URL. A more specific
 URL definition re-enables it.
 
+## Cache URLs
+
+The built-in `pr` and `repo` URLs are cached for five minutes. A missing pull
+request is cached for 15 seconds, so a newly created pull request appears
+quickly without making every URL listing wait on GitHub.
+
+Enable caching for any template URL with `cache: true`, or set custom durations:
+
+```yaml
+urls:
+  preview:
+    template: https://{deployment.host}
+    cache:
+      ttl: 10m
+      negative_ttl: 15s
+```
+
+The cache stores the final URL under the user cache directory. Because metadata
+commands can return credentials, caching is opt-in for custom URLs. Do not cache
+a URL that may contain secrets.
+
+Use `--refresh` to bypass and update the cache. Set `cache: false` when overriding
+a built-in URL to disable its cache.
+
 ## Resolve URLs
 
 Resolve a named URL for the current worktree:
@@ -158,6 +182,7 @@ Resolving one such URL by name still reports the missing pull request.
 | `-R, --repo REPOSITORY` | GitHub base repository in `[HOST/]OWNER/REPO` format. |
 | `--json`                | Print machine-readable output.                        |
 | `--open`                | Open the resolved HTTP(S) URL in the default browser. |
+| `--refresh`             | Bypass and update configured URL caches.              |
 
 Without a branch argument, detached HEAD cannot identify a branch-dependent URL;
 pass the branch explicitly.

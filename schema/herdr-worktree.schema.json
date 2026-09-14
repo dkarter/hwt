@@ -108,7 +108,21 @@
             "required": ["template"],
             "properties": {
               "template": { "type": "string", "minLength": 1, "format": "uri-template" },
-              "label": { "type": "string", "minLength": 1 }
+              "label": { "type": "string", "minLength": 1 },
+              "cache": {
+                "description": "Persist the resolved URL. true uses the default TTLs; false disables caching. Cached URLs may contain command-produced values.",
+                "oneOf": [
+                  { "type": "boolean" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "ttl": { "type": "string", "minLength": 1, "default": "5m" },
+                      "negative_ttl": { "type": "string", "minLength": 1, "default": "15s" }
+                    }
+                  }
+                ]
+              }
             }
           },
           {

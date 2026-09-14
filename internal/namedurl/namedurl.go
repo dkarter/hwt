@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dkarter/hwt/internal/config"
 	"github.com/dkarter/hwt/internal/gitutil"
@@ -26,6 +27,7 @@ type Options struct {
 	Name       string
 	Branch     string
 	Repository string
+	Refresh    bool
 }
 
 type Result struct {
@@ -106,7 +108,7 @@ func defaultDependencies() dependencies {
 	}
 }
 
-func resolve(deps dependencies, options Options) (Result, error) {
+func resolve(deps dependencies, options Options) (result Result, resultErr error) {
 	if options.Name == "" {
 		return Result{}, errors.New("URL name is required")
 	}
@@ -167,7 +169,6 @@ func resolve(deps dependencies, options Options) (Result, error) {
 			return Result{}, errors.New("cannot resolve a URL from detached HEAD; supply a branch argument")
 		}
 	}
-
 	values := make(map[string]string, len(cfg.Metadata.Values)+8)
 	for key, value := range cfg.Metadata.Values {
 		values[key] = value
@@ -210,6 +211,26 @@ func resolve(deps dependencies, options Options) (Result, error) {
 			needsHostname = needsHostname || contains(names, "hostname")
 			needsGitHubRepository = needsGitHubRepository || containsAny(names, "repo_host", "repo_owner", "repo_repository")
 		}
+	}
+	if entry.Cache.TTL > 0 || entry.Cache.NegativeTTL > 0 {
+		branchDependent := len(commandNames) > 0 || containsAny(placeholders, "branch", "sanitized_branch", "pr_host", "pr_owner", "pr_repository", "pr_number")
+		if options.Refresh {
+			removeCachedURL(topLevel, options, cfg, entry, branchDependent)
+		} else {
+			if cached, err, found := readCachedURL(topLevel, options, cfg, entry, branchDependent); found {
+				if errors.Is(err, pullrequest.ErrNotFound) {
+					err = fmt.Errorf("resolve pull request values for branch %q: %w", options.Branch, err)
+				}
+				return cached, err
+			}
+		}
+		defer func() {
+			if resultErr == nil {
+				writeCachedURL(topLevel, options, cfg, entry, branchDependent, result, false, time.Duration(entry.Cache.TTL))
+			} else if errors.Is(resultErr, pullrequest.ErrNotFound) && entry.Cache.NegativeTTL > 0 {
+				writeCachedURL(topLevel, options, cfg, entry, branchDependent, Result{}, true, time.Duration(entry.Cache.NegativeTTL))
+			}
+		}()
 	}
 	if needsRepository {
 		primary, err := primaryWorktree(deps.commands, topLevel)

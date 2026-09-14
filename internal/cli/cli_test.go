@@ -183,7 +183,7 @@ func TestURLCommandOpeningIsExplicitAndBrowserSafe(t *testing.T) {
 	}
 }
 
-func TestURLCommandPassesBranchAndRepository(t *testing.T) {
+func TestURLCommandPassesBranchRepositoryAndRefresh(t *testing.T) {
 	var resolved namedurl.Options
 	var opened string
 	command := newCommand("test", func(options namedurl.Options) (namedurl.Result, error) {
@@ -195,11 +195,11 @@ func TestURLCommandPassesBranchAndRepository(t *testing.T) {
 	})
 	var output bytes.Buffer
 	command.SetOut(&output)
-	command.SetArgs([]string{"url", "preview", "feature/test", "--repo", "acme/app", "--open"})
+	command.SetArgs([]string{"url", "preview", "feature/test", "--repo", "acme/app", "--refresh", "--open"})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Name != "preview" || resolved.Branch != "feature/test" || resolved.Repository != "acme/app" {
+	if resolved.Name != "preview" || resolved.Branch != "feature/test" || resolved.Repository != "acme/app" || !resolved.Refresh {
 		t.Fatalf("unexpected options: %#v", resolved)
 	}
 	if opened != "https://preview.example" || output.String() != "Opened https://preview.example\n" {

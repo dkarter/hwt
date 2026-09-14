@@ -146,6 +146,7 @@ func (a *app) urlCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
 	command.Flags().StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format for repository and pull request placeholders")
+	command.Flags().BoolVar(&options.Refresh, "refresh", false, "bypass and update configured URL caches")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable output")
 	command.Flags().BoolVar(&open, "open", false, "open an http or https URL in the default browser")
 	command.MarkFlagsMutuallyExclusive("json", "open")

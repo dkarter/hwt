@@ -91,6 +91,31 @@ fi`)
 	}
 }
 
+func TestURL011_CacheAndRefreshCommandBackedURL(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	count := filepath.Join(s.root, "url-count")
+	s.tool("deployment", `count=1
+if [ -f "`+count+`" ]; then count=2; fi
+: > "`+count+`"
+printf '{"host":"preview-%s.invalid"}\n' "$count"`)
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), `urls:
+  preview:
+    template: https://{deployment.host}
+    cache: true
+metadata:
+  commands:
+    deployment: [deployment]
+`, 0o600)
+
+	first := s.run(repo, "url", "preview")
+	second := s.run(repo, "url", "preview")
+	refreshed := s.run(repo, "url", "preview", "--refresh")
+	if first != "https://preview-1.invalid\n" || second != first || refreshed != "https://preview-2.invalid\n" {
+		t.Fatalf("cached outputs = %q, %q, refreshed = %q", first, second, refreshed)
+	}
+}
+
 func TestREV003_PullRequestJSONAndFailure(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()
@@ -112,7 +137,7 @@ printf '%s\n' '{"url":"https://github.com/acme/app/pull/9"}'`)
 		t.Fatalf("opened URL = %q", mustRead(t, openLog))
 	}
 	s.env = append(s.env, "GH_FAIL=1")
-	_, stderr, err := s.command(repo, "url", "pr", "--json")
+	_, stderr, err := s.command(repo, "url", "pr", "--json", "--refresh")
 	if err == nil || !strings.Contains(stderr, "query GitHub pull requests") || !strings.Contains(stderr, "not found") {
 		t.Fatalf("PR failure = %q, %v", stderr, err)
 	}

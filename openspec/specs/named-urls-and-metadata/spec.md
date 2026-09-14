@@ -60,6 +60,18 @@ HWT SHALL accept each configured URL as a template string or an object with exac
 - AND prints the generated service URL verbatim
 - AND the service URL is unavailable with an explicit branch
 
+### Requirement: Cache named URLs
+
+HWT SHALL support optional persistent caching on each named template URL, cache the default GitHub `pr` and `repo` URLs, use a shorter lifetime for missing pull requests, and bypass and update caches when `--refresh` is supplied.
+
+#### Scenario: Cache and refresh command-backed URL {#URL-011}
+
+- GIVEN a named URL with caching enabled and command-backed metadata
+- WHEN the URL is resolved repeatedly
+- THEN HWT reuses the cached result until it expires
+- AND `--refresh` resolves and stores a fresh result
+- AND `cache: false` disables caching for an overridden default URL
+
 ### Requirement: Expand built-in placeholders safely
 
 HWT SHALL provide `repository`, `branch`, `sanitized_branch`, `worktree`, `hostname`, lazily resolved GitHub repository host, owner, and name values, and lazily resolved pull request host, owner, repository, and number values where available.

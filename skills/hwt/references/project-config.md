@@ -45,6 +45,7 @@ urls:
   preview:
     template: https://{sanitized_branch}.preview.example.com
     label: Branch preview
+    cache: true
   local: http://web.{hostname}
   ticket: https://linear.example/issue/{ticket.identifier}
 
@@ -114,6 +115,10 @@ be inserted.
 - `urls`: Map names to absolute template strings or objects with exactly one of
   `template` or `service` and an optional display `label` for `hwt url NAME`.
   Set a name to `false` to disable a default or inherited URL.
+  Template objects may set `cache: true`, `cache: false`, or custom `ttl` and
+  `negative_ttl` durations. The built-in `pr` and `repo` entries cache by
+  default. `hwt url --refresh` bypasses and updates cached values. Cached URLs
+  are persisted, so do not cache URLs containing credentials.
   A `service` entry returns the configured port service's generated current-worktree URL
   verbatim. HWT provides GitHub `repo` and `pr` URLs by default; configure them
   to replace the defaults for another forge. Built-ins are
@@ -126,7 +131,8 @@ be inserted.
   `{namespace.key}`, receives repository/branch/worktree substitutions as safe
   individual arguments, and must return one JSON object with string values. No shell or
   ambient environment expansion occurs. Ticket command `metadata` is exposed as
-  `ticket.*`; command output and resolved URLs are never persisted.
+  `ticket.*`; command output is never persisted, and resolved URLs are persisted
+  only when caching is enabled for that URL.
 - `files.copy`: Copy ignored, machine-local inputs needed immediately, such as
   `.env.local`. Missing sources are ignored. Do not list tracked files.
 - `copy_on_write`: Prefer for large dependency trees on filesystems that support
