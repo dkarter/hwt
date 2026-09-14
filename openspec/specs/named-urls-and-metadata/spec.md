@@ -25,6 +25,7 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 - THEN HWT prints every available name and computed URL in deterministic order
 - AND includes each configured display label
 - AND omits URLs that require pull request metadata when the branch has no pull request
+- AND includes the default repository URL when GitHub can identify the repository
 - AND fails on other URL resolution errors
 
 #### Scenario: Complete configured URL names {#URL-009}
@@ -42,7 +43,7 @@ HWT SHALL resolve `urls.NAME` using the current worktree or an explicit branch a
 
 ### Requirement: Define URL commands through configuration
 
-HWT SHALL accept each configured URL as a template string or an object with exactly one of `template` or `service` and an optional display `label`, expose configured URL names only through `hwt url`, and provide an overridable GitHub pull request URL named `pr` by default.
+HWT SHALL accept each configured URL as a template string or an object with exactly one of `template` or `service` and an optional display `label`, expose configured URL names only through `hwt url`, and provide overridable GitHub repository and pull request URLs named `repo` and `pr` by default. A global or repository URL entry set to `false` SHALL disable the inherited entry, and a more specific URL definition SHALL re-enable it.
 
 #### Scenario: Preview output modes {#URL-003}
 
@@ -61,7 +62,7 @@ HWT SHALL accept each configured URL as a template string or an object with exac
 
 ### Requirement: Expand built-in placeholders safely
 
-HWT SHALL provide `repository`, `branch`, `sanitized_branch`, `worktree`, `hostname`, and lazily resolved pull request host, owner, repository, and number values where available.
+HWT SHALL provide `repository`, `branch`, `sanitized_branch`, `worktree`, `hostname`, lazily resolved GitHub repository host, owner, and name values, and lazily resolved pull request host, owner, repository, and number values where available.
 
 #### Scenario: Sanitize and encode substitutions {#URL-004}
 

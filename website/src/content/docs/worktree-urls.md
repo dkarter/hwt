@@ -19,6 +19,8 @@ urls:
 
 Global and repository URL maps merge by name, with repository entries winning.
 A repository entry replaces the complete global entry, including its label.
+Set an entry to `false` to disable a default or inherited URL. A more specific
+URL definition re-enables it.
 
 ## Resolve URLs
 
@@ -41,16 +43,18 @@ Use `--open` to open an HTTP(S) URL in the default browser. HWT never opens URLs
 by default, and `--open` rejects other schemes. HWT only resolves a preview URL;
 it does not poll a deployment provider for readiness.
 
-## Pull requests
+## GitHub defaults
 
-HWT provides `pr` by default for GitHub repositories:
+HWT provides `repo` and `pr` by default for GitHub repositories:
 
 ```sh
+hwt url repo
 hwt url pr
 hwt url pr feature/name
 ```
 
-HWT resolves pull request details through the authenticated `gh` CLI. With
+The `repo` URL remains available when the current branch has no pull request.
+HWT resolves repository and pull request details through the authenticated `gh` CLI. With
 multiple remotes, select the base repository explicitly. Qualify the head branch
 with its owner when GitHub has more than one match:
 
@@ -66,6 +70,14 @@ urls:
   pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}
 ```
 
+Disable either default globally or per repository when it is not useful:
+
+```yaml
+urls:
+  pr: false
+  repo: false
+```
+
 To fetch code into a dedicated Herdr workspace and launch a review tool instead,
 use [`hwt review`](../cli/review-pull-request/).
 
@@ -78,6 +90,9 @@ use [`hwt review`](../cli/review-pull-request/).
 | `{sanitized_branch}` | Branch normalized for hostnames and identifiers.                         |
 | `{worktree}`         | Current checkout directory name; unavailable with an explicit branch.    |
 | `{hostname}`         | Managed local DNS hostname; requires `local_dns.enabled` and a worktree. |
+| `{repo_host}`        | GitHub repository host resolved lazily with authenticated `gh`.          |
+| `{repo_owner}`       | GitHub repository owner resolved lazily with authenticated `gh`.         |
+| `{repo_repository}`  | GitHub repository name resolved lazily with authenticated `gh`.          |
 | `{pr_host}`          | GitHub pull request host resolved lazily with authenticated `gh`.        |
 | `{pr_owner}`         | GitHub pull request owner resolved lazily with authenticated `gh`.       |
 | `{pr_repository}`    | GitHub pull request repository resolved lazily with authenticated `gh`.  |
@@ -131,7 +146,8 @@ hwt url preview --json
 ```
 
 `hwt url --json` resolves all available names into a sorted array. If the branch
-has no pull request, the array omits URLs that require pull request metadata.
+has no pull request, the array omits URLs that require pull request metadata and
+still includes `repo` when GitHub can identify the repository.
 Resolving one such URL by name still reports the missing pull request.
 
 ## Flags

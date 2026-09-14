@@ -163,7 +163,10 @@ func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.URLs["pr"].Template != "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}" {
-		t.Fatalf("unexpected default pull request URL: %q", cfg.URLs["pr"])
+		t.Fatalf("unexpected default pull request URL: %v", cfg.URLs["pr"])
+	}
+	if cfg.URLs["repo"].Template != "https://{repo_host}/{repo_owner}/{repo_repository}" {
+		t.Fatalf("unexpected default repository URL: %v", cfg.URLs["repo"])
 	}
 
 	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  pr: https://gitlab.example/group/project/-/merge_requests?source_branch={branch}\n")
@@ -172,7 +175,26 @@ func TestLoadProvidesOverridableGitHubPullRequestURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.URLs["pr"].Template != "https://gitlab.example/group/project/-/merge_requests?source_branch={branch}" {
-		t.Fatalf("pull request URL was not overridden: %q", cfg.URLs["pr"])
+		t.Fatalf("pull request URL was not overridden: %v", cfg.URLs["pr"])
+	}
+}
+
+func TestLoadAllowsDefaultURLsToBeDisabledAndReenabled(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(configHome, "hwt", "config.yaml"), "urls:\n  pr: false\n  repo: false\n")
+	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), "urls:\n  pr: https://example.com/pulls/{branch}\n")
+
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URLs["pr"].Template != "https://example.com/pulls/{branch}" {
+		t.Fatalf("project URL did not re-enable pr: %#v", cfg.URLs)
+	}
+	if _, exists := cfg.URLs["repo"]; exists {
+		t.Fatalf("disabled repo URL remains configured: %#v", cfg.URLs)
 	}
 }
 
@@ -247,6 +269,7 @@ func TestLoadNamedServiceURL(t *testing.T) {
 func TestLoadRejectsInvalidNamedURLObjects(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	for _, contents := range []string{
+		"urls:\n  preview: true\n",
 		"urls:\n  preview:\n    label: Preview\n",
 		"urls:\n  preview:\n    service: ''\n",
 		"urls:\n  preview:\n    template: https://example.com\n    service: web\n",

@@ -87,6 +87,7 @@ type dependencies struct {
 	loadConfig  func(string, ...string) (config.Config, config.Sources, error)
 	readTicket  func(string) (map[string]string, error)
 	resolvePR   func(pullrequest.Options) (pullrequest.Reference, error)
+	resolveRepo func(pullrequest.Options) (pullrequest.RepositoryReference, error)
 	environment func(string, config.Config, bool) (worktree.EnvironmentResult, error)
 }
 
@@ -100,6 +101,7 @@ func defaultDependencies() dependencies {
 		loadConfig:  config.Load,
 		readTicket:  worktree.ReadTicketMetadata,
 		resolvePR:   pullrequest.ResolveReference,
+		resolveRepo: pullrequest.ResolveRepository,
 		environment: worktree.EnvironmentWithConfig,
 	}
 }
@@ -192,6 +194,7 @@ func resolve(deps dependencies, options Options) (Result, error) {
 
 	commandNames := requiredCommands(placeholders, cfg.Metadata.Commands)
 	needsRepository := contains(placeholders, "repository") || contains(placeholders, "hostname")
+	needsGitHubRepository := containsAny(placeholders, "repo_host", "repo_owner", "repo_repository")
 	needsHostname := contains(placeholders, "hostname")
 	for _, name := range commandNames {
 		for _, argument := range cfg.Metadata.Commands[name][1:] {
@@ -205,6 +208,7 @@ func resolve(deps dependencies, options Options) (Result, error) {
 			needsRepository = needsRepository || contains(names, "repository")
 			needsRepository = needsRepository || contains(names, "hostname")
 			needsHostname = needsHostname || contains(names, "hostname")
+			needsGitHubRepository = needsGitHubRepository || containsAny(names, "repo_host", "repo_owner", "repo_repository")
 		}
 	}
 	if needsRepository {
@@ -225,6 +229,15 @@ func resolve(deps dependencies, options Options) (Result, error) {
 			builtins["hostname"] = hostname
 			values["hostname"] = hostname
 		}
+	}
+	if needsGitHubRepository {
+		reference, err := deps.resolveRepo(pullrequest.Options{CWD: topLevel, Repository: options.Repository})
+		if err != nil {
+			return Result{}, fmt.Errorf("resolve GitHub repository values: %w", err)
+		}
+		values["repo_host"] = reference.Host
+		values["repo_owner"] = reference.Owner
+		values["repo_repository"] = reference.Repository
 	}
 	for _, name := range commandNames {
 		output, err := runMetadataCommand(deps.commands, topLevel, cfg.Metadata.Commands[name], builtins)
@@ -295,7 +308,7 @@ func resolveAll(deps dependencies, options Options) ([]Result, error) {
 	for _, name := range names {
 		options.Name = name
 		result, err := resolve(deps, options)
-		if errors.Is(err, pullrequest.ErrNotFound) {
+		if errors.Is(err, pullrequest.ErrNotFound) || errors.Is(err, pullrequest.ErrRepositoryNotFound) {
 			continue
 		}
 		if err != nil {
@@ -326,6 +339,21 @@ func memoize(deps dependencies) dependencies {
 		return cfg, sources, err
 	}
 
+	type repositoryResponse struct {
+		reference pullrequest.RepositoryReference
+		err       error
+	}
+	repositoryCache := map[pullrequest.Options]repositoryResponse{}
+	resolveRepo := deps.resolveRepo
+	deps.resolveRepo = func(options pullrequest.Options) (pullrequest.RepositoryReference, error) {
+		if response, ok := repositoryCache[options]; ok {
+			return response.reference, response.err
+		}
+		reference, err := resolveRepo(options)
+		repositoryCache[options] = repositoryResponse{reference: reference, err: err}
+		return reference, err
+	}
+
 	type ticketResponse struct {
 		values map[string]string
 		err    error
@@ -353,6 +381,10 @@ func memoize(deps dependencies) dependencies {
 		}
 		reference, err := resolvePR(options)
 		pullRequestCache[options] = pullRequestResponse{reference: reference, err: err}
+		if err == nil {
+			repositoryOptions := pullrequest.Options{CWD: options.CWD, Repository: options.Repository}
+			repositoryCache[repositoryOptions] = repositoryResponse{reference: pullrequest.RepositoryReference{Host: reference.Host, Owner: reference.Owner, Repository: reference.Repository}}
+		}
 		return reference, err
 	}
 

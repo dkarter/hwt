@@ -43,6 +43,9 @@ func testDependencies(commands runner, cfg config.Config) dependencies {
 		resolvePR: func(pullrequest.Options) (pullrequest.Reference, error) {
 			return pullrequest.Reference{}, errors.New("unexpected PR lookup")
 		},
+		resolveRepo: func(pullrequest.Options) (pullrequest.RepositoryReference, error) {
+			return pullrequest.RepositoryReference{}, errors.New("unexpected repository lookup")
+		},
 		environment: func(string, config.Config, bool) (worktree.EnvironmentResult, error) {
 			return worktree.EnvironmentResult{}, errors.New("unexpected environment generation")
 		},
@@ -235,6 +238,60 @@ func TestResolveAllSkipsURLsWhenBranchHasNoPullRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Result{{Name: "branch", URL: "https://example.com/main"}}
+	if !reflect.DeepEqual(results, want) {
+		t.Fatalf("results = %#v, want %#v", results, want)
+	}
+}
+
+func TestResolveAllFallsBackToGitHubRepository(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"pr":   {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"},
+		"repo": {Template: "https://{repo_host}/{repo_owner}/{repo_repository}"},
+	}}
+	deps := testDependencies(commands, cfg)
+	deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
+		return pullrequest.Reference{}, pullrequest.ErrNotFound
+	}
+	deps.resolveRepo = func(options pullrequest.Options) (pullrequest.RepositoryReference, error) {
+		if options.Repository != "" {
+			t.Fatalf("repository override = %q", options.Repository)
+		}
+		return pullrequest.RepositoryReference{Host: "github.com", Owner: "acme", Repository: "app"}, nil
+	}
+
+	results, err := resolveAll(deps, Options{CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Result{{Name: "repo", URL: "https://github.com/acme/app"}}
+	if !reflect.DeepEqual(results, want) {
+		t.Fatalf("results = %#v, want %#v", results, want)
+	}
+}
+
+func TestResolveAllReusesPullRequestRepository(t *testing.T) {
+	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "feature/current\n"}}}
+	cfg := config.Config{URLs: map[string]config.NamedURL{
+		"pr":   {Template: "https://{pr_host}/{pr_owner}/{pr_repository}/pull/{pr_number}"},
+		"repo": {Template: "https://{repo_host}/{repo_owner}/{repo_repository}"},
+	}}
+	deps := testDependencies(commands, cfg)
+	deps.resolvePR = func(pullrequest.Options) (pullrequest.Reference, error) {
+		return pullrequest.Reference{Host: "github.com", Owner: "acme", Repository: "app", Number: 12}, nil
+	}
+	deps.resolveRepo = func(pullrequest.Options) (pullrequest.RepositoryReference, error) {
+		return pullrequest.RepositoryReference{}, errors.New("repository lookup should reuse pull request values")
+	}
+
+	results, err := resolveAll(deps, Options{CWD: "/worktrees/current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Result{
+		{Name: "pr", URL: "https://github.com/acme/app/pull/12"},
+		{Name: "repo", URL: "https://github.com/acme/app"},
+	}
 	if !reflect.DeepEqual(results, want) {
 		t.Fatalf("results = %#v, want %#v", results, want)
 	}
