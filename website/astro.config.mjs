@@ -25,12 +25,12 @@ export default defineConfig({
   site: "https://hwt.doriankarter.com",
   base,
   redirects: {
-    ...(hasWorktreeURLs &&
-      !hasDoc("cli/open-pull-request.md") && {
+    ...(hasWorktreeURLs
+      && !hasDoc("cli/open-pull-request.md") && {
       "/docs/cli/open-pull-request": `${docsBase}/docs/worktree-urls/`,
     }),
-    ...(hasWorktreeURLs &&
-      !hasDoc("cli/open-preview-environment.md") && {
+    ...(hasWorktreeURLs
+      && !hasDoc("cli/open-preview-environment.md") && {
       "/docs/cli/open-preview-environment": `${docsBase}/docs/worktree-urls/`,
     }),
   },
