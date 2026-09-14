@@ -26,13 +26,15 @@ hwt --herdr-bin /path/to/herdr list
 - [`hwt copy`](../cli/copy-files/) copies configured files into a linked worktree once.
 - [`hwt remove`](../cli/remove-worktree/) quickly removes a linked worktree and workspace.
 - [`hwt list`](../cli/list-worktrees/) lists Herdr worktrees for a repository.
-- [`hwt url pr`](../cli/open-pull-request/) resolves the pull request for a branch.
+- [`hwt url NAME`](../worktree-urls/) resolves configured worktree, pull request, preview, and service URLs.
 - [`hwt review`](../cli/review-pull-request/) fetches a pull request or branch into a dedicated review workspace.
-- [`hwt url preview`](../cli/open-preview-environment/) resolves the configured preview environment for a branch.
-- `hwt url NAME [branch] [--json, --open]` resolves any configured named URL and includes its optional display label in JSON. `hwt url --json` resolves every available name and omits PR-dependent URLs when the branch has no pull request.
-- `hwt env [--refresh] [--json] [-- COMMAND...]` generates, inspects, refreshes, or uses the current worktree environment, including zero-setup `HWT_URL_<SERVICE>` localhost URLs.
+- [`hwt env`](../worktree-environment/) generates, inspects, refreshes, or uses the current worktree environment.
 
-## Local DNS
+## Experimental local DNS
+
+The dnsmasq and Caddy integration is experimental. See
+[services and ports](../services-and-ports/#optional-managed-dns) before setting
+it up.
 
 | Command                          | Purpose                                                                |
 | -------------------------------- | ---------------------------------------------------------------------- |

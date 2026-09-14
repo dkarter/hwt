@@ -184,11 +184,11 @@ Controls the checkout name. Accepted values are `full` and `basename`; the defau
 
 Text prepended to the generated checkout name.
 
-### `urls` and `metadata`
+### `urls`
 
-`urls` maps arbitrary names to URL templates or generated service URLs. A value
-can be a template string, an object with `template`, or an object with `service`.
-Objects may include a display `label`:
+`urls` maps arbitrary names to URL templates or generated service URLs. Values
+can be template strings or objects with `template` or `service`. Objects may
+include a display `label`:
 
 ```yaml
 urls:
@@ -200,82 +200,17 @@ urls:
     label: Branch preview
 ```
 
-`service` must match an entry in `ports.services`. Running `hwt url local` from
-a linked worktree allocates or reuses the service port and returns the complete
-generated `HWT_URL_<SERVICE>` value verbatim. This is the simplest way to expose
-a local URL customized by `ports.url_template`; it does not percent-encode the
-scheme, hostname, or port. Service URLs are worktree-local and cannot be resolved
-for an explicit branch.
-
 HWT includes a `pr` URL for GitHub by default. Global and repository maps merge
-by name, with repository entries winning, so an `urls.pr` entry can target
-GitLab, Forgejo, or another forge. An override replaces the complete entry
-rather than inheriting its label. Shell completion reads the merged names for
-the current repository.
-Built-in placeholders are:
+by name, with repository entries winning. See [worktree URLs](../worktree-urls/)
+for placeholders, service URLs, pull request resolution, and CLI usage.
 
-| Placeholder          | Value                                                                   |
-| -------------------- | ----------------------------------------------------------------------- |
-| `{repository}`       | Primary checkout directory name.                                        |
-| `{branch}`           | Current branch, or the explicit branch argument.                        |
-| `{sanitized_branch}` | Branch normalized for preview hostnames and identifiers.                |
-| `{worktree}`         | Current checkout directory name; unavailable with an explicit branch.   |
-| `{hostname}`         | Stable HWT local hostname; unavailable with an explicit branch.         |
-| `{pr_host}`          | GitHub pull request host resolved lazily with authenticated `gh`.       |
-| `{pr_owner}`         | GitHub pull request owner resolved lazily with authenticated `gh`.      |
-| `{pr_repository}`    | GitHub pull request repository resolved lazily with authenticated `gh`. |
-| `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.     |
-
-Sanitization lowercases ASCII letters, replaces each run of characters outside
-`a-z` and `0-9` with one `-`, removes leading and trailing separators, and limits
-the result to 63 characters. HWT
-then UTF-8 percent-encodes every substituted value except the RFC 3986
-unreserved set (`A-Z`, `a-z`, `0-9`, `-._~`). Use `{sanitized_branch}` in a
-hostname; all placeholders are safe as a path segment or query value. Literal
-braces are not supported. Configuration validation rejects malformed templates,
-invalid percent escapes, and templates without a URL scheme.
-
-`hwt url NAME [branch]` prints one resolved URL. Add `--open` for HTTP(S) URLs.
-JSON output includes `label` when the URL entry configures one and omits the
-field otherwise. `hwt url --json` computes every configured URL and prints a
-sorted array of name, URL, and optional label objects. If the current branch has
-no pull request, it omits URLs that require pull request metadata. Other
-resolution errors still fail the command. Resolving a PR-dependent URL by name
-still reports the missing pull request.
+### `metadata`
 
 `metadata.values` provides static strings. A command under
 `metadata.commands.NAME` is an argv array run directly without a shell only when
-the template requests `{NAME.key}`. Built-in placeholders in individual command
-arguments (`repository`, `branch`, `sanitized_branch`, `worktree`, and
-`hostname`) are
-substituted as one argument; custom metadata, `pr_number`, and ambient
-environment variables are not expanded. The command must return one JSON object
-whose values are strings.
-
-A ticket command without output metadata mappings may return a dedicated string-valued `metadata` object
-alongside `branchName`. HWT exposes it as `{ticket.key}` for that worktree. It
-ignores arbitrary top-level fields. Ticket metadata is stored in a mode-`0600`
-file under private Git worktree metadata and removed with the worktree. Command
-output and resolved URLs, including credentials, are never persisted.
-
-Do not put credentials in tracked `metadata.values`. Use a lazy metadata command
-for database passwords, tokens, and other secrets.
-
-Precedence is static values, then `ticket.*`, then command namespaces, then
-reserved built-ins. Unknown and missing placeholders fail resolution. Explicit
-branches cannot use `{worktree}`, `{hostname}`, or worktree-local `ticket.*`
-values.
-
-To migrate from the earlier `preview_url` form:
-
-```yaml
-# Before
-preview_url: https://{sanitized_branch}.preview.example.com
-
-# After
-urls:
-  preview: https://{sanitized_branch}.preview.example.com
-```
+the template requests `{NAME.key}`. The command must return one JSON object whose
+values are strings. See [worktree metadata](../worktree-metadata/) for static,
+ticket, and lazy metadata behavior, precedence, storage, and security.
 
 ### `files`
 
@@ -291,22 +226,10 @@ Defines service names and the inclusive local allocation range. Service `web`
 becomes `HWT_PORT_WEB` and `HWT_URL_WEB`; hyphens become underscores. Without
 managed local DNS, the URL uses an RFC 6761 localhost subdomain and the allocated
 port with no system setup. The defaults are `20000` through `39999`. See
-[worktree ports and environment](../worktree-environment/).
+[services and ports](../services-and-ports/) for allocation, URL templates, and
+managed DNS.
 
-`ports.url_template` controls direct URLs when `local_dns.enabled` is false. It
-supports `{worktree}`, `{service}`, `{hostname}`, and `{port}`. The first two
-values are normalized DNS labels, while `{hostname}` is the generic
-`<worktree>.localhost` hostname. For a company wildcard loopback domain where
-ports distinguish worktrees, use:
-
-```yaml
-ports:
-  services: [web]
-  url_template: https://app.acme.dev:{port}
-```
-
-This publishes the URL only. The process on the allocated port must terminate
-TLS itself, or a separately configured proxy must listen on that port.
+`ports.url_template` controls direct URLs when `local_dns.enabled` is false.
 
 ### `environment`
 
@@ -315,15 +238,18 @@ TLS itself, or a separately configured proxy must listen on that port.
 `${HWT_PORT_WEB}` that are available before configured values are expanded.
 Hostname and URL variables should be consumed directly from the generated
 environment. HWT does not read values from the parent process, `.env`, or
-`.env.local` while expanding them.
+`.env.local` while expanding them. See
+[worktree environment](../worktree-environment/) for generated values, dotenv
+handling, and command usage.
 
 ### `local_dns`
 
-`local_dns.enabled` registers every `ports.services` entry in HWT-owned
-dnsmasq and Caddy snippets. `domain` defaults to `hwt.test`. HWT validates and
-lowercases DNS labels; it rejects `localhost`, path-like values, empty labels,
-and labels longer than 63 bytes. Leave it disabled to use direct `.localhost`
-URLs with allocated ports and no dnsmasq or Caddy setup.
+`local_dns.enabled` registers every `ports.services` entry in HWT-owned dnsmasq
+and Caddy snippets. This integration is experimental. `domain` defaults to
+`hwt.test`. Leave it disabled to use direct `.localhost` URLs with allocated
+ports and no system setup. See
+[services and ports](../services-and-ports/#optional-managed-dns) for setup and
+lifecycle details.
 
 `local_dns.reload` is an optional argv command run directly, without a shell,
 after generated files change. Arguments may contain `{caddyfile}`, `{dnsmasq}`,
