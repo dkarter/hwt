@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/dkarter/hwt/compare/v0.8.0...v0.9.0) (2026-09-14)
+
+
+### Features
+
+* cache named URLs ([#32](https://github.com/dkarter/hwt/issues/32)) ([b8a2e08](https://github.com/dkarter/hwt/commit/b8a2e080337895259e72a86f50e183e97f1ce726))
+
 ## [0.8.0](https://github.com/dkarter/hwt/compare/v0.7.0...v0.8.0) (2026-09-14)
 
 
