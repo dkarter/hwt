@@ -93,7 +93,8 @@ func urlCachePath(root string, options Options, cfg config.Config, entry config.
 		Repository string
 		Entry      config.NamedURL
 		Metadata   config.Metadata
-	}{root, options.Name, branch, options.Repository, entry, cfg.Metadata})
+		LocalDNS   config.LocalDNS
+	}{root, options.Name, branch, options.Repository, entry, cfg.Metadata, cfg.LocalDNS})
 	if err != nil {
 		return "", err
 	}

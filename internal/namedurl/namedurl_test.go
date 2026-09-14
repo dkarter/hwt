@@ -426,6 +426,36 @@ func TestResolveRefreshRemovesNegativeEntryWhenPositiveCachingIsDisabled(t *test
 	}
 }
 
+func TestResolveInvalidatesCachedHostnameWhenLocalDNSChanges(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	worktree := t.TempDir()
+	repository := t.TempDir()
+	resolveWithDomain := func(domain string) Result {
+		cfg := config.Config{
+			LocalDNS: config.LocalDNS{Enabled: true, Domain: domain},
+			URLs: map[string]config.NamedURL{
+				"local": {Template: "http://web.{hostname}", Cache: config.URLCache{TTL: config.Duration(time.Hour)}},
+			},
+		}
+		commands := &fakeRunner{responses: []response{
+			{output: worktree + "\n"},
+			{output: "feature/cache\n"},
+			{output: "worktree " + repository + "\x00"},
+		}}
+		result, err := resolve(testDependencies(commands, cfg), Options{Name: "local", CWD: worktree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+
+	first := resolveWithDomain("old.test")
+	second := resolveWithDomain("new.test")
+	if !strings.HasSuffix(first.URL, ".old.test") || !strings.HasSuffix(second.URL, ".new.test") {
+		t.Fatalf("URLs = %q, %q", first.URL, second.URL)
+	}
+}
+
 func TestResolveAllPreservesOtherPullRequestErrors(t *testing.T) {
 	commands := &fakeRunner{responses: []response{{output: "/worktrees/current\n"}, {output: "main\n"}}}
 	cfg := config.Config{URLs: map[string]config.NamedURL{"pr": {Template: "https://example.com/pull/{pr_number}"}}}
