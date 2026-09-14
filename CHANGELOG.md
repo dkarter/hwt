@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/dkarter/hwt/compare/v0.9.0...v0.9.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* normalize positional branch titles ([38fbb03](https://github.com/dkarter/hwt/commit/38fbb03c838424ec9c4788442b5225cdee0c73e3))
+
 ## [0.9.0](https://github.com/dkarter/hwt/compare/v0.8.0...v0.9.0) (2026-09-14)
 
 
