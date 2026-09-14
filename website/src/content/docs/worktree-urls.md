@@ -67,7 +67,7 @@ urls:
 ```
 
 To fetch code into a dedicated Herdr workspace and launch a review tool instead,
-use [`hwt review`](./cli/review-pull-request/).
+use [`hwt review`](../cli/review-pull-request/).
 
 ## Placeholders
 
