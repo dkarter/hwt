@@ -71,20 +71,24 @@ use [`hwt review`](../cli/review-pull-request/).
 
 ## Placeholders
 
-| Placeholder          | Value                                                                   |
-| -------------------- | ----------------------------------------------------------------------- |
-| `{repository}`       | Primary checkout directory name.                                        |
-| `{branch}`           | Current branch, or the explicit branch argument.                        |
-| `{sanitized_branch}` | Branch normalized for hostnames and identifiers.                        |
-| `{worktree}`         | Current checkout directory name; unavailable with an explicit branch.   |
-| `{hostname}`         | Stable HWT local hostname; unavailable with an explicit branch.         |
-| `{pr_host}`          | GitHub pull request host resolved lazily with authenticated `gh`.       |
-| `{pr_owner}`         | GitHub pull request owner resolved lazily with authenticated `gh`.      |
-| `{pr_repository}`    | GitHub pull request repository resolved lazily with authenticated `gh`. |
-| `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.     |
+| Placeholder          | Value                                                                    |
+| -------------------- | ------------------------------------------------------------------------ |
+| `{repository}`       | Primary checkout directory name.                                         |
+| `{branch}`           | Current branch, or the explicit branch argument.                         |
+| `{sanitized_branch}` | Branch normalized for hostnames and identifiers.                         |
+| `{worktree}`         | Current checkout directory name; unavailable with an explicit branch.    |
+| `{hostname}`         | Managed local DNS hostname; requires `local_dns.enabled` and a worktree. |
+| `{pr_host}`          | GitHub pull request host resolved lazily with authenticated `gh`.        |
+| `{pr_owner}`         | GitHub pull request owner resolved lazily with authenticated `gh`.       |
+| `{pr_repository}`    | GitHub pull request repository resolved lazily with authenticated `gh`.  |
+| `{pr_number}`        | GitHub pull request number resolved lazily with authenticated `gh`.      |
 
 [Worktree metadata](../worktree-metadata/) adds static, ticket, and lazy command
 placeholders such as `{ticket.identifier}` and `{database.host}`.
+
+The `{hostname}` placeholder is not the default `.localhost` value in
+`HWT_WORKTREE_HOSTNAME`. To expose a default localhost URL through `hwt url`, use
+a [service URL](#service-urls) instead.
 
 Sanitization lowercases ASCII letters, replaces each run outside `a-z` and `0-9`
 with one `-`, removes leading and trailing separators, and limits the result to
