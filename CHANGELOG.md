@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/dkarter/hwt/compare/v0.9.1...v0.10.0) (2026-09-19)
+
+
+### Features
+
+* add worktree removal hooks ([36b87a5](https://github.com/dkarter/hwt/commit/36b87a5fa9ce19929597a720e8e7025e13be0988))
+
 ## [0.9.1](https://github.com/dkarter/hwt/compare/v0.9.0...v0.9.1) (2026-09-14)
 
 
