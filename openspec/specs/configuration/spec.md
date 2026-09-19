@@ -20,7 +20,7 @@ HWT SHALL combine global configuration with repository policy, preferring a chec
 #### Scenario: Global list insertion {#CFG-002}
 
 - GIVEN a repository list containing `<global>`
-- WHEN HWT resolves `files.copy`, `ports.services`, or `post_create`
+- WHEN HWT resolves `files.copy`, `ports.services`, `post_create`, `pre_remove`, or `post_remove`
 - THEN global entries appear at the marker position
 - AND `<global>` in global configuration is rejected
 

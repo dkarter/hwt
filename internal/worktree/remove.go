@@ -73,6 +73,17 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 			cfg = loaded
 		}
 	}
+	hookEnvironment := map[string]string(nil)
+	if len(cfg.PreRemove) > 0 || len(cfg.PostRemove) > 0 {
+		environment, environmentErr := prepareEnvironment(root, cfg, false)
+		if environmentErr != nil {
+			return RemoveResult{}, fmt.Errorf("prepare remove hook environment: %w", environmentErr)
+		}
+		hookEnvironment = environment.Variables
+	}
+	if err := runHooks("pre_remove", root, cfg.PreRemove, hookEnvironment); err != nil {
+		return RemoveResult{}, err
+	}
 	metadataPath, err := os.ReadFile(filepath.Join(gitDir, "gitdir"))
 	if err != nil {
 		return RemoveResult{}, fmt.Errorf("read worktree metadata: %w", err)
@@ -111,6 +122,9 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 	}
 	if err := releasePorts(allocationPath); err != nil {
 		return RemoveResult{}, fmt.Errorf("worktree removed but port allocation cleanup failed: %w", err)
+	}
+	if err := runHooks("post_remove", source, cfg.PostRemove, hookEnvironment); err != nil {
+		return RemoveResult{}, fmt.Errorf("worktree removed but %w", err)
 	}
 	return RemoveResult{WorkspaceID: options.WorkspaceID, Path: workspace.CheckoutPath}, nil
 }

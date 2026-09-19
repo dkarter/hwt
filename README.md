@@ -125,6 +125,12 @@ files:
 post_create:
   - <global>
   - mise install
+
+# Optional: stop services before removal and clean their stale registrations afterward.
+pre_remove:
+  - pitchfork stop --local
+post_remove:
+  - pitchfork clean --prune
 ```
 
 The schema is available at [`schema/herdr-worktree.schema.json`](schema/herdr-worktree.schema.json). See the [configuration guide](https://hwt.doriankarter.com/docs/configuration/) for defaults, placeholders, and resolution rules.

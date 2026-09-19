@@ -89,13 +89,18 @@ files:
 post_create:
   - <global>
   - mise install
+
+pre_remove:
+  - pitchfork stop --local
+post_remove:
+  - pitchfork clean --prune
 ```
 
 ## Resolution rules
 
 Project or Git-local scalar values override global values. Named `ticket_commands` merge by name with repository entries winning. Repository `review_command` replaces the global array as a whole. Other lists replace global lists unless they contain `<global>` at the position where global entries should be inserted. `environment.variables` replaces the global map as a unit. Named URLs, static metadata, and metadata commands merge by name with repository entries winning. A repository URL replaces the complete global entry, including its label.
 
-The `<global>` marker is valid in repository `files.copy`, `ports.services`, and `post_create` lists. It cannot appear in the global configuration.
+The `<global>` marker is valid in repository `files.copy`, `ports.services`, `post_create`, `pre_remove`, and `post_remove` lists. It cannot appear in the global configuration.
 
 ## Fields
 
@@ -220,6 +225,14 @@ Controls files and directories transferred from the source checkout. Missing sou
 ### `post_create`
 
 Commands run in order after all copy operations finish. Empty commands are rejected.
+
+### `pre_remove`
+
+Commands run in order from the linked worktree root before HWT renames the checkout or closes its Herdr workspace. Commands receive the generated worktree environment. A failure aborts removal and leaves the checkout and workspace intact.
+
+### `post_remove`
+
+Commands run in order from the primary checkout after HWT removes the checkout metadata and releases local DNS routes and ports. Commands retain the removed worktree's generated environment. A failure is reported, but the removal is already complete.
 
 ### `ports`
 

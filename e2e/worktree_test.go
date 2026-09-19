@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -345,5 +346,43 @@ func TestWT011_WT012_SafeAndForcedRemoval(t *testing.T) {
 	}
 	if _, err := os.Stat(linked); !os.IsNotExist(err) {
 		t.Fatalf("removed checkout remains: %v", err)
+	}
+}
+
+func TestWT013_RemovalLifecycleHooks(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	herdr := s.fakeHerdr(repo)
+	state := filepath.Join(s.root, "herdr-worktree")
+
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "pre_remove: ['exit 17']\n", 0o600)
+	s.git(repo, "add", ".herdr-worktree.yaml")
+	s.git(repo, "commit", "-m", "configure failing removal hook")
+	failed := s.linked(repo, "feature/remove-hook-failure")
+	mustWrite(t, state, failed+"\n", 0o600)
+	_, stderr, err := s.command(repo, "--herdr-bin", herdr, "remove", "--workspace", "ws1", "--json")
+	if err == nil || !strings.Contains(stderr, "pre_remove command") {
+		t.Fatalf("failing pre_remove = %q, %v", stderr, err)
+	}
+	if _, err := os.Stat(failed); err != nil {
+		t.Fatalf("failing pre_remove deleted checkout: %v", err)
+	}
+	s.git(repo, "worktree", "remove", "--force", failed)
+
+	preMarker := filepath.Join(s.root, "pre-remove")
+	postMarker := filepath.Join(s.root, "post-remove")
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf(`
+pre_remove:
+  - 'test "$PWD" = "$HWT_WORKTREE_PATH" && printf pre > %s'
+post_remove:
+  - 'test ! -e "$HWT_WORKTREE_PATH" && printf post > %s'
+`, preMarker, postMarker), 0o600)
+	s.git(repo, "add", ".herdr-worktree.yaml")
+	s.git(repo, "commit", "-m", "configure removal hooks")
+	linked := s.linked(repo, "feature/remove-hooks")
+	mustWrite(t, state, linked+"\n", 0o600)
+	s.run(repo, "--herdr-bin", herdr, "remove", "--workspace", "ws1", "--json")
+	if mustRead(t, preMarker) != "pre" || mustRead(t, postMarker) != "post" {
+		t.Fatal("removal hooks did not run")
 	}
 }

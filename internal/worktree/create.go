@@ -180,7 +180,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return rollback(err)
 	}
-	if err := runHooks(created.Path, cfg.PostCreate, environment.Variables); err != nil {
+	if err := runHooks("post_create", created.Path, cfg.PostCreate, environment.Variables); err != nil {
 		return rollback(err)
 	}
 	if err := gitRun(created.Path, "config", "--local", "branch."+options.Branch+".herdr-base", options.Base); err != nil {
@@ -457,7 +457,7 @@ func rejectSymlinkParents(root, relative string) error {
 	return nil
 }
 
-func runHooks(cwd string, hooks []string, environment map[string]string) error {
+func runHooks(name, cwd string, hooks []string, environment map[string]string) error {
 	for _, hook := range hooks {
 		cmd := exec.Command("/bin/sh", "-lc", hook)
 		cmd.Dir = cwd
@@ -466,7 +466,7 @@ func runHooks(cwd string, hooks []string, environment map[string]string) error {
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("post_create command %q: %w", hook, err)
+			return fmt.Errorf("%s command %q: %w", name, hook, err)
 		}
 	}
 	return nil

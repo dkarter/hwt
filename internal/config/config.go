@@ -45,6 +45,8 @@ type Config struct {
 	WorktreePrefix string                   `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
 	Files          Files                    `json:"files" yaml:"files"`
 	PostCreate     []string                 `json:"post_create,omitempty" yaml:"post_create,omitempty"`
+	PreRemove      []string                 `json:"pre_remove,omitempty" yaml:"pre_remove,omitempty"`
+	PostRemove     []string                 `json:"post_remove,omitempty" yaml:"post_remove,omitempty"`
 	Ports          Ports                    `json:"ports" yaml:"ports"`
 	Environment    Environment              `json:"environment" yaml:"environment"`
 	LocalDNS       LocalDNS                 `json:"local_dns" yaml:"local_dns"`
@@ -225,6 +227,8 @@ type rawConfig struct {
 	WorktreePrefix *string                   `yaml:"worktree_prefix"`
 	Files          *rawFiles                 `yaml:"files"`
 	PostCreate     *[]string                 `yaml:"post_create"`
+	PreRemove      *[]string                 `yaml:"pre_remove"`
+	PostRemove     *[]string                 `yaml:"post_remove"`
 	Ports          *rawPorts                 `yaml:"ports"`
 	Environment    *rawEnvironment           `yaml:"environment"`
 	LocalDNS       *rawLocalDNS              `yaml:"local_dns"`
@@ -444,13 +448,14 @@ func Validate(cfg Config) error {
 			return fmt.Errorf("files.copy entry %q cannot enable both copy_on_write and symlink", item.Path)
 		}
 	}
-	for _, hook := range cfg.PostCreate {
-		if hook == GlobalMarker {
-			return errors.New("post_create contains unresolved <global> marker")
-		}
-		if strings.TrimSpace(hook) == "" {
-			return errors.New("post_create commands cannot be empty")
-		}
+	if err := validateHooks("post_create", cfg.PostCreate); err != nil {
+		return err
+	}
+	if err := validateHooks("pre_remove", cfg.PreRemove); err != nil {
+		return err
+	}
+	if err := validateHooks("post_remove", cfg.PostRemove); err != nil {
+		return err
 	}
 	if cfg.Ports.Start < 1024 || cfg.Ports.End > 65535 || cfg.Ports.Start > cfg.Ports.End {
 		return fmt.Errorf("ports range must be between 1024 and 65535, got %d-%d", cfg.Ports.Start, cfg.Ports.End)
@@ -577,6 +582,18 @@ func Validate(cfg Config) error {
 	return nil
 }
 
+func validateHooks(name string, hooks []string) error {
+	for _, hook := range hooks {
+		if hook == GlobalMarker {
+			return fmt.Errorf("%s contains unresolved <global> marker", name)
+		}
+		if strings.TrimSpace(hook) == "" {
+			return fmt.Errorf("%s commands cannot be empty", name)
+		}
+	}
+	return nil
+}
+
 func validateArgv(name string, command []string) error {
 	if len(command) == 0 {
 		return fmt.Errorf("%s must contain an executable", name)
@@ -681,6 +698,8 @@ func resolve(global, project rawConfig) Config {
 		})
 	}
 	cfg.PostCreate = list(global.PostCreate, project.PostCreate)
+	cfg.PreRemove = list(global.PreRemove, project.PreRemove)
+	cfg.PostRemove = list(global.PostRemove, project.PostRemove)
 	cfg.Ports.Start = scalar(portStart(global.Ports), portStart(project.Ports), 20000)
 	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
 	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
@@ -852,10 +871,12 @@ func validateGlobal(cfg rawConfig) error {
 			}
 		}
 	}
-	if cfg.PostCreate != nil {
-		for _, entry := range *cfg.PostCreate {
-			if entry == GlobalMarker {
-				return errors.New("<global> cannot be used in the global config")
+	for _, hooks := range []*[]string{cfg.PostCreate, cfg.PreRemove, cfg.PostRemove} {
+		if hooks != nil {
+			for _, entry := range *hooks {
+				if entry == GlobalMarker {
+					return errors.New("<global> cannot be used in the global config")
+				}
 			}
 		}
 	}

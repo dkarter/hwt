@@ -708,7 +708,7 @@ func TestEnvironmentRemovingServicesReleasesAllocation(t *testing.T) {
 func TestRunHooksReplacesAmbientEnvironment(t *testing.T) {
 	t.Setenv("HWT_PORT_WEB", "ambient")
 	path := filepath.Join(t.TempDir(), "hook-env")
-	if err := runHooks(filepath.Dir(path), []string{"printf %s \"$HWT_PORT_WEB\" > hook-env"}, map[string]string{"HWT_PORT_WEB": "reserved"}); err != nil {
+	if err := runHooks("test", filepath.Dir(path), []string{"printf %s \"$HWT_PORT_WEB\" > hook-env"}, map[string]string{"HWT_PORT_WEB": "reserved"}); err != nil {
 		t.Fatal(err)
 	}
 	assertFile(t, path, "reserved")
@@ -998,6 +998,54 @@ func TestRemoveRenamesCheckoutAndRemovesMetadata(t *testing.T) {
 	status, err := localdns.Status(localdns.Config{Domain: "hwt.test"})
 	if err != nil || len(status.Entries) != 0 {
 		t.Fatalf("local DNS registration survived removal: %#v, %v", status.Entries, err)
+	}
+}
+
+func TestRemoveRunsLifecycleHooks(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	preMarker := filepath.Join(t.TempDir(), "pre-remove")
+	postMarker := filepath.Join(t.TempDir(), "post-remove")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf(`
+pre_remove:
+  - 'test "$PWD" = "$HWT_WORKTREE_PATH" && printf pre > %s'
+post_remove:
+  - 'test "$PWD" != "$HWT_WORKTREE_PATH" && test ! -e "$HWT_WORKTREE_PATH" && printf post > %s'
+`, preMarker, postMarker))
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure remove hooks")
+	checkout := filepath.Join(t.TempDir(), "remove-hooks")
+	run(t, repo, "git", "worktree", "add", "-b", "remove-hooks", checkout, "main")
+	client := &fakeClient{workspace: herdr.Workspace{ID: "w-hooks", CheckoutPath: checkout, LinkedWorktree: true}}
+
+	if _, err := Remove(client, RemoveOptions{WorkspaceID: "w-hooks"}); err != nil {
+		t.Fatal(err)
+	}
+	assertFile(t, preMarker, "pre")
+	assertFile(t, postMarker, "post")
+}
+
+func TestRemoveAbortsWhenPreRemoveFails(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "pre_remove: ['exit 17']\n")
+	run(t, repo, "git", "add", "-f", ".herdr-worktree.yaml")
+	run(t, repo, "git", "commit", "-m", "configure failing remove hook")
+	checkout := filepath.Join(t.TempDir(), "failed-remove-hook")
+	run(t, repo, "git", "worktree", "add", "-b", "failed-remove-hook", checkout, "main")
+	client := &fakeClient{workspace: herdr.Workspace{ID: "w-failed-hook", CheckoutPath: checkout, LinkedWorktree: true}}
+
+	_, err := Remove(client, RemoveOptions{WorkspaceID: "w-failed-hook"})
+	if err == nil || !strings.Contains(err.Error(), "pre_remove command") {
+		t.Fatalf("expected pre_remove failure, got %v", err)
+	}
+	if _, statErr := os.Stat(checkout); statErr != nil {
+		t.Fatalf("failed pre_remove deleted checkout: %v", statErr)
+	}
+	if len(client.runs) != 0 {
+		t.Fatalf("failed pre_remove closed workspace: %#v", client.runs)
 	}
 }
 

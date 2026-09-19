@@ -238,6 +238,16 @@
       "description": "Shell commands run in order from the new worktree root. Use <global> in a project config to include global commands.",
       "items": { "type": "string", "minLength": 1 }
     },
+    "pre_remove": {
+      "type": "array",
+      "description": "Shell commands run in order from the linked worktree root before removal. A failure aborts removal. Use <global> in a project config to include global commands.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "post_remove": {
+      "type": "array",
+      "description": "Shell commands run in order from the primary checkout after removal and built-in cleanup. Use <global> in a project config to include global commands.",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "ports": {
       "type": "object",
       "description": "Stable per-worktree ports reserved in a machine-local registry.",

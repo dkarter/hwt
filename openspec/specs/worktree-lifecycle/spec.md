@@ -106,3 +106,12 @@ HWT SHALL remove only linked Herdr worktrees and SHALL protect dirty or locked w
 - WHEN removal runs without `--force`
 - THEN HWT refuses to discard it
 - AND when `--force` is explicit HWT proceeds and reports the removed workspace and path
+
+#### Scenario: Removal lifecycle hooks {#WT-013}
+
+- GIVEN a linked worktree with configured `pre_remove` or `post_remove` commands
+- WHEN the user removes the worktree
+- THEN HWT runs `pre_remove` from the linked checkout before destructive operations
+- AND a failing `pre_remove` leaves the checkout and workspace intact
+- AND HWT runs `post_remove` from the primary checkout after built-in cleanup
+- AND both hooks receive the removed worktree's generated environment

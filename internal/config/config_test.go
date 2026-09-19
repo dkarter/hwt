@@ -92,6 +92,8 @@ files:
   copy: [.env, global.txt]
   parallel: false
 post_create: [global-command]
+pre_remove: [global-pre-remove]
+post_remove: [global-post-remove]
 `)
 	writeFile(t, filepath.Join(repo, ".herdr-worktree.yaml"), `
 agent: repo-agent
@@ -106,6 +108,8 @@ files:
   copy: [local.txt, <global>]
   parallel: true
 post_create: [<global>, local-command]
+pre_remove: [local-pre-remove, <global>]
+post_remove: [<global>, local-post-remove]
 `)
 
 	cfg, sources, err := Load(repo)
@@ -137,6 +141,12 @@ post_create: [<global>, local-command]
 	}
 	if !reflect.DeepEqual(cfg.PostCreate, []string{"global-command", "local-command"}) {
 		t.Fatalf("unexpected hooks: %#v", cfg.PostCreate)
+	}
+	if !reflect.DeepEqual(cfg.PreRemove, []string{"local-pre-remove", "global-pre-remove"}) {
+		t.Fatalf("unexpected pre_remove hooks: %#v", cfg.PreRemove)
+	}
+	if !reflect.DeepEqual(cfg.PostRemove, []string{"global-post-remove", "local-post-remove"}) {
+		t.Fatalf("unexpected post_remove hooks: %#v", cfg.PostRemove)
 	}
 	if sources.Project != filepath.Join(repo, ".herdr-worktree.yaml") {
 		t.Fatalf("unexpected project source: %s", sources.Project)

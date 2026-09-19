@@ -83,13 +83,18 @@ files:
 post_create:
   - <global>
   - mise install
+
+pre_remove:
+  - pitchfork stop --local
+post_remove:
+  - pitchfork clean --prune
 ```
 
 Remove fields the project does not need. When no project config exists, hwt uses
 `<git-common-dir>/hwt/config.yaml` or `.yml` as the repository config. Repository
-scalar values override global values. Repository `files.copy` and `post_create`
-replace global lists unless `<global>` appears where the global entries should
-be inserted.
+scalar values override global values. Repository `files.copy`, `post_create`,
+`pre_remove`, and `post_remove` replace global lists unless `<global>` appears
+where the global entries should be inserted.
 
 ## Choosing Settings
 
@@ -143,6 +148,13 @@ be inserted.
 - `post_create`: Run deterministic setup commands from the new worktree root,
   such as dependency installation or code generation. Commands run in order
   after all file operations finish.
+- `pre_remove`: Run cleanup commands from the linked worktree root before HWT
+  renames or closes it. A failure aborts removal. Commands receive the same
+  generated `HWT_*` environment as `post_create`.
+- `post_remove`: Run cleanup commands from the primary checkout after HWT has
+  removed the checkout metadata and released its routes and ports. The removed
+  worktree's generated `HWT_*` environment remains available. A failure is
+  reported, but removal is already complete.
 - `ports`: List local services that need stable, distinct ports. HWT exposes
   them as `HWT_PORT_<SERVICE>` and `HWT_URL_<SERVICE>` in `.env.worktree` and
   `post_create`. With local DNS disabled, URLs use RFC 6761 localhost subdomains
