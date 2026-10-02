@@ -33,6 +33,7 @@ type Worktree struct {
 	Path            string
 	Linked          bool
 	Detached        bool
+	Prunable        bool
 	OpenWorkspaceID string
 }
 
@@ -137,6 +138,7 @@ func (c Client) Worktrees(cwd string) ([]Worktree, error) {
 				Path            string `json:"path"`
 				Linked          bool   `json:"is_linked_worktree"`
 				Detached        bool   `json:"is_detached"`
+				Prunable        bool   `json:"is_prunable"`
 				OpenWorkspaceID string `json:"open_workspace_id"`
 			} `json:"worktrees"`
 		} `json:"result"`
@@ -151,6 +153,7 @@ func (c Client) Worktrees(cwd string) ([]Worktree, error) {
 			Path:            item.Path,
 			Linked:          item.Linked,
 			Detached:        item.Detached,
+			Prunable:        item.Prunable,
 			OpenWorkspaceID: item.OpenWorkspaceID,
 		})
 	}

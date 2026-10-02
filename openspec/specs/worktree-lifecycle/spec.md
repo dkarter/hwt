@@ -80,6 +80,41 @@ HWT SHALL prepare configured paths only once per linked worktree, ignoring missi
 - WHEN `hwt copy` runs again
 - THEN HWT waits as needed and returns the original result without duplicating preparation
 
+### Requirement: Reuse existing branch checkouts safely
+
+HWT SHALL reuse live linked branch checkouts only when `--reuse` or `--focus` is requested, without repeating creation preparation or removing reused checkouts on failure.
+
+#### Scenario: Reuse an open workspace {#WT-014}
+
+- GIVEN a live linked branch checkout with an open Herdr workspace
+- WHEN creation requests `--reuse` or `--focus`
+- THEN HWT returns that workspace and a pane without creating another checkout
+- AND only `--focus` changes focus
+- AND JSON reports `reused_worktree` and `reused_workspace` as true
+- AND dirty files, ticket metadata, recorded base, and allocated ports are preserved without rerunning creation hooks
+
+#### Scenario: Open an existing checkout {#WT-015}
+
+- GIVEN a live linked branch checkout without an open workspace
+- WHEN creation requests reuse
+- THEN HWT opens a workspace at that checkout rather than creating another worktree
+- AND JSON reports `reused_worktree` as true and `reused_workspace` as false
+
+#### Scenario: Diagnose stale records without broad cleanup {#WT-016}
+
+- GIVEN a missing or prunable branch checkout
+- WHEN creation inspects the record
+- THEN HWT reports a nonzero stale-worktree diagnostic with the branch and path
+- AND a confirmed missing unlocked linked checkout receives targeted repair argv
+- AND HWT does not delete anything or prune unrelated worktree records
+- AND targeted repair followed by retry permits creation
+
+#### Scenario: Reuse failures retain the checkout {#WT-017}
+
+- GIVEN an existing linked checkout
+- WHEN inspection, opening, pane lookup, environment preparation, or focusing fails
+- THEN HWT reports the error without removing the existing checkout or dirty data
+
 ### Requirement: List Herdr worktrees
 
 HWT SHALL return Herdr's JSON worktree listing for the repository selected by `--cwd` or the current directory.

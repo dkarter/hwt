@@ -469,12 +469,20 @@ func (a *app) createCommand() *cobra.Command {
 			}
 			result, err := worktree.Create(a.client(), options)
 			if err != nil {
+				var stale *worktree.StaleWorktreeError
+				if jsonOutput && errors.As(err, &stale) {
+					return errors.Join(err, worktree.EncodeResult(cmd.OutOrStdout(), stale))
+				}
 				return err
 			}
 			if jsonOutput {
 				return worktree.EncodeResult(cmd.OutOrStdout(), result)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Created %s at %s (workspace %s)\n", result.Branch, result.Path, result.WorkspaceID)
+			action := "Created"
+			if result.ReusedWorktree {
+				action = "Reused"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s at %s (workspace %s)\n", action, result.Branch, result.Path, result.WorkspaceID)
 			return nil
 		},
 	}
@@ -484,7 +492,8 @@ func (a *app) createCommand() *cobra.Command {
 	flags.StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
 	flags.StringVar(&options.Path, "path", "", "override the configured worktree path")
 	flags.StringVar(&options.Label, "label", "", "Herdr workspace label")
-	flags.BoolVar(&options.Focus, "focus", false, "focus the new workspace")
+	flags.BoolVar(&options.Focus, "focus", false, "focus the workspace, reusing an existing branch checkout")
+	flags.BoolVar(&options.Reuse, "reuse", false, "reuse an existing branch checkout without focusing it")
 	flags.StringVar(&options.Ticket, "ticket", "", "derive the branch with a named ticket command")
 	flags.Lookup("ticket").NoOptDefVal = "default"
 	flags.BoolVar(&jsonOutput, "json", false, "print machine-readable output")

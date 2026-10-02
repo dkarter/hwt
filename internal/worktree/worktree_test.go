@@ -154,12 +154,31 @@ func TestCopyDoesNotMarkFailedCopyComplete(t *testing.T) {
 }
 
 type fakeClient struct {
-	created   herdr.Created
-	workspace herdr.Workspace
-	runs      [][]string
-	creates   [][]string
-	createFn  func(...string) (herdr.Created, error)
-	runErr    error
+	worktrees  []herdr.Worktree
+	panes      []herdr.Pane
+	opens      [][]string
+	inspectErr error
+	openErr    error
+	paneErr    error
+	created    herdr.Created
+	workspace  herdr.Workspace
+	runs       [][]string
+	creates    [][]string
+	createFn   func(...string) (herdr.Created, error)
+	runErr     error
+}
+
+func (f *fakeClient) Worktrees(_ string) ([]herdr.Worktree, error) {
+	return f.worktrees, f.inspectErr
+}
+
+func (f *fakeClient) Panes(_ string) ([]herdr.Pane, error) {
+	return f.panes, f.paneErr
+}
+
+func (f *fakeClient) Open(args ...string) (herdr.Created, error) {
+	f.opens = append(f.opens, append([]string(nil), args...))
+	return f.created, f.openErr
 }
 
 func (f *fakeClient) Run(args ...string) ([]byte, error) {

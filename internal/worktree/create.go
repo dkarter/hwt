@@ -26,6 +26,9 @@ type Client interface {
 	Run(args ...string) ([]byte, error)
 	SourceCheckout(cwd string) (string, error)
 	Create(args ...string) (herdr.Created, error)
+	Open(args ...string) (herdr.Created, error)
+	Worktrees(cwd string) ([]herdr.Worktree, error)
+	Panes(workspaceID string) ([]herdr.Pane, error)
 	Workspace(id string) (herdr.Workspace, error)
 	CurrentWorkspaceID() (string, error)
 }
@@ -38,19 +41,22 @@ type CreateOptions struct {
 	Path   string
 	Label  string
 	Focus  bool
+	Reuse  bool
 	Ticket string
 }
 
 type CreateResult struct {
-	WorkspaceID string            `json:"workspace_id"`
-	PaneID      string            `json:"pane_id"`
-	Path        string            `json:"path"`
-	Branch      string            `json:"branch"`
-	Base        string            `json:"base"`
-	Agent       string            `json:"agent,omitempty"`
-	Copied      []string          `json:"copied,omitempty"`
-	Config      config.Sources    `json:"config"`
-	Environment EnvironmentResult `json:"environment"`
+	ReusedWorktree  bool              `json:"reused_worktree"`
+	ReusedWorkspace bool              `json:"reused_workspace"`
+	WorkspaceID     string            `json:"workspace_id"`
+	PaneID          string            `json:"pane_id"`
+	Path            string            `json:"path"`
+	Branch          string            `json:"branch"`
+	Base            string            `json:"base"`
+	Agent           string            `json:"agent,omitempty"`
+	Copied          []string          `json:"copied,omitempty"`
+	Config          config.Sources    `json:"config"`
+	Environment     EnvironmentResult `json:"environment"`
 }
 
 type ticketResult struct {
@@ -71,16 +77,6 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if options.Ticket == "" && ((options.Branch != "" && options.Input != "") || (options.Branch == "" && !hasInput)) {
 		return CreateResult{}, errors.New("provide exactly one branch name or --branch")
 	}
-	if options.Base == "" {
-		options.Base, err = gitOutput(repoRoot, "branch", "--show-current")
-		if err != nil {
-			return CreateResult{}, fmt.Errorf("resolve current branch: %w", err)
-		}
-		if options.Base == "" {
-			return CreateResult{}, errors.New("--base is required from a detached HEAD")
-		}
-	}
-
 	sourceCheckout, err := client.SourceCheckout(repoRoot)
 	if err != nil {
 		return CreateResult{}, err
@@ -98,6 +94,10 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	}
 	generatedBranch := options.Ticket != ""
 	if generatedBranch {
+		options.Base, err = resolveCreateBase(repoRoot, options.Base)
+		if err != nil {
+			return CreateResult{}, err
+		}
 		if _, err := gitOutput(repoRoot, "rev-parse", "--verify", "--quiet", options.Base+"^{commit}"); err != nil {
 			return CreateResult{}, fmt.Errorf("base ref %q does not resolve to a commit: %w", options.Base, err)
 		}
@@ -114,6 +114,16 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 			return CreateResult{}, fmt.Errorf("invalid branch %q returned by ticket command: %w", options.Branch, err)
 		}
 		return CreateResult{}, fmt.Errorf("invalid branch %q: %w", options.Branch, err)
+	}
+	if !generatedBranch {
+		result, found, err := reuseExisting(client, sourceCheckout, options, cfg, sources)
+		if err != nil || found {
+			return result, err
+		}
+	}
+	options.Base, err = resolveCreateBase(repoRoot, options.Base)
+	if err != nil {
+		return CreateResult{}, err
 	}
 	path, err := worktreePath(sourceCheckout, options.Path, options.Branch, cfg)
 	if err != nil {
@@ -202,6 +212,20 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 
 func NormalizeBranchName(value string) string {
 	return strings.Join(strings.Fields(value), "-")
+}
+
+func resolveCreateBase(repoRoot, base string) (string, error) {
+	if base != "" {
+		return base, nil
+	}
+	base, err := gitOutput(repoRoot, "branch", "--show-current")
+	if err != nil {
+		return "", fmt.Errorf("resolve current branch: %w", err)
+	}
+	if base == "" {
+		return "", errors.New("--base is required from a detached HEAD")
+	}
+	return base, nil
 }
 
 func gitBranchExists(cwd, branch string) (bool, error) {

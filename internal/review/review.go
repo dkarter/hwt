@@ -24,9 +24,6 @@ var unsafeBranchName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 type Client interface {
 	worktree.Client
-	Open(args ...string) (herdr.Created, error)
-	Worktrees(cwd string) ([]herdr.Worktree, error)
-	Panes(workspaceID string) ([]herdr.Pane, error)
 	ProcessInfo(paneID string) ([]herdr.Process, error)
 	Split(paneID, cwd string) (herdr.Pane, error)
 }

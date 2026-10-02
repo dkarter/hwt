@@ -42,7 +42,8 @@ If file setup or a post-create command fails, hwt asks Herdr to remove the parti
 | `--cwd PATH`          | Repository path. Defaults to the current directory.           |
 | `--path PATH`         | Override the configured worktree path.                        |
 | `--label LABEL`       | Herdr workspace label.                                        |
-| `--focus`             | Focus the new workspace.                                      |
+| `--focus`             | Focus the workspace; implies reuse of an existing checkout.   |
+| `--reuse`             | Reuse an existing branch checkout without stealing focus.     |
 | `--json`              | Print machine-readable output.                                |
 
 ## Examples
@@ -73,6 +74,42 @@ hwt create --branch feat/agent-status --base main --focus --json
 ```
 
 The JSON result includes the workspace ID, root pane ID, checkout path, branch, base ref, configured agent, copied paths, generated environment, and configuration sources.
+
+## Existing and stale checkouts
+
+For explicit branches and normalized titles, `--reuse` or `--focus` returns an
+existing linked checkout. HWT reuses its open Herdr workspace or opens one at the
+existing path. Without either flag, HWT reports the conflicting checkout path.
+Ticket-generated branches retain their existing conflict policy and are not reused.
+
+Reuse does not copy files again, run `post_create`, reset the branch, or rewrite
+ticket or base metadata. Ports remain allocated with the same values, even if port
+configuration changed; run `hwt env` explicitly to reconcile those changes. The returned
+`base` is the recorded base, or an empty string if none was recorded; `--base` is
+not applied to a reused checkout. Configured placement affects new checkouts only.
+An explicit `--path` must match the existing checkout. Primary checkouts, ambiguous
+records, and invalid checkouts are never reused.
+
+JSON always includes `reused_worktree` and `reused_workspace`:
+
+| Outcome                                   | `reused_worktree` | `reused_workspace` |
+| ----------------------------------------- | ----------------- | ------------------ |
+| New checkout and workspace                | `false`           | `false`            |
+| Existing checkout, newly opened workspace | `true`            | `false`            |
+| Existing checkout and open workspace      | `true`            | `true`             |
+
+A missing or prunable checkout returns a nonzero exit status without deleting
+anything. With `--json`, the diagnostic includes `error: "stale_worktree"`,
+`branch`, and `path`. For a confirmed missing, unlocked linked checkout, `repair`
+contains a targeted command as an argv array. Review it, run it, then retry:
+
+```sh
+git -C /path/to/repo worktree remove --force -- '/path/to/missing checkout'
+hwt create --cwd /path/to/repo --branch feature/example --base main --focus --json
+```
+
+HWT never runs broad `git worktree prune`. Locked records or prunable entries whose
+directories still exist require manual inspection; no removal command is suggested.
 
 HWT replaces `{input}` directly in each configured argument without invoking a
 shell. If no input is supplied, an argument that is exactly `{input}` is

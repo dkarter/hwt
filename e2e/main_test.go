@@ -218,7 +218,13 @@ func (s *sandbox) fakeHerdr(repo string) string {
 	s.env = append(s.env, "HWT_FAKE_SOURCE="+repo, "HWT_FAKE_STATE="+state, "HWT_FAKE_LOG="+log)
 	return s.tool("herdr", `
 printf '%s\n' "$*" >> "$HWT_FAKE_LOG"
+if [ "${HWT_FAKE_FAIL:-}" = "$1 $2" ]; then printf 'injected failure\n' >&2; exit 1; fi
 if [ "$1 $2" = "worktree list" ]; then
+  if [ -n "${HWT_FAKE_LIST:-}" ]; then
+    IFS= read -r response < "$HWT_FAKE_LIST"
+    printf '%s\n' "$response"
+    exit 0
+  fi
   if [ -f "$HWT_FAKE_STATE" ]; then
     IFS= read -r path < "$HWT_FAKE_STATE"
     branch=$(git -C "$path" branch --show-current)
@@ -227,6 +233,15 @@ if [ "$1 $2" = "worktree list" ]; then
     printf '{"result":{"source":{"source_checkout_path":"%s"},"worktrees":[]}}\n' "$HWT_FAKE_SOURCE"
   fi
 	  exit 0
+fi
+if [ "$1 $2" = "worktree open" ]; then
+  shift 2; path=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in --path) path=$2; shift 2;; *) shift;; esac
+  done
+  printf '%s\n' "$path" > "$HWT_FAKE_STATE"
+  printf '{"result":{"workspace":{"workspace_id":"ws1"},"root_pane":{"pane_id":"pane1"},"worktree":{"path":"%s"}}}\n' "$path"
+  exit 0
 fi
 if [ "$1 $2" = "worktree create" ]; then
   shift 2; branch=; base=; path=

@@ -12,7 +12,7 @@ func TestClientDecodesReviewLifecycleResponses(t *testing.T) {
 case "$1 $2" in
   "pane process-info") printf '%s' '{"result":{"process_info":{"foreground_processes":[{"name":"tuicr","argv0":"tuicr","argv":["tuicr"]}]}}}' ;;
   "pane split") printf '%s' '{"result":{"pane":{"pane_id":"w1:p2","workspace_id":"w1"}}}' ;;
-  "worktree list") printf '%s' '{"result":{"worktrees":[{"branch":"hwt/review/pr-7","path":"/review","is_linked_worktree":true,"is_detached":false,"open_workspace_id":"w7"}]}}' ;;
+  "worktree list") printf '%s' '{"result":{"worktrees":[{"branch":"hwt/review/pr-7","path":"/review","is_linked_worktree":true,"is_detached":false,"is_prunable":true,"open_workspace_id":"w7"}]}}' ;;
   "worktree open") printf '%s' '{"result":{"workspace":{"workspace_id":"w7"},"root_pane":{"pane_id":"w7:p1"},"worktree":{"path":"/review"}}}' ;;
   "pane list") printf '%s' '{"result":{"panes":[{"pane_id":"w7:p1","workspace_id":"w7"}]}}' ;;
 esac
@@ -26,7 +26,7 @@ esac
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(worktrees) != 1 || worktrees[0].Branch != "hwt/review/pr-7" || worktrees[0].OpenWorkspaceID != "w7" || !worktrees[0].Linked {
+	if len(worktrees) != 1 || worktrees[0].Branch != "hwt/review/pr-7" || worktrees[0].OpenWorkspaceID != "w7" || !worktrees[0].Linked || !worktrees[0].Prunable {
 		t.Fatalf("unexpected worktrees: %#v", worktrees)
 	}
 	opened, err := client.Open("--cwd", "/repo", "--path", "/review", "--no-focus", "--json")
