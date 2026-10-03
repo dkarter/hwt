@@ -45,8 +45,8 @@ type Config struct {
 	WorktreePrefix string                   `json:"worktree_prefix,omitempty" yaml:"worktree_prefix,omitempty"`
 	Files          Files                    `json:"files" yaml:"files"`
 	PostCreate     []string                 `json:"post_create,omitempty" yaml:"post_create,omitempty"`
-	PreRemove      []string                 `json:"pre_remove,omitempty" yaml:"pre_remove,omitempty"`
-	PostRemove     []string                 `json:"post_remove,omitempty" yaml:"post_remove,omitempty"`
+	PreRemove      []RemoveHook             `json:"pre_remove,omitempty" yaml:"pre_remove,omitempty"`
+	PostRemove     []RemoveHook             `json:"post_remove,omitempty" yaml:"post_remove,omitempty"`
 	Ports          Ports                    `json:"ports" yaml:"ports"`
 	Environment    Environment              `json:"environment" yaml:"environment"`
 	LocalDNS       LocalDNS                 `json:"local_dns" yaml:"local_dns"`
@@ -59,6 +59,43 @@ type Ports struct {
 	End         int      `json:"end" yaml:"end"`
 	Services    []string `json:"services,omitempty" yaml:"services,omitempty"`
 	URLTemplate string   `json:"url_template" yaml:"url_template"`
+}
+
+// RemoveHook accepts synchronous shell-command strings and command objects.
+type RemoveHook struct {
+	Command string `json:"cmd" yaml:"cmd"`
+	Async   bool   `json:"async" yaml:"async"`
+}
+
+func (hook *RemoveHook) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!str" {
+		hook.Command = node.Value
+		return nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return errors.New("remove hook must be a command string or object")
+	}
+	for index := 0; index < len(node.Content); index += 2 {
+		switch key := node.Content[index].Value; key {
+		case "cmd":
+			if node.Content[index+1].Tag != "!!str" {
+				return errors.New("remove hook cmd must be a string")
+			}
+		case "async":
+		default:
+			return fmt.Errorf("unknown remove hook field %q", key)
+		}
+	}
+	type plain RemoveHook
+	return node.Decode((*plain)(hook))
+}
+
+func (hook RemoveHook) MarshalJSON() ([]byte, error) {
+	if !hook.Async {
+		return json.Marshal(hook.Command)
+	}
+	type plain RemoveHook
+	return json.Marshal(plain(hook))
 }
 
 type Environment struct {
@@ -219,21 +256,23 @@ type Sources struct {
 }
 
 type rawConfig struct {
-	Agent          *string                   `yaml:"agent"`
-	TicketCommands *map[string]TicketCommand `yaml:"ticket_commands"`
-	ReviewCommand  *[]string                 `yaml:"review_command"`
-	WorktreeDir    *string                   `yaml:"worktree_dir"`
-	WorktreeNaming *string                   `yaml:"worktree_naming"`
-	WorktreePrefix *string                   `yaml:"worktree_prefix"`
-	Files          *rawFiles                 `yaml:"files"`
-	PostCreate     *[]string                 `yaml:"post_create"`
-	PreRemove      *[]string                 `yaml:"pre_remove"`
-	PostRemove     *[]string                 `yaml:"post_remove"`
-	Ports          *rawPorts                 `yaml:"ports"`
-	Environment    *rawEnvironment           `yaml:"environment"`
-	LocalDNS       *rawLocalDNS              `yaml:"local_dns"`
-	URLs           *map[string]NamedURL      `yaml:"urls"`
-	Metadata       *rawMetadata              `yaml:"metadata"`
+	Agent           *string                   `yaml:"agent"`
+	TicketCommands  *map[string]TicketCommand `yaml:"ticket_commands"`
+	ReviewCommand   *[]string                 `yaml:"review_command"`
+	WorktreeDir     *string                   `yaml:"worktree_dir"`
+	WorktreeNaming  *string                   `yaml:"worktree_naming"`
+	WorktreePrefix  *string                   `yaml:"worktree_prefix"`
+	Files           *rawFiles                 `yaml:"files"`
+	PostCreate      *[]string                 `yaml:"post_create"`
+	PreRemove       *[]RemoveHook             `yaml:"pre_remove"`
+	PostRemove      *[]RemoveHook             `yaml:"post_remove"`
+	PreRemoveAlias  *[]RemoveHook             `yaml:"pre-remove"`
+	PostRemoveAlias *[]RemoveHook             `yaml:"post-remove"`
+	Ports           *rawPorts                 `yaml:"ports"`
+	Environment     *rawEnvironment           `yaml:"environment"`
+	LocalDNS        *rawLocalDNS              `yaml:"local_dns"`
+	URLs            *map[string]NamedURL      `yaml:"urls"`
+	Metadata        *rawMetadata              `yaml:"metadata"`
 }
 
 type rawMetadata struct {
@@ -451,10 +490,10 @@ func Validate(cfg Config) error {
 	if err := validateHooks("post_create", cfg.PostCreate); err != nil {
 		return err
 	}
-	if err := validateHooks("pre_remove", cfg.PreRemove); err != nil {
+	if err := validateRemoveHooks("pre_remove", cfg.PreRemove); err != nil {
 		return err
 	}
-	if err := validateHooks("post_remove", cfg.PostRemove); err != nil {
+	if err := validateRemoveHooks("post_remove", cfg.PostRemove); err != nil {
 		return err
 	}
 	if cfg.Ports.Start < 1024 || cfg.Ports.End > 65535 || cfg.Ports.Start > cfg.Ports.End {
@@ -594,6 +633,15 @@ func validateHooks(name string, hooks []string) error {
 	return nil
 }
 
+func validateRemoveHooks(name string, hooks []RemoveHook) error {
+	for _, hook := range hooks {
+		if err := validateHooks(name, []string{hook.Command}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateArgv(name string, command []string) error {
 	if len(command) == 0 {
 		return fmt.Errorf("%s must contain an executable", name)
@@ -669,6 +717,18 @@ func read(path string, required bool) (rawConfig, error) {
 	if err := decoder.Decode(&cfg); err != nil {
 		return rawConfig{}, fmt.Errorf("parse %s: %w", path, err)
 	}
+	if cfg.PreRemoveAlias != nil {
+		if cfg.PreRemove != nil {
+			return rawConfig{}, errors.New("cannot specify both pre_remove and pre-remove")
+		}
+		cfg.PreRemove = cfg.PreRemoveAlias
+	}
+	if cfg.PostRemoveAlias != nil {
+		if cfg.PostRemove != nil {
+			return rawConfig{}, errors.New("cannot specify both post_remove and post-remove")
+		}
+		cfg.PostRemove = cfg.PostRemoveAlias
+	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
@@ -698,8 +758,8 @@ func resolve(global, project rawConfig) Config {
 		})
 	}
 	cfg.PostCreate = list(global.PostCreate, project.PostCreate)
-	cfg.PreRemove = list(global.PreRemove, project.PreRemove)
-	cfg.PostRemove = list(global.PostRemove, project.PostRemove)
+	cfg.PreRemove = removeHookList(global.PreRemove, project.PreRemove)
+	cfg.PostRemove = removeHookList(global.PostRemove, project.PostRemove)
 	cfg.Ports.Start = scalar(portStart(global.Ports), portStart(project.Ports), 20000)
 	cfg.Ports.End = scalar(portEnd(global.Ports), portEnd(project.Ports), 39999)
 	cfg.Ports.Services = list(portServices(global.Ports), portServices(project.Ports))
@@ -871,10 +931,19 @@ func validateGlobal(cfg rawConfig) error {
 			}
 		}
 	}
-	for _, hooks := range []*[]string{cfg.PostCreate, cfg.PreRemove, cfg.PostRemove} {
+	for _, hooks := range []*[]string{cfg.PostCreate} {
 		if hooks != nil {
 			for _, entry := range *hooks {
 				if entry == GlobalMarker {
+					return errors.New("<global> cannot be used in the global config")
+				}
+			}
+		}
+	}
+	for _, hooks := range []*[]RemoveHook{cfg.PreRemove, cfg.PostRemove} {
+		if hooks != nil {
+			for _, entry := range *hooks {
+				if entry.Command == GlobalMarker {
 					return errors.New("<global> cannot be used in the global config")
 				}
 			}
@@ -922,35 +991,27 @@ func fileCopyOnWrite(files *rawFiles) *bool {
 }
 
 func copyList(global, project *[]rawCopyEntry) []rawCopyEntry {
-	if project == nil {
-		if global == nil {
-			return nil
-		}
-		return append([]rawCopyEntry(nil), (*global)...)
-	}
-	result := make([]rawCopyEntry, 0, len(*project))
-	for _, item := range *project {
-		if item.Path == GlobalMarker {
-			if global != nil {
-				result = append(result, (*global)...)
-			}
-			continue
-		}
-		result = append(result, item)
-	}
-	return result
+	return inheritedList(global, project, func(entry rawCopyEntry) bool { return entry.Path == GlobalMarker })
 }
 
 func list(global, project *[]string) []string {
+	return inheritedList(global, project, func(entry string) bool { return entry == GlobalMarker })
+}
+
+func removeHookList(global, project *[]RemoveHook) []RemoveHook {
+	return inheritedList(global, project, func(entry RemoveHook) bool { return entry.Command == GlobalMarker })
+}
+
+func inheritedList[T any](global, project *[]T, isMarker func(T) bool) []T {
 	if project == nil {
 		if global == nil {
 			return nil
 		}
-		return append([]string(nil), (*global)...)
+		return append([]T(nil), (*global)...)
 	}
-	result := make([]string, 0, len(*project))
+	result := make([]T, 0, len(*project))
 	for _, item := range *project {
-		if item == GlobalMarker {
+		if isMarker(item) {
 			if global != nil {
 				result = append(result, (*global)...)
 			}

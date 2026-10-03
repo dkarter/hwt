@@ -532,11 +532,14 @@ func (a *app) removeCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			result, err := worktree.Remove(a.client(), options)
+			if jsonOutput && (err == nil || len(result.AsyncLogs) > 0) {
+				return errors.Join(err, worktree.EncodeResult(cmd.OutOrStdout(), result))
+			}
+			for _, log := range result.AsyncLogs {
+				fmt.Fprintf(cmd.OutOrStdout(), "Async hook log: %s\n", log)
+			}
 			if err != nil {
 				return err
-			}
-			if jsonOutput {
-				return worktree.EncodeResult(cmd.OutOrStdout(), result)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Removed workspace %s at %s\n", result.WorkspaceID, result.Path)
 			return nil

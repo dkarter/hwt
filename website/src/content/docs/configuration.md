@@ -228,11 +228,44 @@ Commands run in order after all copy operations finish. Empty commands are rejec
 
 ### `pre_remove`
 
-Commands run in order from the linked worktree root before HWT renames the checkout or closes its Herdr workspace. Commands receive the generated worktree environment. A failure aborts removal and leaves the checkout and workspace intact.
+Commands start in order from the linked worktree root before HWT renames the checkout or closes its Herdr workspace. Commands receive the generated worktree environment. Blocking failures abort removal and leave the checkout and workspace intact.
 
 ### `post_remove`
 
-Commands run in order from the primary checkout after HWT removes the checkout metadata and releases local DNS routes and ports. Commands retain the removed worktree's generated environment. A failure is reported, but the removal is already complete.
+Commands start in order from the primary checkout after HWT removes the checkout metadata and releases local DNS routes and ports. Commands retain the removed worktree's generated environment. Blocking failures are reported, but removal is already complete.
+
+Both lists accept synchronous command strings or objects with `cmd` and optional
+`async`. Strings and objects without `async: true` block until completion:
+
+```yaml
+pre-remove:
+  - cmd: pitchfork stop --local
+    async: true
+  - echo 'blocking cleanup'
+post_remove:
+  - cmd: echo 'removed'
+    async: true
+```
+
+`pre-remove` and `post-remove` are aliases for the underscore names. Do not use
+both spellings for the same hook list. `<global>` includes inherited entries,
+including their async settings.
+
+Async jobs are detached and receive no terminal input. Their output is written to
+private log files under the user cache directory's `hwt/remove-hooks` folder;
+`hwt remove` prints the paths, and JSON includes `async_logs`. Failures after
+launch are logged rather than returned by the CLI.
+
+If a later blocking hook or cleanup step fails, HWT still reports log paths for
+jobs already started. A retry tracks unfinished pre-remove jobs from earlier
+attempts, even if the configuration has changed.
+
+Async pre-remove jobs keep their working-directory files alive in the moved-aside
+checkout until they finish. The original absolute checkout path and Git metadata
+are removed while they run, so use relative paths for remaining file access and
+keep any cleanup that requires the original path or Git metadata synchronous.
+Jobs can overlap each other and post-remove hooks. A stuck pre-remove job retains
+the moved-aside files until the job is stopped and its pending marker is cleared.
 
 ### `ports`
 

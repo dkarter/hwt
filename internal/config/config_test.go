@@ -35,6 +35,50 @@ func TestLoadUsesGitCommonConfigWhenProjectConfigIsMissing(t *testing.T) {
 	}
 }
 
+func TestRemoveHooksSupportMixedFormatsAliasesAndGlobalInheritance(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	global, err := GlobalPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, global, "pre_remove: [{cmd: global-stop, async: true}]\n")
+	repo := t.TempDir()
+	writeFile(t, DefaultProjectPath(repo), "pre-remove: [sync-stop, <global>, {cmd: blocking-stop}, {cmd: explicit-stop, async: false}]\npost-remove: [{cmd: notify, async: true}]\n")
+	cfg, _, err := Load(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []RemoveHook{{Command: "sync-stop"}, {Command: "global-stop", Async: true}, {Command: "blocking-stop"}, {Command: "explicit-stop"}}
+	if !reflect.DeepEqual(cfg.PreRemove, want) || !reflect.DeepEqual(cfg.PostRemove, []RemoveHook{{Command: "notify", Async: true}}) {
+		t.Fatalf("hooks: %#v %#v", cfg.PreRemove, cfg.PostRemove)
+	}
+	data, err := json.Marshal(cfg.PreRemove)
+	if err != nil || string(data) != `["sync-stop",{"cmd":"global-stop","async":true},"blocking-stop","explicit-stop"]` {
+		t.Fatalf("JSON = %s, %v", data, err)
+	}
+}
+
+func TestRemoveHooksRejectInvalidFormats(t *testing.T) {
+	for _, content := range []string{
+		"pre_remove: [{async: true}]\n",
+		"pre_remove: [{cmd: ''}]\n",
+		"pre_remove: [{cmd: stop, typo: true}]\n",
+		"pre_remove: [{cmd: 7}]\n",
+		"pre_remove: [7]\n",
+		"pre_remove: [{cmd: stop, async: later}]\n",
+		"pre_remove: []\npre-remove: []\n",
+		"post_remove: []\npost-remove: []\n",
+	} {
+		t.Run(content, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			writeFile(t, path, content)
+			if err := ValidateFile(path); err == nil {
+				t.Fatal("invalid remove hook accepted")
+			}
+		})
+	}
+}
+
 func TestLoadPrefersProjectConfigOverGitCommonConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := t.TempDir()
@@ -142,10 +186,10 @@ post_remove: [<global>, local-post-remove]
 	if !reflect.DeepEqual(cfg.PostCreate, []string{"global-command", "local-command"}) {
 		t.Fatalf("unexpected hooks: %#v", cfg.PostCreate)
 	}
-	if !reflect.DeepEqual(cfg.PreRemove, []string{"local-pre-remove", "global-pre-remove"}) {
+	if !reflect.DeepEqual(cfg.PreRemove, []RemoveHook{{Command: "local-pre-remove"}, {Command: "global-pre-remove"}}) {
 		t.Fatalf("unexpected pre_remove hooks: %#v", cfg.PreRemove)
 	}
-	if !reflect.DeepEqual(cfg.PostRemove, []string{"global-post-remove", "local-post-remove"}) {
+	if !reflect.DeepEqual(cfg.PostRemove, []RemoveHook{{Command: "global-post-remove"}, {Command: "local-post-remove"}}) {
 		t.Fatalf("unexpected post_remove hooks: %#v", cfg.PostRemove)
 	}
 	if sources.Project != filepath.Join(repo, ".herdr-worktree.yaml") {

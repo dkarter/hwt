@@ -5,6 +5,26 @@
   "description": "Global and repository-specific settings used by hwt.",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "removeHook": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cmd"],
+          "properties": {
+            "cmd": { "type": "string", "minLength": 1 },
+            "async": { "type": "boolean", "default": false }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "not": { "required": ["pre_remove", "pre-remove"] } },
+    { "not": { "required": ["post_remove", "post-remove"] } }
+  ],
   "properties": {
     "agent": {
       "type": "string",
@@ -240,13 +260,21 @@
     },
     "pre_remove": {
       "type": "array",
-      "description": "Shell commands run in order from the linked worktree root before removal. A failure aborts removal. Use <global> in a project config to include global commands.",
-      "items": { "type": "string", "minLength": 1 }
+      "description": "Shell commands started in order from the linked worktree root before removal. Strings and objects without async are blocking; a blocking failure aborts removal. async: true detaches the command and logs output. File deletion waits for async pre-remove jobs. Use <global> to include global commands.",
+      "items": { "$ref": "#/$defs/removeHook" }
     },
     "post_remove": {
       "type": "array",
-      "description": "Shell commands run in order from the primary checkout after removal and built-in cleanup. Use <global> in a project config to include global commands.",
-      "items": { "type": "string", "minLength": 1 }
+      "description": "Shell commands started in order from the primary checkout after removal and built-in cleanup. Strings and objects without async are blocking; async: true detaches and logs output. Use <global> to include global commands.",
+      "items": { "$ref": "#/$defs/removeHook" }
+    },
+    "pre-remove": {
+      "$ref": "#/properties/pre_remove",
+      "description": "Alias for pre_remove; do not specify both."
+    },
+    "post-remove": {
+      "$ref": "#/properties/post_remove",
+      "description": "Alias for post_remove; do not specify both."
     },
     "ports": {
       "type": "object",

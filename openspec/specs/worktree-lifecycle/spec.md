@@ -6,6 +6,19 @@ Create, prepare, list, and safely remove Herdr-managed linked worktrees.
 
 ## Requirements
 
+### Requirement: Optional asynchronous removal hooks
+
+HWT SHALL accept synchronous string removal hooks and objects containing `cmd` and optional `async`, defaulting to blocking execution. Hyphenated `pre-remove` and `post-remove` aliases SHALL be supported, but not alongside their underscore equivalents.
+
+#### Scenario: Detached removal hooks preserve files {#WT-018}
+
+- GIVEN pre-remove and post-remove commands configured with `async: true`
+- WHEN the user removes the worktree
+- THEN HWT starts the commands without waiting for their completion and returns their output log paths
+- AND the hooks survive CLI exit and workspace closure
+- AND deletion of moved-aside files waits for asynchronous pre-remove hooks to finish
+- AND asynchronous failures are logged rather than aborting removal
+
 ### Requirement: Create an explicit branch worktree
 
 HWT SHALL create a Herdr workspace from exactly one free-form title, explicit branch, or ticket input.

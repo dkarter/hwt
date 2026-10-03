@@ -32,6 +32,32 @@ Under normal conditions, the expensive recursive deletion still happens without 
 
 This fast remove path is a key difference from waiting for Herdr's built-in worktree removal to synchronously delete a dependency-heavy checkout.
 
+## Removal hooks
+
+`pre_remove` runs from the linked checkout before removal; `post_remove` runs from
+the primary checkout after metadata, route, and port cleanup. Strings are the
+normal synchronous format. Opt individual commands into background execution:
+
+```yaml
+pre_remove:
+  - cmd: pitchfork stop --local
+    async: true
+post_remove:
+  - cmd: echo 'worktree removed'
+    async: true
+```
+
+Async hooks survive closure of the workspace and CLI exit. HWT reports output log
+paths (also available as `async_logs` in JSON). Blocking failures retain their
+existing behavior; async failures are recorded in logs. Background file deletion
+waits for async pre-remove hooks to finish, without delaying the CLI. If background
+cleanup cannot start while async pre-remove hooks are running, HWT retains the
+moved-aside directory and reports an error rather than deleting files in use.
+
+The checkout is renamed and its Git metadata removed while async pre-remove jobs
+run. Keep path- or Git-sensitive cleanup synchronous. See
+[configuration](../../configuration/#pre_remove) for aliases and execution details.
+
 ## Flags
 
 | Flag                 | Description                                      |

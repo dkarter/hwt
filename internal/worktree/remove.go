@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/dkarter/hwt/internal/config"
 )
@@ -30,12 +31,12 @@ type RemoveOptions struct {
 }
 
 type RemoveResult struct {
-	WorkspaceID string `json:"workspace_id"`
-	Path        string `json:"path"`
+	WorkspaceID string   `json:"workspace_id"`
+	Path        string   `json:"path"`
+	AsyncLogs   []string `json:"async_logs,omitempty"`
 }
 
-func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
-	var err error
+func Remove(client Client, options RemoveOptions) (result RemoveResult, err error) {
 	if options.WorkspaceID == "" {
 		options.WorkspaceID, err = client.CurrentWorkspaceID()
 		if err != nil {
@@ -49,6 +50,14 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 	if workspace.CheckoutPath == "" || !workspace.LinkedWorktree {
 		return RemoveResult{}, fmt.Errorf("workspace %s is not a linked Herdr worktree", options.WorkspaceID)
 	}
+	var logs []string
+	defer func() {
+		if len(logs) > 0 {
+			result.WorkspaceID = options.WorkspaceID
+			result.Path = workspace.CheckoutPath
+			result.AsyncLogs = logs
+		}
+	}()
 	if !options.Force {
 		if err := safeToRemove(workspace.CheckoutPath); err != nil {
 			return RemoveResult{}, err
@@ -69,9 +78,11 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 	source, err := primaryWorktree(root)
 	cfg := config.Config{LocalDNS: config.LocalDNS{Domain: config.DefaultLocalDNSDomain}}
 	if err == nil {
-		if loaded, _, loadErr := config.Load(source, commonDir); loadErr == nil {
-			cfg = loaded
+		loaded, _, loadErr := config.Load(source, commonDir)
+		if loadErr != nil {
+			return RemoveResult{}, loadErr
 		}
+		cfg = loaded
 	}
 	hookEnvironment := map[string]string(nil)
 	if len(cfg.PreRemove) > 0 || len(cfg.PostRemove) > 0 {
@@ -81,7 +92,9 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 		}
 		hookEnvironment = environment.Variables
 	}
-	if err := runHooks("pre_remove", root, cfg.PreRemove, hookEnvironment); err != nil {
+	pending, preLogs, err := runRemoveHooks("pre_remove", root, cfg.PreRemove, hookEnvironment)
+	logs = append(logs, preLogs...)
+	if err != nil {
 		return RemoveResult{}, err
 	}
 	metadataPath, err := os.ReadFile(filepath.Join(gitDir, "gitdir"))
@@ -112,21 +125,31 @@ func Remove(client Client, options RemoveOptions) (RemoveResult, error) {
 		_ = os.Remove(trashRoot)
 		return RemoveResult{}, errors.Join(fmt.Errorf("workspace closed but worktree metadata removal failed: %w", err), restoreErr)
 	}
-	if err := removeInBackground(trashRoot); err != nil {
-		if removeErr := os.RemoveAll(trashRoot); removeErr != nil {
-			return RemoveResult{}, errors.Join(err, removeErr)
+	cleanupErr := removeInBackground(trashRoot, pending...)
+	if cleanupErr != nil {
+		if len(pending) > 0 {
+			cleanupErr = fmt.Errorf("worktree moved to %s but background cleanup failed: %w", trashPath, cleanupErr)
+		} else if removeErr := os.RemoveAll(trashRoot); removeErr != nil {
+			cleanupErr = errors.Join(cleanupErr, removeErr)
+		} else {
+			cleanupErr = nil
 		}
 	}
 	if err := releaseLocalDNS(allocationPath, cfg); err != nil {
-		return RemoveResult{}, fmt.Errorf("worktree removed but local DNS cleanup failed: %w", err)
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("worktree removed but local DNS cleanup failed: %w", err))
 	}
 	if err := releasePorts(allocationPath); err != nil {
-		return RemoveResult{}, fmt.Errorf("worktree removed but port allocation cleanup failed: %w", err)
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("worktree removed but port allocation cleanup failed: %w", err))
 	}
-	if err := runHooks("post_remove", source, cfg.PostRemove, hookEnvironment); err != nil {
+	if cleanupErr != nil {
+		return RemoveResult{}, cleanupErr
+	}
+	_, postLogs, err := runRemoveHooks("post_remove", source, cfg.PostRemove, hookEnvironment)
+	logs = append(logs, postLogs...)
+	if err != nil {
 		return RemoveResult{}, fmt.Errorf("worktree removed but %w", err)
 	}
-	return RemoveResult{WorkspaceID: options.WorkspaceID, Path: workspace.CheckoutPath}, nil
+	return RemoveResult{WorkspaceID: options.WorkspaceID, Path: workspace.CheckoutPath, AsyncLogs: logs}, nil
 }
 
 func safeToRemove(path string) error {
@@ -161,18 +184,27 @@ func metadata(path string) (string, string, string, error) {
 	return lines[0], lines[1], lines[2], nil
 }
 
-func removeInBackground(path string) error {
+func removeInBackground(path string, pending ...string) error {
 	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
 		return err
 	}
 	defer null.Close()
-	cmd := exec.Command("/bin/rm", "-rf", "--", path)
+	args := []string{"-c", `path=$1
+shift
+for marker in "$@"; do
+  while [ -d "$marker" ]; do /bin/sleep 0.1; done
+done
+exec /bin/rm -rf -- "$path"`, "hwt-cleanup", path}
+	args = append(args, pending...)
+	cmd := exec.Command("/bin/sh", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Stdin = null
 	cmd.Stdout = null
 	cmd.Stderr = null
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start background cleanup: %w", err)
 	}
-	return cmd.Process.Release()
+	go func() { _ = cmd.Wait() }()
+	return nil
 }

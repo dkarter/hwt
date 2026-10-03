@@ -155,6 +155,12 @@ where the global entries should be inserted.
   removed the checkout metadata and released its routes and ports. The removed
   worktree's generated `HWT_*` environment remains available. A failure is
   reported, but removal is already complete.
+- Removal hook entries may also use `{cmd: COMMAND, async: true}`. Async is opt-in;
+  strings are the normal synchronous format, and objects without it stay blocking. `pre-remove` and
+  `post-remove` are aliases (do not combine both spellings). Detached hooks have
+  no terminal input and log output to paths returned as `async_logs`. File deletion
+  waits for async pre-remove jobs, but workspace closure and the CLI do not. Keep
+  cleanup requiring the original absolute path or Git metadata synchronous.
 - `ports`: List local services that need stable, distinct ports. HWT exposes
   them as `HWT_PORT_<SERVICE>` and `HWT_URL_<SERVICE>` in `.env.worktree` and
   `post_create`. With local DNS disabled, URLs use RFC 6761 localhost subdomains
