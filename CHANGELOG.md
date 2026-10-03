@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/dkarter/hwt/compare/v0.10.1...v0.11.0) (2026-10-03)
+
+
+### Features
+
+* check out branches and PRs in worktrees ([c9a3006](https://github.com/dkarter/hwt/commit/c9a3006879479a0bfa3f9a4379385e3dbc283a34))
+* support async worktree removal hooks ([9a2d60d](https://github.com/dkarter/hwt/commit/9a2d60ddeee8e3853678325f3d0d1411ad9e07ab))
+
+
+### Bug Fixes
+
+* review original branches with explicit reuse ([18eee7b](https://github.com/dkarter/hwt/commit/18eee7b5d128c6f0e7ca7b2ea20d3f8b4128cdfd))
+
 ## [0.10.1](https://github.com/dkarter/hwt/compare/v0.10.0...v0.10.1) (2026-10-03)
 
 
