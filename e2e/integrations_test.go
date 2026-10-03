@@ -375,3 +375,42 @@ func TestREV006_ExactReviewWorkspaceIsReused(t *testing.T) {
 		t.Fatalf("reused review result = %#v", second)
 	}
 }
+
+func TestREV012_CheckoutRunsCreateLifecycleWithoutReviewer(t *testing.T) {
+	for _, selector := range []string{"origin/feature/checkout", "7"} {
+		t.Run(selector, func(t *testing.T) {
+			s := newSandbox(t)
+			repo := s.repo()
+			s.git(repo, "branch", "feature/checkout")
+			remote := filepath.Join(s.root, "origin.git")
+			s.git(repo, "clone", "--bare", repo, remote)
+			head := s.git(repo, "rev-parse", "HEAD")
+			s.git(remote, "update-ref", "refs/pull/7/head", head)
+			s.git(repo, "branch", "-D", "feature/checkout")
+			s.git(repo, "remote", "add", "origin", remote)
+			s.tool("gh", `printf '%s\n' '{"number":7,"url":"https://github.com/acme/app/pull/7","title":"Checkout fixture","headRefName":"feature/checkout","headRefOid":"`+head+`","baseRefName":"main","isCrossRepository":true}'`)
+			herdr := s.fakeHerdr(repo)
+			mustWrite(t, filepath.Join(repo, "copy-me"), "copied", 0o600)
+			mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [missing-tool, '{pr_url}']\nfiles:\n  copy: [copy-me]\npost_create: ['test -f copy-me && echo created >> hook-ran']\n", 0o600)
+			path := filepath.Join(s.root, "checkout")
+			first := decode(t, s.run(repo, "--herdr-bin", herdr, "checkout", selector, "--remote", "origin", "--path", path, "--label", "Checkout fixture", "--json"))
+			if first["branch"] != "feature/checkout" || first["commit"] != head || first["review_command"].(map[string]any)["status"] != "not_requested" {
+				t.Fatalf("checkout = %#v", first)
+			}
+			second := decode(t, s.run(repo, "--herdr-bin", herdr, "checkout", "feature/checkout", "--reuse", "--json"))
+			if second["reused"] != true || second["path"] != first["path"] {
+				t.Fatalf("checkout reuse = %#v", second)
+			}
+			if mustRead(t, filepath.Join(path, "hook-ran")) != "created\n" || mustRead(t, filepath.Join(path, "copy-me")) != "copied" {
+				t.Fatal("creation lifecycle did not run exactly once")
+			}
+			if _, err := os.Stat(filepath.Join(path, ".env.worktree")); err != nil {
+				t.Fatal(err)
+			}
+			log := mustRead(t, filepath.Join(s.root, "herdr.log"))
+			if strings.Contains(log, "pane run") {
+				t.Fatalf("checkout launched reviewer: %s", log)
+			}
+		})
+	}
+}

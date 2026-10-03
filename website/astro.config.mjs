@@ -115,6 +115,7 @@ export default defineConfig({
           items: available([
             doc("CLI overview", "docs/cli-reference"),
             doc("Create worktree", "docs/cli/create-worktree"),
+            doc("Checkout worktree", "docs/cli/checkout-worktree"),
             doc("Remove worktree", "docs/cli/remove-worktree"),
             doc("List worktrees", "docs/cli/list-worktrees"),
             doc("Review pull request", "docs/cli/review-pull-request"),

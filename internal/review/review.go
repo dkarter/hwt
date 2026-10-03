@@ -32,6 +32,8 @@ type Options struct {
 	Remote     string
 	Focus      bool
 	Reuse      bool
+	Path       string
+	Label      string
 }
 
 type Identity struct {
@@ -73,7 +75,17 @@ func Run(client Client, options Options) (Result, error) {
 	return run(client, options, dependencies{pullrequest.ResolveMetadata, gitOutput, findTool})
 }
 
+// Checkout opens the same targets and runs the same creation lifecycle as Run,
+// without expanding or launching the configured reviewer.
+func Checkout(client Client, options Options) (Result, error) {
+	return openTarget(client, options, dependencies{pullrequest.ResolveMetadata, gitOutput, findTool}, false)
+}
+
 func run(client Client, options Options, deps dependencies) (Result, error) {
+	return openTarget(client, options, deps, true)
+}
+
+func openTarget(client Client, options Options, deps dependencies, startReview bool) (Result, error) {
 	if strings.TrimSpace(options.Selector) == "" {
 		return Result{}, errors.New("a pull request URL, number, or branch reference is required")
 	}
@@ -96,7 +108,7 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if reviewCommandUsesPRURL(cfg.ReviewCommand) && !pullrequest.IsSelector(options.Selector) {
+	if startReview && reviewCommandUsesPRURL(cfg.ReviewCommand) && !pullrequest.IsSelector(options.Selector) {
 		return Result{}, errors.New("review_command uses {pr_url}, but the review target is not a pull request URL or number")
 	}
 
@@ -104,9 +116,12 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	reviewCommand, err := expandReviewCommand(cfg.ReviewCommand, identity)
-	if err != nil {
-		return Result{}, err
+	var reviewCommand []string
+	if startReview {
+		reviewCommand, err = expandReviewCommand(cfg.ReviewCommand, identity)
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	result := Result{Identity: identity, Commit: commit, Branch: reviewBranch, Launch: Launch{Status: "not_started", Command: reviewCommand}}
 
@@ -130,7 +145,11 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 		}
 	}
 
-	created, err := worktree.Create(client, worktree.CreateOptions{CWD: source, Branch: reviewBranch, Base: base, Label: reviewLabel(identity), Focus: options.Focus, Reuse: options.Reuse})
+	label := options.Label
+	if label == "" && startReview {
+		label = reviewLabel(identity)
+	}
+	created, err := worktree.Create(client, worktree.CreateOptions{CWD: source, Branch: reviewBranch, Base: base, Path: options.Path, Label: label, Focus: options.Focus, Reuse: options.Reuse})
 	if err != nil {
 		return result, fmt.Errorf("create or open review worktree: %w", err)
 	}
@@ -143,6 +162,10 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 	result.Commit = actual
 	if actual != commit && !options.Reuse {
 		return result, fmt.Errorf("opened worktree %s is at %s, not requested commit %s; refusing to launch", result.Path, actual, commit)
+	}
+	if !startReview {
+		result.Launch.Status = "not_requested"
+		return result, nil
 	}
 	if created.ReusedWorkspace {
 		panes, panesErr := client.Panes(result.WorkspaceID)

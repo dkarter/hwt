@@ -99,3 +99,15 @@ HWT SHALL launch the configured review argv in the review checkout and SHALL pre
 - GIVEN a branch review target and a `review_command` containing an exact `{pr_url}` argument
 - WHEN HWT validates the review target
 - THEN HWT fails before fetching the branch or creating a review branch or workspace
+
+### Requirement: Check out targets without a reviewer
+
+HWT SHALL provide `checkout` for the same pull request and branch selectors as `review`, using the original branch name and the complete creation lifecycle without launching a review command.
+
+#### Scenario: Checkout prepares or reuses a worktree {#REV-012}
+
+- GIVEN a remote branch or pull request target
+- WHEN the user runs `hwt checkout SELECTOR`
+- THEN HWT opens a worktree on the original branch name and runs configured copies, environment preparation, and post_create hooks
+- AND it does not expand review placeholders or launch a reviewer
+- AND `--reuse` opens an existing branch or worktree without resetting it or repeating copies and creation hooks

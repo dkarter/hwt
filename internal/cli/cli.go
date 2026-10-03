@@ -47,29 +47,48 @@ func newCommand(version string, resolveURL func(namedurl.Options) (namedurl.Resu
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.herdrBin, "herdr-bin", herdrBin, "path to the Herdr executable")
-	root.AddCommand(a.createCommand(), a.reviewCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), a.urlCommand(), dnsCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
+	root.AddCommand(a.createCommand(), a.reviewCommand(), a.checkoutCommand(), copyCommand(), environmentCommand(), a.removeCommand(), a.listCommand(), a.urlCommand(), dnsCommand(), a.configCommand(), a.pluginCommand(), a.herdrCommand(), schemaCommand(), skillCommand())
 	return root
 }
 
 func (a *app) reviewCommand() *cobra.Command {
+	return a.targetCommand("review")
+}
+
+func (a *app) checkoutCommand() *cobra.Command {
+	return a.targetCommand("checkout")
+}
+
+func (a *app) targetCommand(name string) *cobra.Command {
 	options := review.Options{}
 	jsonOutput := false
+	startReview := name == "review"
+	short := "Check out a pull request or branch into a configured worktree"
+	long := "Fetch a pull request or branch and open a Herdr worktree using the original branch name. Runs the complete create lifecycle, including configured file copies, environment preparation, and post_create hooks, without starting a reviewer."
+	if startReview {
+		short = "Open a pull request or branch in a dedicated review workspace"
+		long = "Fetch a GitHub pull request URL, pull request number, or branch without changing the primary checkout, open a Herdr worktree using the original branch name, and launch the configured review command."
+	}
 	command := &cobra.Command{
-		Use:   "review <pull-request-url|number|branch>",
-		Short: "Open a pull request or branch in a dedicated review workspace",
-		Long: "Fetch a GitHub pull request URL, pull request number, or branch without changing the primary checkout, open a Herdr worktree using the original branch name, and launch the configured review command.\n\n" +
+		Use:   name + " <pull-request-url|number|branch>",
+		Short: short,
+		Long: long + "\n\n" +
 			"Pull request URLs must use HTTPS and the /OWNER/REPO/pull/NUMBER form. A positive decimal selector is a pull request number. Branches may be local names, REMOTE/BRANCH references, or unfetched names (origin is preferred). Use --reuse to preserve and open an existing branch or worktree.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options.Selector = args[0]
-			result, err := review.Run(a.client(), options)
+			open := review.Checkout
+			if startReview {
+				open = review.Run
+			}
+			result, err := open(a.client(), options)
 			if jsonOutput && (err == nil || result.Path != "") {
 				if encodeErr := worktree.EncodeResult(cmd.OutOrStdout(), result); encodeErr != nil {
 					return errors.Join(err, encodeErr)
 				}
 			} else if result.Path != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "Review workspace ready at %s (workspace %s, commit %s)\n", result.Path, result.WorkspaceID, result.Commit)
-				if err == nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s workspace ready at %s (workspace %s, commit %s)\n", name, result.Path, result.WorkspaceID, result.Commit)
+				if err == nil && startReview {
 					fmt.Fprintf(cmd.OutOrStdout(), "Review command: %s\n", result.Launch.Status)
 				}
 			}
@@ -80,8 +99,10 @@ func (a *app) reviewCommand() *cobra.Command {
 	flags.StringVar(&options.CWD, "cwd", "", "repository path (defaults to the current directory)")
 	flags.StringVarP(&options.Repository, "repo", "R", "", "GitHub repository in [HOST/]OWNER/REPO format (pull requests only)")
 	flags.StringVar(&options.Remote, "remote", "", "Git remote to fetch when it cannot be selected unambiguously")
-	flags.BoolVar(&options.Focus, "focus", false, "focus the review workspace")
+	flags.BoolVar(&options.Focus, "focus", false, "focus the workspace")
 	flags.BoolVar(&options.Reuse, "reuse", false, "open an existing branch or worktree without resetting it")
+	flags.StringVar(&options.Path, "path", "", "override the configured worktree path")
+	flags.StringVar(&options.Label, "label", "", "Herdr workspace label")
 	flags.BoolVar(&jsonOutput, "json", false, "print machine-readable workspace and launch details")
 	return command
 }

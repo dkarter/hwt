@@ -32,6 +32,13 @@ Create a worktree and Herdr workspace from the current branch:
 hwt create feature/my-change
 ```
 
+Check out an existing remote branch or PR with the same setup, without a reviewer:
+
+```bash
+hwt checkout origin/feature/my-change
+hwt checkout 123 --reuse
+```
+
 Add a `.herdr-worktree.yaml` file to define the checkout name and copy files that are not tracked by Git:
 
 ```yaml

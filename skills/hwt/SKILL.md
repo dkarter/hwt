@@ -39,6 +39,19 @@ Omit `--base` only when intentionally using the current branch. A detached HEAD
 requires an explicit base. Use `--focus` only when the user asks to switch to the
 new workspace.
 
+## Checkout
+
+Open a local or remote branch or PR without starting a reviewer:
+
+```bash
+hwt checkout --cwd <repository-path> --json <pull-request-url-number-or-branch>
+```
+
+Uses the original branch name and runs the complete `create` lifecycle, including
+configured file copies and hooks. Pass `--reuse` to open existing work without
+resetting it or repeating creation setup. Parse returned IDs and paths. Use
+`--path` or `--label` to override checkout location or workspace label.
+
 ## Review
 
 Create a review workspace using the original branch name from a full GitHub pull request

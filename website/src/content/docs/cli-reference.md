@@ -23,6 +23,7 @@ hwt --herdr-bin /path/to/herdr list
 ## Worktrees
 
 - [`hwt create`](../cli/create-worktree/) creates and configures a Herdr worktree workspace.
+- [`hwt checkout`](../cli/checkout-worktree/) checks out an existing branch or PR with the full creation lifecycle, without a reviewer.
 - [`hwt copy`](../cli/copy-files/) copies configured files into a linked worktree once.
 - [`hwt remove`](../cli/remove-worktree/) quickly removes a linked worktree and workspace.
 - [`hwt list`](../cli/list-worktrees/) lists Herdr worktrees for a repository.
