@@ -312,7 +312,7 @@ func TestREV005_ReviewRemoteBranchPrefersOriginAndRunsCreateLifecycle(t *testing
 			herdr := s.fakeHerdr(repo)
 			s.tool("review-tool", "exit 0")
 			mustWrite(t, filepath.Join(repo, "copy-me"), "copied", 0o600)
-			mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [review-tool]\nfiles:\n  copy: [copy-me]\npost_create: ['test -f copy-me && touch hook-ran']\nworktree_dir: "+filepath.Join(s.root, "reviews")+"\n", 0o600)
+			mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [review-tool]\nfiles:\n  copy: [copy-me]\npost_create: ['test -f copy-me && : > hook-ran']\nworktree_dir: "+filepath.Join(s.root, "reviews")+"\n", 0o600)
 			result := decode(t, s.run(repo, "--herdr-bin", herdr, "review", selector, "--json"))
 			if result["branch"] != "feature/remote" || result["identity"].(map[string]any)["remote"] != "origin" {
 				t.Fatalf("remote review = %#v", result)

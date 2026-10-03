@@ -39,10 +39,10 @@ func TestWT018_AsyncRemoveHooksSurviveCLIExitAndPreserveFiles(t *testing.T) {
 	})
 	mustWrite(t, filepath.Join(path, "keep"), "retained", 0o600)
 	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf(`pre-remove:
-  - cmd: 'while [ ! -f %s ]; do sleep 0.05; done; cat keep > %s; exit 17'
+  - cmd: 'while [ ! -f %s ]; do /bin/sleep 0.05; done; /bin/cat keep > %s; exit 17'
     async: true
 post_remove:
-  - cmd: 'while [ ! -f %s ]; do sleep 0.05; done; test ! -e "$HWT_WORKTREE_PATH" && echo post > %s'
+  - cmd: 'while [ ! -f %s ]; do /bin/sleep 0.05; done; test ! -e "$HWT_WORKTREE_PATH" && echo post > %s'
     async: true
 `, gate, pre, gate, post), 0o600)
 	result := decode(t, s.run(repo, "--herdr-bin", herdr, "remove", "--workspace", "ws1", "--force", "--json"))
@@ -103,7 +103,7 @@ func TestWT018_RemoveFailureReportsAlreadyStartedHookLogs(t *testing.T) {
 					time.Sleep(20 * time.Millisecond)
 				}
 			})
-			mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf("%s:\n  - cmd: 'while [ ! -f %s ]; do sleep 0.05; done; echo done'\n    async: true\n  - exit 17\n", name, gate), 0o600)
+			mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), fmt.Sprintf("%s:\n  - cmd: 'while [ ! -f %s ]; do /bin/sleep 0.05; done; echo done'\n    async: true\n  - exit 17\n", name, gate), 0o600)
 			stdout, stderr, err := s.command(repo, "--herdr-bin", herdr, "remove", "--workspace", "ws1", "--force", "--json")
 			if err == nil {
 				t.Fatal("synchronous hook failure was ignored")
