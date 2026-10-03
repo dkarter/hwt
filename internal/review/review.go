@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/dkarter/hwt/internal/pullrequest"
 	"github.com/dkarter/hwt/internal/worktree"
 )
-
-var unsafeBranchName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 type Client interface {
 	worktree.Client
@@ -34,6 +31,7 @@ type Options struct {
 	Repository string
 	Remote     string
 	Focus      bool
+	Reuse      bool
 }
 
 type Identity struct {
@@ -114,9 +112,10 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 
 	ref := "refs/heads/" + reviewBranch
 	if current, resolveErr := deps.runGit(source, "rev-parse", "--verify", "--quiet", ref+"^{commit}"); resolveErr == nil {
-		if current != commit {
-			return result, fmt.Errorf("review branch %q points to %s, not requested commit %s; remove or rename the conflicting branch", reviewBranch, current, commit)
+		if current != commit && !options.Reuse {
+			return result, fmt.Errorf("branch %q points to %s, not requested commit %s; use --reuse to open the existing branch without resetting it", reviewBranch, current, commit)
 		}
+		result.Commit = current
 	} else {
 		objectFormat, formatErr := deps.runGit(source, "rev-parse", "--show-object-format")
 		if formatErr != nil {
@@ -131,95 +130,53 @@ func run(client Client, options Options, deps dependencies) (Result, error) {
 		}
 	}
 
-	items, err := client.Worktrees(source)
+	created, err := worktree.Create(client, worktree.CreateOptions{CWD: source, Branch: reviewBranch, Base: base, Label: reviewLabel(identity), Focus: options.Focus, Reuse: options.Reuse})
 	if err != nil {
-		return result, fmt.Errorf("inspect Herdr worktrees: %w", err)
-	}
-	for _, item := range items {
-		if item.Branch != reviewBranch {
-			continue
-		}
-		if item.Detached {
-			return result, fmt.Errorf("worktree %s for review branch %q is detached", item.Path, reviewBranch)
-		}
-		actual, headErr := deps.runGit(item.Path, "rev-parse", "HEAD^{commit}")
-		if headErr != nil {
-			return result, fmt.Errorf("verify existing review worktree %s: %w", item.Path, headErr)
-		}
-		if actual != commit {
-			return result, fmt.Errorf("existing review worktree %s is at %s, not requested commit %s; refusing to reuse it", item.Path, actual, commit)
-		}
-		if !item.Linked {
-			return result, fmt.Errorf("review branch %q is checked out in the primary checkout; switch it before creating a review workspace", reviewBranch)
-		}
-		managedBase, managedErr := deps.runGit(source, "config", "--get", "branch."+reviewBranch+".herdr-base")
-		if managedErr != nil || managedBase == "" {
-			return result, fmt.Errorf("worktree %s uses the review branch but is not marked as HWT-managed; remove the conflict or choose another branch", item.Path)
-		}
-		if managedBase != base {
-			return result, fmt.Errorf("existing review worktree %s uses base %s, not requested base %s; refusing to reuse it", item.Path, managedBase, base)
-		}
-		result.Path = item.Path
-		result.Reused = true
-		if item.OpenWorkspaceID != "" {
-			result.WorkspaceID = item.OpenWorkspaceID
-			panes, panesErr := client.Panes(item.OpenWorkspaceID)
-			if panesErr != nil {
-				return result, fmt.Errorf("inspect reused Herdr workspace %s: %w", item.OpenWorkspaceID, panesErr)
-			}
-			if len(panes) == 0 {
-				return result, fmt.Errorf("reused Herdr workspace %s has no panes", item.OpenWorkspaceID)
-			}
-			idlePane := ""
-			reviewPane, _ := deps.runGit(source, "config", "--get", "branch."+reviewBranch+".hwt-review-pane")
-			for _, pane := range panes {
-				processes, processErr := client.ProcessInfo(pane.ID)
-				if processErr != nil {
-					return result, fmt.Errorf("inspect pane %s in reused workspace: %w", pane.ID, processErr)
-				}
-				if pane.ID == reviewPane && len(processes) > 0 {
-					result.PaneID = pane.ID
-					result.Launch.Status = "already_open"
-					if options.Focus {
-						if _, focusErr := client.Run("workspace", "focus", item.OpenWorkspaceID); focusErr != nil {
-							return result, fmt.Errorf("focus reused Herdr workspace %s: %w", item.OpenWorkspaceID, focusErr)
-						}
-					}
-					return result, nil
-				}
-				if len(processes) == 0 && (idlePane == "" || pane.ID == reviewPane) {
-					idlePane = pane.ID
-				}
-			}
-			if idlePane == "" {
-				pane, splitErr := client.Split(panes[0].ID, item.Path)
-				if splitErr != nil {
-					return result, fmt.Errorf("create a review pane in reused workspace %s: %w", item.OpenWorkspaceID, splitErr)
-				}
-				idlePane = pane.ID
-			}
-			result.PaneID = idlePane
-			if options.Focus {
-				if _, focusErr := client.Run("workspace", "focus", item.OpenWorkspaceID); focusErr != nil {
-					return result, fmt.Errorf("focus reused Herdr workspace %s: %w", item.OpenWorkspaceID, focusErr)
-				}
-			}
-			return launch(client, result, reviewCommand, deps.findTool, deps.runGit)
-		}
-
-		opened, openErr := client.Open("--cwd", source, "--path", item.Path, focusFlag(options.Focus), "--json")
-		if openErr != nil {
-			return result, fmt.Errorf("open existing review worktree in Herdr: %w", openErr)
-		}
-		result.WorkspaceID, result.PaneID, result.Path = opened.WorkspaceID, opened.PaneID, opened.Path
-		return launch(client, result, reviewCommand, deps.findTool, deps.runGit)
-	}
-
-	created, err := worktree.Create(client, worktree.CreateOptions{CWD: source, Branch: reviewBranch, Base: base, Label: reviewLabel(identity), Focus: options.Focus})
-	if err != nil {
-		return result, fmt.Errorf("create review worktree: %w", err)
+		return result, fmt.Errorf("create or open review worktree: %w", err)
 	}
 	result.WorkspaceID, result.PaneID, result.Path = created.WorkspaceID, created.PaneID, created.Path
+	result.Reused = created.ReusedWorktree
+	actual, err := deps.runGit(result.Path, "rev-parse", "HEAD^{commit}")
+	if err != nil {
+		return result, fmt.Errorf("verify opened worktree HEAD: %w", err)
+	}
+	result.Commit = actual
+	if actual != commit && !options.Reuse {
+		return result, fmt.Errorf("opened worktree %s is at %s, not requested commit %s; refusing to launch", result.Path, actual, commit)
+	}
+	if created.ReusedWorkspace {
+		panes, panesErr := client.Panes(result.WorkspaceID)
+		if panesErr != nil {
+			return result, fmt.Errorf("inspect reused Herdr workspace %s: %w", result.WorkspaceID, panesErr)
+		}
+		if len(panes) == 0 {
+			return result, fmt.Errorf("reused Herdr workspace %s has no panes", result.WorkspaceID)
+		}
+		idlePane := ""
+		reviewPane, _ := deps.runGit(source, "config", "--get", "branch."+reviewBranch+".hwt-review-pane")
+		for _, pane := range panes {
+			processes, processErr := client.ProcessInfo(pane.ID)
+			if processErr != nil {
+				return result, fmt.Errorf("inspect pane %s in reused workspace: %w", pane.ID, processErr)
+			}
+			if pane.ID == reviewPane && len(processes) > 0 {
+				result.PaneID = pane.ID
+				result.Launch.Status = "already_open"
+				return result, nil
+			}
+			if len(processes) == 0 && (idlePane == "" || pane.ID == reviewPane) {
+				idlePane = pane.ID
+			}
+		}
+		if idlePane == "" {
+			pane, splitErr := client.Split(panes[0].ID, result.Path)
+			if splitErr != nil {
+				return result, fmt.Errorf("create a review pane in reused workspace %s: %w", result.WorkspaceID, splitErr)
+			}
+			idlePane = pane.ID
+		}
+		result.PaneID = idlePane
+	}
 	return launch(client, result, reviewCommand, deps.findTool, deps.runGit)
 }
 
@@ -299,7 +256,10 @@ func resolveTarget(options Options, source string, deps dependencies) (Identity,
 			return Identity{}, "", "", "", fmt.Errorf("resolve fetched pull request base: %w", err)
 		}
 		identity := Identity{Kind: "pull_request", Selector: options.Selector, URL: metadata.URL, Number: metadata.Number, Title: metadata.Title, HeadBranch: metadata.HeadRefName, BaseBranch: metadata.BaseRefName, Fork: metadata.IsCrossRepository, Remote: remote}
-		return identity, commit, baseCommit, fmt.Sprintf("hwt/review/pr-%d", metadata.Number), nil
+		if _, err := deps.runGit(source, "check-ref-format", "--branch", metadata.HeadRefName); err != nil {
+			return Identity{}, "", "", "", fmt.Errorf("invalid pull request branch %q: %w", metadata.HeadRefName, err)
+		}
+		return identity, commit, baseCommit, metadata.HeadRefName, nil
 	}
 	if options.Repository != "" {
 		return Identity{}, "", "", "", errors.New("--repo is only valid with a pull request URL or number")
@@ -332,7 +292,7 @@ func resolveBranch(options Options, source string, git func(string, ...string) (
 	}
 	if commit, localErr := git(source, "rev-parse", "--verify", "refs/heads/"+options.Selector+"^{commit}"); localErr == nil && !remoteSelector {
 		identity := Identity{Kind: "branch", Selector: options.Selector, HeadBranch: options.Selector}
-		return identity, commit, baseCommit, branchName(options.Selector), nil
+		return identity, commit, baseCommit, options.Selector, nil
 	}
 	remote, branch, err := selectBranchRemote(options.Selector, options.Remote, remotes, source, git)
 	if err != nil {
@@ -347,7 +307,7 @@ func resolveBranch(options Options, source string, git func(string, ...string) (
 		return Identity{}, "", "", "", fmt.Errorf("resolve fetched branch %q: %w", branch, err)
 	}
 	identity := Identity{Kind: "branch", Selector: options.Selector, HeadBranch: branch, Remote: remote}
-	return identity, commit, baseCommit, branchName(remote + "/" + branch), nil
+	return identity, commit, baseCommit, branch, nil
 }
 
 func selectPRRemote(cwd, prURL, requested string, git func(string, ...string) (string, error)) (string, error) {
@@ -407,6 +367,11 @@ func selectBranchRemote(selector, requested string, remotes []string, cwd string
 			return remote, strings.TrimPrefix(selector, remote+"/"), nil
 		}
 	}
+	for _, remote := range remotes {
+		if remote == "origin" {
+			return remote, selector, nil
+		}
+	}
 	var matches []string
 	for _, remote := range remotes {
 		if _, err := git(cwd, "rev-parse", "--verify", "refs/remotes/"+remote+"/"+selector+"^{commit}"); err == nil {
@@ -459,27 +424,9 @@ func reviewLabel(identity Identity) string {
 	return "Review " + identity.HeadBranch
 }
 
-func branchName(identity string) string {
-	slug := strings.Trim(unsafeBranchName.ReplaceAllString(identity, "-"), "-.")
-	if len(slug) > 40 {
-		slug = slug[:40]
-	}
-	if slug == "" {
-		slug = "branch"
-	}
-	return "hwt/review/" + slug + "-" + shortHash(identity)
-}
-
 func shortHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:4])
-}
-
-func focusFlag(focus bool) string {
-	if focus {
-		return "--focus"
-	}
-	return "--no-focus"
 }
 
 func findTool(cwd, name string) error {

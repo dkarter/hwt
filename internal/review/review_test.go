@@ -33,6 +33,11 @@ func (f *fakeClient) Run(args ...string) ([]byte, error) {
 
 func (f *fakeClient) SourceCheckout(string) (string, error) { return f.source, nil }
 func (f *fakeClient) Workspace(string) (herdr.Workspace, error) {
+	for _, item := range f.worktrees {
+		if item.OpenWorkspaceID != "" {
+			return herdr.Workspace{ID: item.OpenWorkspaceID, CheckoutPath: item.Path, LinkedWorktree: item.Linked}, nil
+		}
+	}
 	return herdr.Workspace{}, nil
 }
 func (f *fakeClient) CurrentWorkspaceID() (string, error) { return "", nil }
@@ -120,7 +125,7 @@ func TestRunFetchesForkPullRequestRefAndVerifiesSHA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Branch != "hwt/review/pr-7" || result.Commit != head || !result.Identity.Fork || result.Identity.Remote != "origin" {
+	if result.Branch != "feature/fork" || result.Commit != head || !result.Identity.Fork || result.Identity.Remote != "origin" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	wantCommand := []string{"tuicr", "pr", metadata.URL}
@@ -174,16 +179,22 @@ func TestRunRejectsPRURLPlaceholderForBranchReview(t *testing.T) {
 func TestRunRejectsReviewBranchAtDifferentCommit(t *testing.T) {
 	repo := initRepository(t)
 	runGit(t, repo, "branch", "feature")
-	reviewBranch := branchName("feature")
-	runGit(t, repo, "branch", reviewBranch)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	runGit(t, repo, "clone", "--bare", repo, remote)
+	runGit(t, repo, "remote", "add", "origin", remote)
 	write(t, filepath.Join(repo, "change"), "change")
 	runGit(t, repo, "add", "change")
 	runGit(t, repo, "commit", "-m", "change")
-	runGit(t, repo, "branch", "-f", "feature")
+	runGit(t, repo, "push", "origin", "main:refs/heads/feature")
 
-	_, err := run(&fakeClient{source: repo}, Options{CWD: repo, Selector: "feature"}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
+	_, err := run(&fakeClient{source: repo}, Options{CWD: repo, Selector: "origin/feature"}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
 	if err == nil || !strings.Contains(err.Error(), "not requested commit") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	local := outputGit(t, repo, "rev-parse", "feature")
+	result, err := run(&fakeClient{source: repo}, Options{CWD: repo, Selector: "origin/feature", Reuse: true}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
+	if err != nil || result.Commit != local || result.Branch != "feature" {
+		t.Fatalf("reuse result=%#v error=%v", result, err)
 	}
 }
 
@@ -191,8 +202,7 @@ func TestRunReusesExactOpenWorkspaceWithoutDuplicateLaunch(t *testing.T) {
 	repo := initRepository(t)
 	runGit(t, repo, "branch", "feature")
 	commit := outputGit(t, repo, "rev-parse", "feature")
-	reviewBranch := branchName("feature")
-	runGit(t, repo, "branch", reviewBranch, commit)
+	reviewBranch := "feature"
 	path := filepath.Join(filepath.Dir(repo), "existing-review")
 	runGit(t, repo, "worktree", "add", path, reviewBranch)
 	runGit(t, repo, "config", "branch."+reviewBranch+".herdr-base", commit)
@@ -204,7 +214,7 @@ func TestRunReusesExactOpenWorkspaceWithoutDuplicateLaunch(t *testing.T) {
 		processes: map[string][]herdr.Process{"w-existing:p1": {{Name: "tuicr", Argv0: "tuicr", Argv: []string{"tuicr"}}}},
 	}
 
-	result, err := run(client, Options{CWD: repo, Selector: "feature"}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
+	result, err := run(client, Options{CWD: repo, Selector: "feature", Reuse: true}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,9 +226,7 @@ func TestRunReusesExactOpenWorkspaceWithoutDuplicateLaunch(t *testing.T) {
 func TestRunRelaunchesReviewerInIdleOpenWorkspace(t *testing.T) {
 	repo := initRepository(t)
 	runGit(t, repo, "branch", "feature")
-	commit := outputGit(t, repo, "rev-parse", "feature")
-	reviewBranch := branchName("feature")
-	runGit(t, repo, "branch", reviewBranch, commit)
+	reviewBranch := "feature"
 	path := filepath.Join(filepath.Dir(repo), "idle-review")
 	runGit(t, repo, "worktree", "add", path, reviewBranch)
 	baseCommit := outputGit(t, repo, "rev-parse", "main")
@@ -229,7 +237,7 @@ func TestRunRelaunchesReviewerInIdleOpenWorkspace(t *testing.T) {
 		panes:     []herdr.Pane{{ID: "w-existing:p1", WorkspaceID: "w-existing"}},
 	}
 
-	result, err := run(client, Options{CWD: repo, Selector: "feature"}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
+	result, err := run(client, Options{CWD: repo, Selector: "feature", Reuse: true}, dependencies{pullrequest.ResolveMetadata, gitOutput, func(string, string) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

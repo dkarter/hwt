@@ -273,7 +273,7 @@ func TestREV005_REV007_ReviewLocalBranchCreatesWorkspaceAndLaunchesTool(t *testi
 	log := mustRead(t, filepath.Join(s.root, "herdr.log"))
 	requireContains(t, log, "pane run pane1 'review-tool' '--local'")
 	path := result["path"].(string)
-	if got := s.git(path, "branch", "--show-current"); !strings.HasPrefix(got, "hwt/review/feature-review-") {
+	if got := s.git(path, "branch", "--show-current"); got != "feature/review" {
 		t.Fatalf("review branch = %q", got)
 	}
 }
@@ -295,6 +295,36 @@ func TestREV011_ReviewBranchRejectsPRURLPlaceholderBeforeFetch(t *testing.T) {
 	}
 	if refs := s.git(repo, "for-each-ref", "--format=%(refname)", "refs/hwt/reviews/branches"); refs != "" {
 		t.Fatalf("branch fetched before placeholder rejection: %q", refs)
+	}
+}
+
+func TestREV005_ReviewRemoteBranchPrefersOriginAndRunsCreateLifecycle(t *testing.T) {
+	for _, selector := range []string{"feature/remote", "origin/feature/remote"} {
+		t.Run(selector, func(t *testing.T) {
+			s := newSandbox(t)
+			repo := s.repo()
+			s.git(repo, "branch", "feature/remote")
+			remote := filepath.Join(s.root, "origin.git")
+			s.git(repo, "clone", "--bare", repo, remote)
+			s.git(repo, "branch", "-D", "feature/remote")
+			s.git(repo, "remote", "add", "origin", remote)
+			s.git(repo, "remote", "add", "upstream", remote)
+			herdr := s.fakeHerdr(repo)
+			s.tool("review-tool", "exit 0")
+			mustWrite(t, filepath.Join(repo, "copy-me"), "copied", 0o600)
+			mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [review-tool]\nfiles:\n  copy: [copy-me]\npost_create: ['test -f copy-me && touch hook-ran']\nworktree_dir: "+filepath.Join(s.root, "reviews")+"\n", 0o600)
+			result := decode(t, s.run(repo, "--herdr-bin", herdr, "review", selector, "--json"))
+			if result["branch"] != "feature/remote" || result["identity"].(map[string]any)["remote"] != "origin" {
+				t.Fatalf("remote review = %#v", result)
+			}
+			path := result["path"].(string)
+			if mustRead(t, filepath.Join(path, "copy-me")) != "copied" {
+				t.Fatal("configured file not copied")
+			}
+			if _, err := os.Stat(filepath.Join(path, "hook-ran")); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -337,7 +367,7 @@ func TestREV006_ExactReviewWorkspaceIsReused(t *testing.T) {
 	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [review-tool]\nworktree_dir: "+filepath.Join(s.root, "reviews")+"\n", 0o600)
 
 	first := decode(t, s.run(repo, "--herdr-bin", herdr, "review", "feature/reuse", "--json"))
-	second := decode(t, s.run(repo, "--herdr-bin", herdr, "review", "feature/reuse", "--json"))
+	second := decode(t, s.run(repo, "--herdr-bin", herdr, "review", "feature/reuse", "--reuse", "--json"))
 	if first["reused"] != false || second["reused"] != true {
 		t.Fatalf("review reuse: first=%#v second=%#v", first, second)
 	}

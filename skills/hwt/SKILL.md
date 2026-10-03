@@ -41,7 +41,7 @@ new workspace.
 
 ## Review
 
-Create or reuse an exact-commit review workspace from a full GitHub pull request
+Create a review workspace using the original branch name from a full GitHub pull request
 URL, pull request number, or branch reference:
 
 ```bash
@@ -56,6 +56,10 @@ reused the existing review session and deliberately did not launch a duplicate
 tool because its recorded review pane is still busy. An idle pane is relaunched.
 A failed review tool launch leaves the checkout and workspace available for
 repair or manual launch.
+
+Pass `--reuse` to preserve and open an existing branch or linked worktree without
+resetting it or repeating creation hooks and file copies. Remote-qualified branch
+selectors fetch the remote tip; unfetched plain names prefer `origin`.
 
 ## Inspect
 

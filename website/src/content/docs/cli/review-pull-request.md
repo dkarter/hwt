@@ -13,7 +13,7 @@ hwt review origin/feature/name
 ```
 
 The command never checks out or resets the primary checkout. It creates a
-deterministic local branch below `hwt/review/`, creates the worktree through the
+local branch with the PR's head branch name (or the selected branch name), creates the worktree through the
 normal HWT lifecycle, opens its Herdr workspace without taking focus, and starts
 the configured review command. Pass `--focus` to switch to the review workspace.
 
@@ -36,17 +36,20 @@ With multiple remotes, HWT matches the URL's host, owner, and repository. Use
 ## Branch references
 
 A local branch is treated as already fetched. `REMOTE/BRANCH` fetches that
-branch without changing a checkout. An unfetched plain branch works when there
-is exactly one remote; with multiple remotes, use `REMOTE/BRANCH` or
-`--remote NAME`. Detached primary HEAD is rejected for branch selectors because
+branch without changing a checkout. An unfetched plain branch works when there is
+an `origin` remote, or exactly one remote. With multiple remotes and no `origin`, use `REMOTE/BRANCH` or
+`--remote NAME`. Explicit remote selectors always fetch the branch. Detached primary HEAD is rejected for branch selectors because
 there is no unambiguous review base. Pull request URLs carry their base metadata
 and still work from detached HEAD.
 
-## Exact reuse
+## Reuse
 
-HWT reuses a linked review worktree only when its deterministic review branch,
-HEAD commit, and pinned base commit all match the request. A mismatch is an error; HWT
-never resets or silently attaches to another commit. If the worktree is closed,
+Pass `--reuse` to open an existing linked worktree or put an existing local branch
+in a new worktree. HWT preserves local commits and uncommitted changes; it never
+resets the branch to the fetched tip. JSON reports the actual checked-out commit.
+Without `--reuse`, a conflicting local commit or existing worktree is an error
+(`--focus` also permits opening an existing worktree at the requested commit).
+Reuse does not repeat file copies or `post_create` hooks. If the worktree is closed,
 HWT reopens it and launches the reviewer. If its Herdr workspace is already
 open and its recorded review pane is busy, HWT returns it with
 `review_command.status` set to `already_open` and does not start a duplicate
@@ -87,4 +90,5 @@ result before returning a non-zero status.
 | `--remote NAME`         | Remote to fetch when selection is ambiguous.                          |
 | `-R, --repo REPOSITORY` | GitHub repository for a PR URL or number in `[HOST/]OWNER/REPO` form. |
 | `--focus`               | Focus the created or reused workspace.                                |
+| `--reuse`               | Open an existing branch or worktree without resetting it.             |
 | `--json`                | Print identity, checkout, workspace, reuse, and launch information.   |

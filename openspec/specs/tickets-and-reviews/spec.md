@@ -65,19 +65,20 @@ HWT SHALL accept one full HTTPS GitHub pull request URL, positive decimal pull r
 
 #### Scenario: Review a branch {#REV-005}
 
-- GIVEN a local branch, `REMOTE/BRANCH`, or an unfetched branch with one eligible remote
+- GIVEN a local branch, `REMOTE/BRANCH`, or an unfetched branch with origin or one eligible remote
 - WHEN the user runs `hwt review SELECTOR`
-- THEN HWT resolves its exact commit and creates a deterministic HWT-managed review branch
+- THEN HWT resolves its exact commit and creates a worktree using the original branch name
+- AND unfetched plain branch names prefer origin
 - AND ambiguous remote selection fails until `--remote` or a qualified selector is supplied
 
-### Requirement: Reuse only an exact review workspace
+### Requirement: Explicitly reuse existing review branches and workspaces
 
-HWT SHALL reuse a review worktree only when its managed branch, head commit, and pinned base match the request.
+HWT SHALL preserve existing branches and worktrees when `--reuse` is supplied, without resetting local commits or repeating creation hooks and file copies. Without `--reuse`, conflicting local commits SHALL be rejected and existing worktrees SHALL require `--reuse` or `--focus`.
 
 #### Scenario: Exact review reuse {#REV-006}
 
-- GIVEN an exact existing review worktree
-- WHEN the same target is reviewed again
+- GIVEN an existing review worktree
+- WHEN the same target is reviewed again with `--reuse`
 - THEN HWT reopens a closed workspace or reuses the open workspace
 - AND it does not start a duplicate while the recorded review pane is busy
 - AND it relaunches the reviewer when that pane is idle
