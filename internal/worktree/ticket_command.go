@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/dkarter/hwt/internal/config"
 )
 
@@ -27,13 +28,24 @@ func runTicketCommandWithStderr(cwd string, ticket config.TicketCommand, input s
 	cmd.Stdin = os.Stdin
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = io.MultiWriter(terminalStderr, &stderr)
+	// exec.Cmd only inherits a file descriptor when the writer is an *os.File.
+	// Wrapping a terminal in MultiWriter creates a pipe instead, hiding terminal
+	// dimensions and preventing interactive pickers from rendering their UI.
+	terminalFile, isFile := terminalStderr.(*os.File)
+	interactiveStderr := isFile && term.IsTerminal(terminalFile.Fd())
+	if interactiveStderr {
+		cmd.Stderr = terminalFile
+	} else {
+		cmd.Stderr = io.MultiWriter(terminalStderr, &stderr)
+	}
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return ticketResult{}, fmt.Errorf("find ticket command %q: %w", ticket.Command[0], err)
 		}
 		message := ""
-		if strings.TrimSpace(stderr.String()) == "" {
+		// Terminal diagnostics have already been displayed and are not captured;
+		// only use stdout as a fallback when we know stderr was empty.
+		if !interactiveStderr && strings.TrimSpace(stderr.String()) == "" {
 			message = strings.TrimSpace(stdout.String())
 		}
 		if message != "" {

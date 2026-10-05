@@ -2,6 +2,9 @@ package worktree
 
 import (
 	"bytes"
+	"errors"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -146,5 +149,47 @@ func TestRunTicketCommandDoesNotRepeatStreamedFailureStderr(t *testing.T) {
 	}
 	if got := terminalStderr.String(); got != "authentication required\n" {
 		t.Fatalf("streamed stderr = %q", got)
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 23 {
+		t.Fatalf("exit status was not preserved: %v", err)
+	}
+}
+
+func TestRunTicketCommandRedirectedStderr(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "stderr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	ticket := config.TicketCommand{Command: []string{"sh", "-c", `printf 'diagnostic\n' >&2; printf 'do not repeat stdout\n'; exit 23`}}
+	_, err = runTicketCommandWithStderr(t.TempDir(), ticket, "", file)
+	if err == nil || strings.Contains(err.Error(), "diagnostic") || strings.Contains(err.Error(), "do not repeat stdout") {
+		t.Fatalf("failure repeated already streamed diagnostics or unrelated stdout: %v", err)
+	}
+	data, err := os.ReadFile(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "diagnostic\n" {
+		t.Fatalf("redirected stderr = %q", data)
+	}
+}
+
+func TestRunTicketCommandFailureFallsBackToStdout(t *testing.T) {
+	var stderr bytes.Buffer
+	ticket := config.TicketCommand{Command: []string{"sh", "-c", `printf 'failure detail\n'; exit 23`}}
+	_, err := runTicketCommandWithStderr(t.TempDir(), ticket, "", &stderr)
+	if err == nil || !strings.Contains(err.Error(), "failure detail") {
+		t.Fatalf("missing stdout failure diagnostic: %v", err)
+	}
+}
+
+func TestRunTicketCommandMissingExecutable(t *testing.T) {
+	var stderr bytes.Buffer
+	ticket := config.TicketCommand{Command: []string{"hwt-nonexistent-ticket-command"}}
+	_, err := runTicketCommandWithStderr(t.TempDir(), ticket, "", &stderr)
+	if err == nil || !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("missing executable error = %v", err)
 	}
 }
