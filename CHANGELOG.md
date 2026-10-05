@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/dkarter/hwt/compare/v0.11.0...v0.11.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* preserve terminal stderr for ticket pickers ([#39](https://github.com/dkarter/hwt/issues/39)) ([a1d09d4](https://github.com/dkarter/hwt/commit/a1d09d4f04ba151515aee961813d5da8e3e56e9a))
+
 ## [0.11.0](https://github.com/dkarter/hwt/compare/v0.10.1...v0.11.0) (2026-10-03)
 
 
