@@ -40,6 +40,8 @@ HWT SHALL normalize whitespace in a positional title to hyphens unless `--ticket
 - GIVEN `ticket_commands.default` supports interactive selection and its final argument is `{input}`
 - WHEN the user runs `hwt create --ticket` without a query
 - THEN HWT omits that argument, connects terminal input and stderr for the picker, and uses its mapped branch from stdout JSON
+- AND terminal stderr retains its terminal identity and dimensions without a shell redirection workaround
+- AND picker UI remains separate from stdout JSON, including ticket metadata
 
 ### Requirement: Open a branch pull request
 
