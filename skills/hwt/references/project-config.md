@@ -155,6 +155,15 @@ where the global entries should be inserted.
   removed the checkout metadata and released its routes and ports. The removed
   worktree's generated `HWT_*` environment remains available. A failure is
   reported, but removal is already complete.
+- All lifecycle hooks receive hook-only `HWT_TICKET_IDENTIFIER`,
+  `HWT_TICKET_TITLE`, and `HWT_TICKET_URL` from persisted ticket metadata fields
+  `identifier`, `title`, and `url`. Missing fields (including unassigned worktrees)
+  are set to empty strings; inherited `HWT_TICKET_*` variables are stripped.
+  Other metadata fields are not exported, and branch names never imply a ticket.
+  Both synchronous and async removal stages share a snapshot captured before
+  `pre_remove`, retained after metadata deletion. These variables are not added
+  to `.env.worktree` or `hwt env` output. To skip unassigned worktrees, start a
+  cleanup command with `if [ -z "$HWT_TICKET_IDENTIFIER" ]; then exit 0; fi`.
 - Removal hook entries may also use `{cmd: COMMAND, async: true}`. Async is opt-in;
   strings are the normal synchronous format, and objects without it stay blocking. `pre-remove` and
   `post-remove` are aliases (do not combine both spellings). Detached hooks have

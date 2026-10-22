@@ -112,7 +112,7 @@ status=$?
 if [ "$status" -ne 0 ]; then printf 'hook failed with exit status %s\n' "$status" >&2; fi
 exit "$status"`, "hwt-"+name, command, marker)
 	cmd.Dir = cwd
-	cmd.Env = environmentList(environment)
+	cmd.Env = hookEnvironmentList(environment)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = null, log, log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {

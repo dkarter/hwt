@@ -226,6 +226,11 @@ Controls files and directories transferred from the source checkout. Missing sou
 
 Commands run in order after all copy operations finish. Empty commands are rejected.
 
+All lifecycle hooks also receive hook-only `HWT_TICKET_IDENTIFIER`,
+`HWT_TICKET_TITLE`, and `HWT_TICKET_URL` from persisted ticket metadata. Missing
+fields are empty, and inherited `HWT_TICKET_*` values are stripped. These values
+are not written to `.env.worktree`. See the [ticket hook environment contract](../worktree-metadata/#lifecycle-hook-environment).
+
 ### `pre_remove`
 
 Commands start in order from the linked worktree root before HWT renames the checkout or closes its Herdr workspace. Commands receive the generated worktree environment. Blocking failures abort removal and leave the checkout and workspace intact.
