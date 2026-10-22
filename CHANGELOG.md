@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/dkarter/hwt/compare/v0.11.1...v0.12.0) (2026-10-22)
+
+
+### Features
+
+* expose ticket metadata to lifecycle hooks ([#53](https://github.com/dkarter/hwt/issues/53)) ([cd5c67b](https://github.com/dkarter/hwt/commit/cd5c67bb52b3dd818fef37a88db6a7c99c90a6f9))
+
 ## [0.11.1](https://github.com/dkarter/hwt/compare/v0.11.0...v0.11.1) (2026-10-05)
 
 
