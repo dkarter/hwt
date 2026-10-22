@@ -90,7 +90,11 @@ func Remove(client Client, options RemoveOptions) (result RemoveResult, err erro
 		if environmentErr != nil {
 			return RemoveResult{}, fmt.Errorf("prepare remove hook environment: %w", environmentErr)
 		}
-		hookEnvironment = environment.Variables
+		ticket, ticketErr := ReadTicketMetadata(root)
+		if ticketErr != nil {
+			return RemoveResult{}, fmt.Errorf("prepare remove hook environment: %w", ticketErr)
+		}
+		hookEnvironment = ticketHookEnvironment(environment.Variables, ticket)
 	}
 	pending, preLogs, err := runRemoveHooks("pre_remove", root, cfg.PreRemove, hookEnvironment)
 	logs = append(logs, preLogs...)

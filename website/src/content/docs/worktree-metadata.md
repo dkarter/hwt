@@ -48,6 +48,36 @@ object alongside `branchName`. HWT ignores arbitrary top-level fields.
 Ticket metadata belongs to a specific worktree. It is unavailable when resolving
 a URL for an explicit branch.
 
+### Lifecycle hook environment
+
+`post_create`, `pre_remove`, and `post_remove` receive these hook-only variables:
+
+| Variable                | Persisted ticket metadata field |
+| ----------------------- | ------------------------------- |
+| `HWT_TICKET_IDENTIFIER` | `identifier`                    |
+| `HWT_TICKET_TITLE`      | `title`                         |
+| `HWT_TICKET_URL`        | `url`                           |
+
+All three variables are set, with an empty string for a missing field or an
+unassigned worktree. Values are passed literally, not evaluated as shell code.
+HWT strips inherited `HWT_TICKET_*` variables before adding this worktree's
+values. Other ticket metadata fields are not exported. No ticket is inferred
+from a branch name, and hooks do not run ticket commands or metadata commands.
+
+Both synchronous and async removal hooks use the same snapshot, captured before
+`pre_remove` and retained after Git metadata deletion for `post_remove`. These
+variables are not added to `.env.worktree` or `hwt env` output.
+
+A global cleanup hook can skip unassigned worktrees without parsing branches:
+
+```yaml
+pre_remove:
+  - 'if [ -z "$HWT_TICKET_IDENTIFIER" ]; then exit 0; fi; ticket-cleanup "$HWT_TICKET_IDENTIFIER"'
+```
+
+`ticket-cleanup` is a user-provided command; HWT does not integrate with a
+specific ticket provider.
+
 See [configuration](../configuration/#ticket_commands) for ticket command input,
 output selectors, and command execution rules.
 

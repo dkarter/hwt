@@ -255,17 +255,17 @@
     },
     "post_create": {
       "type": "array",
-      "description": "Shell commands run in order from the new worktree root. Use <global> in a project config to include global commands.",
+      "description": "Shell commands run in order from the new worktree root. Receives hook-only HWT_TICKET_IDENTIFIER, HWT_TICKET_TITLE, and HWT_TICKET_URL from persisted ticket metadata (missing fields are empty; inherited HWT_TICKET_* values are stripped). Use <global> in a project config to include global commands.",
       "items": { "type": "string", "minLength": 1 }
     },
     "pre_remove": {
       "type": "array",
-      "description": "Shell commands started in order from the linked worktree root before removal. Strings and objects without async are blocking; a blocking failure aborts removal. async: true detaches the command and logs output. File deletion waits for async pre-remove jobs. Use <global> to include global commands.",
+      "description": "Shell commands started in order from the linked worktree root before removal. Strings and objects without async are blocking; a blocking failure aborts removal. async: true detaches the command and logs output. File deletion waits for async pre-remove jobs. Receives hook-only HWT_TICKET_IDENTIFIER, HWT_TICKET_TITLE, and HWT_TICKET_URL from persisted ticket metadata (missing fields are empty; inherited HWT_TICKET_* values are stripped), captured before this stage for both removal stages. Use <global> to include global commands.",
       "items": { "$ref": "#/$defs/removeHook" }
     },
     "post_remove": {
       "type": "array",
-      "description": "Shell commands started in order from the primary checkout after removal and built-in cleanup. Strings and objects without async are blocking; async: true detaches and logs output. Use <global> to include global commands.",
+      "description": "Shell commands started in order from the primary checkout after removal and built-in cleanup. Strings and objects without async are blocking; async: true detaches and logs output. Retains hook-only HWT_TICKET_IDENTIFIER, HWT_TICKET_TITLE, and HWT_TICKET_URL captured before pre_remove, even after metadata deletion (missing fields are empty; inherited HWT_TICKET_* values are stripped). Use <global> to include global commands.",
       "items": { "$ref": "#/$defs/removeHook" }
     },
     "pre-remove": {

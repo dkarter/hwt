@@ -190,7 +190,7 @@ func Create(client Client, options CreateOptions) (CreateResult, error) {
 	if err != nil {
 		return rollback(err)
 	}
-	if err := runHooks("post_create", created.Path, cfg.PostCreate, environment.Variables); err != nil {
+	if err := runHooks("post_create", created.Path, cfg.PostCreate, ticketHookEnvironment(environment.Variables, generated.Metadata)); err != nil {
 		return rollback(err)
 	}
 	if err := gitRun(created.Path, "config", "--local", "branch."+options.Branch+".herdr-base", options.Base); err != nil {
@@ -485,7 +485,7 @@ func runHooks(name, cwd string, hooks []string, environment map[string]string) e
 	for _, hook := range hooks {
 		cmd := exec.Command("/bin/sh", "-lc", hook)
 		cmd.Dir = cwd
-		cmd.Env = environmentList(environment)
+		cmd.Env = hookEnvironmentList(environment)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
