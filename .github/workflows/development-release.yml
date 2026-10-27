@@ -158,7 +158,7 @@ jobs:
           workdir: source
 
       - name: Transfer release artifacts
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: development-release-${{ steps.build.outputs.tag }}
           path: |
