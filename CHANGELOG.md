@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/dkarter/hwt/compare/v0.12.0...v0.13.0) (2026-11-02)
+
+
+### Features
+
+* pass review arguments after -- ([#56](https://github.com/dkarter/hwt/issues/56)) ([822b195](https://github.com/dkarter/hwt/commit/822b195ae0869ca4725a5e38af3d69aad8042cca))
+
 ## [0.12.0](https://github.com/dkarter/hwt/compare/v0.11.1...v0.12.0) (2026-10-22)
 
 
