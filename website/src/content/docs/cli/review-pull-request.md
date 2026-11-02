@@ -71,6 +71,25 @@ reporting the successful workspace in JSON. The workspace remains intact so the
 tool can be installed or started manually. `launched` means Herdr accepted the
 command; later early exits or non-zero statuses do not remove the workspace.
 
+### One-off reviewer arguments
+
+Append extra arguments without changing configuration by placing them after
+`--`. With the default `[tuicr]` command:
+
+```sh
+hwt review 123 -- pr '{pr_url}'
+hwt review origin/feature/name -- -r main...HEAD
+```
+
+Each argument after `--` appends exactly one argv entry after the configured
+arguments. Values are not split on spaces or commas, and shell syntax remains
+literal. Put HWT flags, such as `--json` and `--reuse`, before `--`; everything
+after it is passed to the reviewer, including values beginning with `-`.
+Exact `{pr_url}` entries
+expand to the canonical URL and are rejected for branch reviews, just like
+configured arguments. These arguments do not persist to configuration or restart
+an already-open review process; JSON reports the requested expanded command.
+
 ## JSON output
 
 ```sh
@@ -92,3 +111,4 @@ result before returning a non-zero status.
 | `--focus`               | Focus the created or reused workspace.                                |
 | `--reuse`               | Open an existing branch or worktree without resetting it.             |
 | `--json`                | Print identity, checkout, workspace, reuse, and launch information.   |
+| `-- ARGS...`           | Append literal arguments to the configured reviewer command.         |

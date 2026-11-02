@@ -68,15 +68,29 @@ func (a *app) targetCommand(name string) *cobra.Command {
 	if startReview {
 		short = "Open a pull request or branch in a dedicated review workspace"
 		long = "Fetch a GitHub pull request URL, pull request number, or branch without changing the primary checkout, open a Herdr worktree using the original branch name, and launch the configured review command."
+		long += " Arguments after -- append to the configured review command as literal argv entries; exact {pr_url} entries expand to the PR URL."
+	}
+	use := name + " <pull-request-url|number|branch>"
+	if startReview {
+		use += " [-- REVIEW_ARGS...]"
 	}
 	command := &cobra.Command{
-		Use:   name + " <pull-request-url|number|branch>",
+		Use:   use,
 		Short: short,
 		Long: long + "\n\n" +
 			"Pull request URLs must use HTTPS and the /OWNER/REPO/pull/NUMBER form. A positive decimal selector is a pull request number. Branches may be local names, REMOTE/BRANCH references, or unfetched names (origin is preferred). Use --reuse to preserve and open an existing branch or worktree.",
-		Args: cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if startReview && cmd.ArgsLenAtDash() >= 0 {
+				args = args[:cmd.ArgsLenAtDash()]
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options.Selector = args[0]
+			options.ReviewArgs = nil
+			if startReview && cmd.ArgsLenAtDash() >= 0 {
+				options.ReviewArgs = args[cmd.ArgsLenAtDash():]
+			}
 			open := review.Checkout
 			if startReview {
 				open = review.Run

@@ -86,7 +86,7 @@ func TestRunCreatesBranchReviewWorkspaceAndLaunchesConfiguredArgv(t *testing.T) 
 	runGit(t, repo, "branch", "feature/test")
 	client := &fakeClient{source: repo}
 
-	result, err := run(client, Options{CWD: repo, Selector: "feature/test"}, dependencies{
+	result, err := run(client, Options{CWD: repo, Selector: "feature/test", ReviewArgs: []string{"--flag", "a,b", "two words", "it's literal; $(unsafe)"}}, dependencies{
 		resolvePR: pullrequest.ResolveMetadata,
 		runGit:    gitOutput,
 		findTool:  func(string, string) error { return nil },
@@ -97,7 +97,7 @@ func TestRunCreatesBranchReviewWorkspaceAndLaunchesConfiguredArgv(t *testing.T) 
 	if result.Identity.Kind != "branch" || result.Reused || result.Launch.Status != "launched" || result.WorkspaceID != "w-review" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
-	want := []string{"pane", "run", "w-review:p1", "'review-tool' 'literal; $(unsafe)'"}
+	want := []string{"pane", "run", "w-review:p1", "'review-tool' 'literal; $(unsafe)' '--flag' 'a,b' 'two words' 'it'\\''s literal; $(unsafe)'"}
 	if !reflect.DeepEqual(client.runs[len(client.runs)-1], want) {
 		t.Fatalf("launch = %#v, want %#v", client.runs[len(client.runs)-1], want)
 	}
@@ -108,7 +108,7 @@ func TestRunCreatesBranchReviewWorkspaceAndLaunchesConfiguredArgv(t *testing.T) 
 
 func TestRunFetchesForkPullRequestRefAndVerifiesSHA(t *testing.T) {
 	repo := initRepository(t)
-	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [tuicr, pr, '{pr_url}']\n")
+	write(t, filepath.Join(repo, ".herdr-worktree.yaml"), "review_command: [tuicr]\n")
 	remote := filepath.Join(t.TempDir(), "remote.git")
 	runGit(t, repo, "clone", "--bare", repo, remote)
 	runGit(t, repo, "remote", "add", "origin", remote)
@@ -117,7 +117,7 @@ func TestRunFetchesForkPullRequestRefAndVerifiesSHA(t *testing.T) {
 	client := &fakeClient{source: repo}
 	metadata := pullrequest.Metadata{Number: 7, URL: "https://github.com/acme/app/pull/7", Title: "Fork change", HeadRefName: "feature/fork", HeadRefOID: head, BaseRefName: "main", IsCrossRepository: true}
 
-	result, err := run(client, Options{CWD: repo, Selector: metadata.URL, Remote: "origin"}, dependencies{
+	result, err := run(client, Options{CWD: repo, Selector: metadata.URL, Remote: "origin", ReviewArgs: []string{"pr", "{pr_url}"}}, dependencies{
 		resolvePR: func(pullrequest.Options) (pullrequest.Metadata, error) { return metadata, nil },
 		runGit:    gitOutput,
 		findTool:  func(string, string) error { return nil },
@@ -170,6 +170,21 @@ func TestRunRejectsPRURLPlaceholderForBranchReview(t *testing.T) {
 	}
 	if branches := outputGit(t, repo, "branch", "--list", "hwt/review/*"); branches != "" {
 		t.Fatalf("review branch created before placeholder rejection: %q", branches)
+	}
+	if len(client.runs) != 0 {
+		t.Fatalf("Herdr commands run before placeholder rejection: %#v", client.runs)
+	}
+}
+
+func TestRunRejectsExtraPRURLPlaceholderBeforeResolvingBranch(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	client := &fakeClient{source: repo}
+	_, err := run(client, Options{CWD: repo, Selector: "feature/test", ReviewArgs: []string{"{pr_url}"}}, dependencies{
+		runGit: func(string, ...string) (string, error) { return repo, nil },
+	})
+	if err == nil || !strings.Contains(err.Error(), "not a pull request URL or number") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(client.runs) != 0 {
 		t.Fatalf("Herdr commands run before placeholder rejection: %#v", client.runs)

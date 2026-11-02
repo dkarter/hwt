@@ -34,6 +34,7 @@ type Options struct {
 	Reuse      bool
 	Path       string
 	Label      string
+	ReviewArgs []string
 }
 
 type Identity struct {
@@ -108,7 +109,8 @@ func openTarget(client Client, options Options, deps dependencies, startReview b
 	if err != nil {
 		return Result{}, err
 	}
-	if startReview && reviewCommandUsesPRURL(cfg.ReviewCommand) && !pullrequest.IsSelector(options.Selector) {
+	command := append(append([]string(nil), cfg.ReviewCommand...), options.ReviewArgs...)
+	if startReview && reviewCommandUsesPRURL(command) && !pullrequest.IsSelector(options.Selector) {
 		return Result{}, errors.New("review_command uses {pr_url}, but the review target is not a pull request URL or number")
 	}
 
@@ -118,7 +120,7 @@ func openTarget(client Client, options Options, deps dependencies, startReview b
 	}
 	var reviewCommand []string
 	if startReview {
-		reviewCommand, err = expandReviewCommand(cfg.ReviewCommand, identity)
+		reviewCommand, err = expandReviewCommand(command, identity)
 		if err != nil {
 			return Result{}, err
 		}
