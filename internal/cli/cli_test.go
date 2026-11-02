@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -265,12 +266,33 @@ func TestCreateRejectsTicketWithBranchFlag(t *testing.T) {
 }
 
 func TestReviewRequiresExactlyOneUnambiguousSelector(t *testing.T) {
-	for _, args := range [][]string{{"review"}, {"review", "one", "two"}} {
+	for _, args := range [][]string{{"review"}, {"review", "one", "two"}, {"review", "--", "one"}, {"review", "one", "two", "--", "--flag"}, {"review", "--"}, {"checkout", "one", "--", "--flag"}} {
 		command := New("test")
 		command.SetArgs(args)
 		err := command.Execute()
 		if err == nil || !strings.Contains(err.Error(), "arg(s)") {
 			t.Fatalf("hwt %v error = %v", args, err)
+		}
+	}
+}
+
+func TestReviewArgsPreserveSeparateLiteralValues(t *testing.T) {
+	for _, args := range [][]string{nil, {"pr", "{pr_url}", "--flag", "123", "a,b", "two words", "", "literal; $(unsafe)", "--json", "--"}} {
+		command := (&app{}).reviewCommand()
+		flags := append([]string{"123", "--json", "--"}, args...)
+		if err := command.ParseFlags(flags); err != nil {
+			t.Fatal(err)
+		}
+		positional := command.Flags().Args()
+		if err := command.ValidateArgs(positional); err != nil {
+			t.Fatal(err)
+		}
+		if command.ArgsLenAtDash() != 1 || positional[0] != "123" {
+			t.Fatalf("unexpected target/separator: %#v, %d", positional, command.ArgsLenAtDash())
+		}
+		got := positional[command.ArgsLenAtDash():]
+		if !slices.Equal(got, args) {
+			t.Fatalf("review args = %#v, want %#v", got, args)
 		}
 	}
 }

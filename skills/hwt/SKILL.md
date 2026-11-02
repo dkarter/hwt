@@ -70,6 +70,18 @@ tool because its recorded review pane is still busy. An idle pane is relaunched.
 A failed review tool launch leaves the checkout and workspace available for
 repair or manual launch.
 
+Append reviewer CLI arguments after `--`. Each value is one literal argv entry
+(no shell or comma splitting). HWT flags must come before `--`.
+Exact `{pr_url}` values expand to the canonical
+PR URL, including for numeric selectors. For the default `[tuicr]` command:
+
+```bash
+hwt review --json 123 -- pr '{pr_url}'
+```
+
+Arguments append to, rather than replace, the configured argv. They do not
+change configuration or restart an `already_open` reviewer.
+
 Pass `--reuse` to preserve and open an existing branch or linked worktree without
 resetting it or repeating creation hooks and file copies. Remote-qualified branch
 selectors fetch the remote tip; unfetched plain names prefer `origin`.
