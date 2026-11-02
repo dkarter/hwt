@@ -111,4 +111,4 @@ result before returning a non-zero status.
 | `--focus`               | Focus the created or reused workspace.                                |
 | `--reuse`               | Open an existing branch or worktree without resetting it.             |
 | `--json`                | Print identity, checkout, workspace, reuse, and launch information.   |
-| `-- ARGS...`           | Append literal arguments to the configured reviewer command.         |
+| `-- ARGS...`            | Append literal arguments to the configured reviewer command.          |
