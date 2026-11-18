@@ -165,6 +165,7 @@ type fakeClient struct {
 	runs       [][]string
 	creates    [][]string
 	createFn   func(...string) (herdr.Created, error)
+	runFn      func(...string) ([]byte, error)
 	runErr     error
 }
 
@@ -183,6 +184,9 @@ func (f *fakeClient) Open(args ...string) (herdr.Created, error) {
 
 func (f *fakeClient) Run(args ...string) ([]byte, error) {
 	f.runs = append(f.runs, append([]string(nil), args...))
+	if f.runFn != nil {
+		return f.runFn(args...)
+	}
 	return []byte(`{"result":{}}`), f.runErr
 }
 
@@ -997,6 +1001,17 @@ func TestRemoveRenamesCheckoutAndRemovesMetadata(t *testing.T) {
 		CheckoutPath:   checkout,
 		LinkedWorktree: true,
 	}}
+	client.runFn = func(args ...string) ([]byte, error) {
+		// Closing the caller's workspace can terminate Remove immediately.
+		if _, err := os.Stat(gitDir); !os.IsNotExist(err) {
+			t.Fatalf("workspace closed before removing Git metadata: %v", err)
+		}
+		status, err := localdns.Status(localdns.Config{Domain: "hwt.test"})
+		if err != nil || len(status.Entries) != 0 {
+			t.Fatalf("workspace closed before releasing local DNS: %#v, %v", status.Entries, err)
+		}
+		return []byte(`{"result":{}}`), nil
+	}
 
 	result, err := Remove(client, RemoveOptions{WorkspaceID: "w9"})
 	if err != nil {
@@ -1037,12 +1052,43 @@ post_remove:
 	checkout := filepath.Join(t.TempDir(), "remove-hooks")
 	run(t, repo, "git", "worktree", "add", "-b", "remove-hooks", checkout, "main")
 	client := &fakeClient{workspace: herdr.Workspace{ID: "w-hooks", CheckoutPath: checkout, LinkedWorktree: true}}
+	client.runFn = func(args ...string) ([]byte, error) {
+		assertFile(t, postMarker, "post")
+		return []byte(`{"result":{}}`), nil
+	}
 
 	if _, err := Remove(client, RemoveOptions{WorkspaceID: "w-hooks"}); err != nil {
 		t.Fatal(err)
 	}
 	assertFile(t, preMarker, "pre")
 	assertFile(t, postMarker, "post")
+}
+
+func TestRemoveReportsWorkspaceCloseFailureAfterCleanup(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repo := initRepo(t)
+	checkout := filepath.Join(t.TempDir(), "close-failure")
+	run(t, repo, "git", "worktree", "add", "-b", "close-failure", checkout, "main")
+	gitDir := output(t, checkout, "git", "rev-parse", "--path-format=absolute", "--git-dir")
+	closeErr := errors.New("workspace close failed")
+	client := &fakeClient{
+		workspace: herdr.Workspace{ID: "w-close-failure", CheckoutPath: checkout, LinkedWorktree: true},
+		runErr:    closeErr,
+	}
+
+	_, err := Remove(client, RemoveOptions{WorkspaceID: "w-close-failure"})
+	if !errors.Is(err, closeErr) || !strings.Contains(err.Error(), "worktree removed but workspace close failed") {
+		t.Fatalf("expected workspace close failure after removal, got %v", err)
+	}
+	for _, path := range []string{checkout, gitDir} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("removed worktree left %s behind: %v", path, err)
+		}
+	}
+	if branch := output(t, repo, "git", "branch", "--list", "close-failure"); branch == "" {
+		t.Fatal("removal deleted the branch")
+	}
 }
 
 func TestRemoveAbortsWhenPreRemoveFails(t *testing.T) {

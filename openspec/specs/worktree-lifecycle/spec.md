@@ -146,7 +146,15 @@ HWT SHALL remove only linked Herdr worktrees and SHALL protect dirty or locked w
 
 - GIVEN a clean unlocked linked worktree selected by current workspace or `--workspace`
 - WHEN the user runs `hwt remove` or `hwt rm`
-- THEN HWT closes its workspace, unregisters Git metadata, releases ports and routes, and returns without waiting for bulk deletion
+- THEN HWT unregisters Git metadata, releases ports and routes, starts bulk deletion, and runs post-remove hooks before closing its workspace
+- AND HWT returns without waiting for bulk deletion
+
+#### Scenario: Removal survives caller termination on workspace closure {#WT-019}
+
+- GIVEN removal runs inside the linked worktree's own workspace
+- WHEN closing that workspace terminates the HWT caller
+- THEN Git metadata and built-in registrations are already removed and post-remove hooks have run or started
+- AND the same branch can be checked out again without stale worktree repair
 
 #### Scenario: Protected and forced removal {#WT-012}
 
