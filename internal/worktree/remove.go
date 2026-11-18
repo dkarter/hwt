@@ -119,15 +119,10 @@ func Remove(client Client, options RemoveOptions) (result RemoveResult, err erro
 		_ = os.Remove(trashRoot)
 		return RemoveResult{}, fmt.Errorf("move worktree aside: %w", err)
 	}
-	if _, err := client.Run("workspace", "close", options.WorkspaceID); err != nil {
-		rollbackErr := os.Rename(trashPath, workspace.CheckoutPath)
-		_ = os.Remove(trashRoot)
-		return RemoveResult{}, errors.Join(err, rollbackErr)
-	}
 	if err := os.RemoveAll(gitDir); err != nil {
 		restoreErr := os.Rename(trashPath, workspace.CheckoutPath)
 		_ = os.Remove(trashRoot)
-		return RemoveResult{}, errors.Join(fmt.Errorf("workspace closed but worktree metadata removal failed: %w", err), restoreErr)
+		return RemoveResult{}, errors.Join(fmt.Errorf("worktree metadata removal failed: %w", err), restoreErr)
 	}
 	cleanupErr := removeInBackground(trashRoot, pending...)
 	if cleanupErr != nil {
@@ -145,13 +140,20 @@ func Remove(client Client, options RemoveOptions) (result RemoveResult, err erro
 	if err := releasePorts(allocationPath); err != nil {
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("worktree removed but port allocation cleanup failed: %w", err))
 	}
+	if cleanupErr == nil {
+		_, postLogs, postErr := runRemoveHooks("post_remove", source, cfg.PostRemove, hookEnvironment)
+		logs = append(logs, postLogs...)
+		if postErr != nil {
+			cleanupErr = fmt.Errorf("worktree removed but %w", postErr)
+		}
+	}
+	// Closing the caller's workspace can terminate this process. Finish all
+	// cleanup and launch detached jobs before making this final Herdr call.
+	if _, err := client.Run("workspace", "close", options.WorkspaceID); err != nil {
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("worktree removed but workspace close failed: %w", err))
+	}
 	if cleanupErr != nil {
 		return RemoveResult{}, cleanupErr
-	}
-	_, postLogs, err := runRemoveHooks("post_remove", source, cfg.PostRemove, hookEnvironment)
-	logs = append(logs, postLogs...)
-	if err != nil {
-		return RemoveResult{}, fmt.Errorf("worktree removed but %w", err)
 	}
 	return RemoveResult{WorkspaceID: options.WorkspaceID, Path: workspace.CheckoutPath, AsyncLogs: logs}, nil
 }

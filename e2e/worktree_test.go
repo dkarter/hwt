@@ -349,6 +349,42 @@ func TestWT011_WT012_SafeAndForcedRemoval(t *testing.T) {
 	}
 }
 
+func TestWT019_RemovalCompletesBeforeWorkspaceClosureKillsCaller(t *testing.T) {
+	s := newSandbox(t)
+	repo := s.repo()
+	postMarker := filepath.Join(s.root, "post-remove")
+	mustWrite(t, filepath.Join(repo, ".herdr-worktree.yaml"),
+		fmt.Sprintf("post_remove: ['printf done > %s']\n", postMarker), 0o600)
+	s.git(repo, "add", ".herdr-worktree.yaml")
+	s.git(repo, "commit", "-m", "configure post-remove hook")
+	branch := "feature/remove-own-workspace"
+	linked := s.linked(repo, branch)
+	gitDir := s.git(linked, "rev-parse", "--path-format=absolute", "--git-dir")
+	baseHerdr := s.fakeHerdr(repo)
+	mustWrite(t, filepath.Join(s.root, "herdr-worktree"), linked+"\n", 0o600)
+	herdr := s.tool("closing-herdr", fmt.Sprintf(`
+if [ "$1 $2" = "workspace close" ]; then
+  kill -KILL "$PPID"
+  exit 0
+fi
+exec %q "$@"
+`, baseHerdr))
+
+	_, _, err := s.command(linked, "--herdr-bin", herdr, "remove", "--workspace", "ws1")
+	if err == nil {
+		t.Fatal("workspace closure did not terminate the caller")
+	}
+	for _, path := range []string{linked, gitDir} {
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("caller termination left %s behind: %v", path, statErr)
+		}
+	}
+	if got := mustRead(t, postMarker); got != "done" {
+		t.Fatalf("post-remove hook did not finish before workspace closure: %q", got)
+	}
+	s.git(repo, "worktree", "add", linked, branch)
+}
+
 func TestWT013_RemovalLifecycleHooks(t *testing.T) {
 	s := newSandbox(t)
 	repo := s.repo()
