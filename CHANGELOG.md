@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/dkarter/hwt/compare/v0.13.0...v0.13.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* finish cleanup before workspace closure ([#59](https://github.com/dkarter/hwt/issues/59)) ([b293f8f](https://github.com/dkarter/hwt/commit/b293f8f5ee2421229e4a415e35a83381fa3f060c))
+
 ## [0.13.0](https://github.com/dkarter/hwt/compare/v0.12.0...v0.13.0) (2026-11-02)
 
 
